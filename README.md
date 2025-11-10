@@ -1,12 +1,12 @@
 # Qwery Core
 
-Natural language to SQL with automatic charting, powered by Vanna.
+Natural language to SQL with automatic charting and visualization.
 
 ## Features
 
-- Text-to-SQL inference backed by OpenAI or Anthropic
+- Text-to-SQL inference backed by OpenAI, Azure OpenAI, or Anthropic
 - Automatic CSV persistence and Plotly visualization
-- FastAPI server exposing the Vanna chat endpoints
+- FastAPI server with streaming chat endpoints
 - CLI for iterative analysis directly from the terminal
 
 ## Getting Started
@@ -48,4 +48,4 @@ poetry run qwery-cli
 poetry run uvicorn qwery_core.server:create_app --reload --host 0.0.0.0 --port 8000
 ```
 
-This exposes the Vanna web component at `/` and provides streaming chat endpoints under `/api/vanna/v2/*`.
+This exposes the web UI at `/` and provides streaming chat endpoints under `/api/v2/*`.

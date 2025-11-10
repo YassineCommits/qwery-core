@@ -4,15 +4,14 @@ from functools import lru_cache
 
 from fastapi import FastAPI
 
-from vanna.servers.fastapi import VannaFastAPIServer
-
 from .agent import create_agent
+from .server_components.fastapi import QweryFastAPIServer
 
 
 @lru_cache(maxsize=1)
 def _build_app() -> FastAPI:
     agent = create_agent()
-    server = VannaFastAPIServer(agent)
+    server = QweryFastAPIServer(agent)
     app = server.create_app()
 
     @app.get("/health", tags=["system"])

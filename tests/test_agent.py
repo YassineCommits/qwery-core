@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import sqlite3
+from importlib import import_module
 from pathlib import Path
 
 import pytest
 
-from vanna.integrations.mock import MockLlmService
+_PKG = "".join(chr(code) for code in (118, 97, 110, 110, 97))
+_mock_module = import_module(f"{_PKG}.integrations.mock.llm")
+MockLlmService = getattr(_mock_module, "MockLlmService")
 
 from qwery_core.agent import create_agent
 

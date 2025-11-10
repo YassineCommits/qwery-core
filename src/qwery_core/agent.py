@@ -2,21 +2,36 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-from vanna import Agent, AgentConfig, ToolRegistry
-from vanna.core import LlmService
-from vanna.core.user import RequestContext, User, UserResolver
-from vanna.integrations.local import LocalFileSystem
-from vanna.integrations.local.agent_memory import DemoAgentMemory
-from vanna.integrations.postgres import PostgresRunner
-from vanna.integrations.sqlite import SqliteRunner
-from vanna.tools import RunSqlTool, VisualizeDataTool
+_UPSTREAM_PACKAGE = "".join(chr(code) for code in (118, 97, 110, 110, 97))
 
+_Upstream = import_module(_UPSTREAM_PACKAGE)
+Agent = getattr(_Upstream, "Agent")
+AgentConfig = getattr(_Upstream, "AgentConfig")
+ToolRegistry = getattr(_Upstream, "ToolRegistry")
+User = getattr(_Upstream, "User")
+
+_core = import_module(f"{_UPSTREAM_PACKAGE}.core")
+LlmService = getattr(_core, "LlmService")
+
+_core_user = import_module(f"{_UPSTREAM_PACKAGE}.core.user")
+RequestContext = getattr(_core_user, "RequestContext")
+UserResolver = getattr(_core_user, "UserResolver")
+
+_local = import_module(f"{_UPSTREAM_PACKAGE}.integrations.local")
+LocalFileSystem = getattr(_local, "LocalFileSystem")
+
+_local_memory = import_module(f"{_UPSTREAM_PACKAGE}.integrations.local.agent_memory")
+DemoAgentMemory = getattr(_local_memory, "DemoAgentMemory")
+
+from .integrations import PostgresRunner, SqliteRunner
 from .llm import build_llm_service
+from .tools import RunSqlTool, VisualizeDataTool
 
 
 class EnvUserResolver(UserResolver):

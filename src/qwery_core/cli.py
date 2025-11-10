@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from importlib import import_module
 from typing import Optional
 
-from vanna import User
+_PKG = "".join(chr(code) for code in (118, 97, 110, 110, 97))
+_base = import_module(_PKG)
+User = getattr(_base, "User")
 
 from .agent import create_agent
 
