@@ -6,20 +6,25 @@ from importlib import import_module
 from typing import Optional
 
 _PKG = "".join(chr(code) for code in (118, 97, 110, 110, 97))
-_base = import_module(_PKG)
-User = getattr(_base, "User")
+_core_user = import_module(f"{_PKG}.core.user")
+RequestContext = getattr(_core_user, "RequestContext")
 
 from .agent import create_agent
 
 
 async def _chat_loop(agent_name: str, prompt: Optional[str]) -> None:
     agent = create_agent()
-    user = User(id=agent_name, username=agent_name)
     conversation_id = f"cli-{agent_name}"
+
+    # Create a simple request context for CLI usage
+    request_context = RequestContext(
+        headers={"x-user-id": agent_name},
+        cookies={},
+    )
 
     if prompt:
         async for component in agent.send_message(
-            user=user,
+            request_context=request_context,
             message=prompt,
             conversation_id=conversation_id,
         ):
@@ -38,7 +43,7 @@ async def _chat_loop(agent_name: str, prompt: Optional[str]) -> None:
             continue
 
         async for component in agent.send_message(
-            user=user,
+            request_context=request_context,
             message=message,
             conversation_id=conversation_id,
         ):
