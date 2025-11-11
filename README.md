@@ -82,3 +82,74 @@ PYTHONPATH=src .venv/bin/python -m qwery_core.cli \
 ```
 
 If Supabase has not stored a connection string for the deployment yet, set `QWERY_DB_URL` to the fallback database URL before running the CLI or FastAPI service.
+
+### WebSocket API
+
+When Supabase auth is enabled, a realtime endpoint mirrors the REST/CLI flows:
+
+```
+ws /ws/agent/{project_id}/{chat_id}
+```
+
+- **Authorization**: send `Authorization: Bearer <access_token>` and optionally `X-Refresh-Token`.
+- **Handshake**: the server immediately returns a `Handshake` protocol message confirming the deployment/chat IDs.
+- **Messages**: send `ProtocolMessage` JSON (`kind: "Message"`) with a `payload.Message` body. The server persists the message, runs the agent, and broadcasts the response to every socket attached to that chat.
+- **Commands**: `Set` commands for `database`, `database_url`, and `role` update the in-memory session context. Connection string handling still falls back to `QWERY_DB_URL` until Supabase exposes managed URLs.
+- **Heartbeats**: `Heartbeat` payloads are echoed back to keep the connection alive.
+- **Streaming**: the current implementation returns a single assistant summary (including the SQL and CSV filename). Chunk-level streaming is on the roadmap.
+- **Limits**:
+  - Websocket registries live in-process; use a single worker or add an external store for multi-instance deployments.
+  - Idle chats are closed after 1 hour (`code 1001`).
+  - Historical context comes from `gp_messages`/`gp_message_parts`; missing rows mean cold starts.
+
+Example client snippet:
+
+```python
+import asyncio
+import json
+import websockets
+
+async def main():
+    uri = "ws://localhost:8000/ws/agent/PROJECT_ID/CHAT_ID"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "X-Refresh-Token": REFRESH_TOKEN,
+    }
+    async with websockets.connect(uri, extra_headers=headers) as ws:
+        print("Handshake:", await ws.recv())
+        msg = {
+            "id": "msg-1",
+            "kind": "Message",
+            "payload": {
+                "Message": {
+                    "role": "user",
+                    "message_type": "text",
+                    "content": "list my tables"
+                }
+            },
+            "from": "client",
+            "to": "server"
+        }
+        await ws.send(json.dumps(msg))
+        print("Response:", await ws.recv())
+
+asyncio.run(main())
+```
+
+### CLI helper for websocket testing
+
+We ship a simple websocket CLI harness that pulls credentials from `tests/token.json`:
+
+```bash
+ACCESS_TOKEN=$(jq -r '.access_token' tests/token.json)
+REFRESH_TOKEN=$(jq -r '.refresh_token' tests/token.json)
+
+PYTHONPATH=src .venv/bin/python scripts/ws_cli.py \
+  --base-url ws://localhost:8000 \
+  --project-id <gp_deployment_request id> \
+  --chat-id $(uuidgen) \
+  --access-token "$ACCESS_TOKEN" \
+  --refresh-token "$REFRESH_TOKEN"
+```
+
+Pass `--prompt "list my tables"` to run a single request without entering interactive mode.

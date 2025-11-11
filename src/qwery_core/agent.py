@@ -281,15 +281,40 @@ async def handle_prompt(
                 "type": viz_type,
             }
 
-    summary_text = payload.get("summary") or "Query executed successfully."
-    summary_text += f" Results saved to {csv_filename}."
+    summary_text = (payload.get("summary") or "").strip()
+    if summary_text:
+        summary_text = "\n".join(
+            [
+                summary_text,
+                f"Results saved to {csv_filename}.",
+            ]
+        )
+    else:
+        summary_lines: list[str] = [
+            "Query executed successfully.",
+            f"Results saved to {csv_filename}.",
+            "",
+            "SQL:",
+            sql,
+        ]
+        columns = list(result.columns or [])
+        preview_head = preview_rows[:5]
+        if columns and preview_head:
+            summary_lines.append("")
+            summary_lines.append("Preview:")
+            summary_lines.append(", ".join(str(col) for col in columns))
+            for row in preview_head:
+                summary_lines.append(", ".join(str(value) for value in row))
+            if truncated:
+                summary_lines.append("... (truncated)")
+        summary_text = "\n".join(summary_lines)
 
     if chat_state and supabase_session:
         session_manager.record_message(
             supabase_session,
             chat_state,
             role="assistant",
-            content=f"{summary_text}\nSQL: {sql}",
+            content=summary_text,
         )
 
     return {

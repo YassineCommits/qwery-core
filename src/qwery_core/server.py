@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from .agent import create_agent
 from .server_components.fastapi import QweryFastAPIServer
+from .server_components.websocket import register_websocket_routes
 from .supabase import SupabaseSessionManager
 
 
@@ -19,6 +20,8 @@ def _build_app() -> FastAPI:
     session_manager = SupabaseSessionManager() if use_supabase else None
     server = QweryFastAPIServer(agent, session_manager=session_manager)
     app = server.create_app()
+    if use_supabase and session_manager:
+        register_websocket_routes(app, agent, session_manager)
 
     @app.get("/health", tags=["system"])
     async def health() -> dict[str, str]:

@@ -38,7 +38,7 @@ async def _chat_loop(
             chat_id=chat_id,
             access_token=access_token,
             refresh_token=refresh_token,
-        )
+    )
         _print_agent_response(response)
 
     if prompt:

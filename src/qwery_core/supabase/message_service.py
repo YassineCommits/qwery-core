@@ -163,7 +163,7 @@ class SupabaseMessageService:
 
         normalized_chat_id = self.normalize_chat_id(chat_id)
         message_id = str(uuid4())
-        now = datetime.datetime.utcnow().isoformat()
+        now = datetime.datetime.now(datetime.UTC).isoformat()
 
         message_payload = {
             "id": message_id,
