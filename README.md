@@ -22,6 +22,9 @@ Set the environment variables:
 - `QWERY_LLM_PROVIDER` – `openai` (default) or `anthropic`
 - `QWERY_LLM_MODEL` – optional override for the provider model
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` – depending on provider
+- `QWERY_AUTH_PROVIDER` – set to `supabase` to enforce Supabase-authenticated sessions
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY` – required when using Supabase auth (optional `SUPABASE_SERVICE_ROLE_KEY` for admin flows)
+- `QWERY_SUPABASE_GROUP_CLAIM` – optional metadata claim to read group memberships (default `roles`)
 
 ### Demo database
 

@@ -1,14 +1,46 @@
 """SQL database runners for executing queries."""
 
-from importlib import import_module
+from __future__ import annotations
 
-_PKG = "".join(chr(code) for code in (118, 97, 110, 110, 97))
+import sqlite3
+from dataclasses import dataclass
+from typing import Any, Iterable, List, Sequence, Tuple
 
-_postgres = import_module(f"{_PKG}.integrations.postgres")
-PostgresRunner = getattr(_postgres, "PostgresRunner")
+import psycopg2
 
-_sqlite = import_module(f"{_PKG}.integrations.sqlite")
-SqliteRunner = getattr(_sqlite, "SqliteRunner")
 
-__all__ = ["PostgresRunner", "SqliteRunner"]
+@dataclass(slots=True)
+class QueryResult:
+    columns: Sequence[str]
+    rows: List[Tuple[Any, ...]]
 
+
+class SqliteRunner:
+    def __init__(self, database_path: str) -> None:
+        self.database_path = database_path
+
+    def run(self, query: str, params: Iterable[Any] | None = None) -> QueryResult:
+        with sqlite3.connect(self.database_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params or [])
+            rows = cursor.fetchall()
+            columns = cursor.keys()
+        return QueryResult(columns=list(columns), rows=[tuple(row) for row in rows])
+
+
+class PostgresRunner:
+    def __init__(self, connection_string: str) -> None:
+        self.connection_string = connection_string
+
+    def run(self, query: str, params: Iterable[Any] | None = None) -> QueryResult:
+        with psycopg2.connect(self.connection_string) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params or [])
+                if cursor.description is None:
+                    return QueryResult(columns=[], rows=[])
+                columns = [column.name for column in cursor.description]
+                rows = cursor.fetchall()
+        return QueryResult(columns=columns, rows=rows)
+
+
+__all__ = ["PostgresRunner", "SqliteRunner", "QueryResult"]

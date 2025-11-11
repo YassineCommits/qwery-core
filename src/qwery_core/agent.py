@@ -2,42 +2,34 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from importlib import import_module
 from typing import Optional
 from urllib.parse import urlparse
+import csv
+import json
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
-_UPSTREAM_PACKAGE = "".join(chr(code) for code in (118, 97, 110, 110, 97))
-
-_Upstream = import_module(_UPSTREAM_PACKAGE)
-Agent = getattr(_Upstream, "Agent")
-AgentConfig = getattr(_Upstream, "AgentConfig")
-ToolRegistry = getattr(_Upstream, "ToolRegistry")
-User = getattr(_Upstream, "User")
-
-_core = import_module(f"{_UPSTREAM_PACKAGE}.core")
-LlmService = getattr(_core, "LlmService")
-
-_core_user = import_module(f"{_UPSTREAM_PACKAGE}.core.user")
-RequestContext = getattr(_core_user, "RequestContext")
-UserResolver = getattr(_core_user, "UserResolver")
-
-_local = import_module(f"{_UPSTREAM_PACKAGE}.integrations.local")
-LocalFileSystem = getattr(_local, "LocalFileSystem")
-
-_local_memory = import_module(f"{_UPSTREAM_PACKAGE}.integrations.local.agent_memory")
-DemoAgentMemory = getattr(_local_memory, "DemoAgentMemory")
-
+from .auth import SupabaseAuthError, SupabaseUserResolver
+from .core import (
+    Agent,
+    AgentConfig,
+    DemoAgentMemory,
+    LocalFileSystem,
+    ToolRegistry,
+    User,
+    UserResolver,
+    RequestContext,
+)
 from .integrations import PostgresRunner, SqliteRunner
-from .llm import build_llm_service
+from .llm import LlmService, build_llm_service
 from .tools import RunSqlTool, VisualizeDataTool
 
 
 class EnvUserResolver(UserResolver):
     """Resolve users from cookies/headers with env defaults."""
 
-    async def resolve_user(self, request_context: RequestContext) -> User:
+    async def resolve_user(self, request_context) -> User:
         user_id = request_context.get_cookie("user_id") or request_context.get_header("x-user-id")
         if not user_id:
             user_id = os.environ.get("QWERY_DEFAULT_USER_ID", "demo-user")
@@ -91,6 +83,20 @@ def _build_tool_registry(settings: AgentSettings) -> ToolRegistry:
     return registry
 
 
+def _build_user_resolver(explicit_resolver: Optional[UserResolver]) -> UserResolver:
+    if explicit_resolver is not None:
+        return explicit_resolver
+
+    provider = os.environ.get("QWERY_AUTH_PROVIDER", "").strip().lower()
+    if provider == "supabase":
+        try:
+            return SupabaseUserResolver()
+        except SupabaseAuthError as exc:  # pragma: no cover - configuration error
+            raise RuntimeError("Supabase authentication requested but misconfigured") from exc
+
+    return EnvUserResolver()
+
+
 def create_agent(
     database_path: Optional[str] = None,
     working_directory: Optional[str] = None,
@@ -99,7 +105,8 @@ def create_agent(
 ) -> Agent:
     """Create an agent configured for text-to-SQL + visualization."""
 
-    load_dotenv()
+    if os.environ.get("QWERY_SKIP_DOTENV") != "1":
+        load_dotenv(override=False)
 
     db_url = database_path or os.environ.get("QWERY_DB_URL") or os.environ.get("QWERY_DB_PATH")
     if not db_url:
@@ -114,7 +121,7 @@ def create_agent(
         database_url=db_url,
         working_directory=work_dir,
         llm_service=llm,
-        user_resolver=user_resolver or EnvUserResolver(),
+        user_resolver=_build_user_resolver(user_resolver),
     )
 
     tools = _build_tool_registry(settings)
@@ -130,5 +137,101 @@ def create_agent(
             stream_responses=settings.stream_responses,
             include_thinking_indicators=settings.include_thinking_indicators,
         ),
+        working_directory=work_dir,
     )
+
+
+SYSTEM_PROMPT = """You are a PostgreSQL analytics assistant. Convert the user request into a valid SQL query.
+Respond with JSON containing:
+{
+  "sql": "<SQL query>",
+  "summary": "<short description of what the query does>",
+  "visualization": {
+    "type": "bar|line|scatter|none",
+    "x": "column name for x axis",
+    "y": "column name for y axis",
+    "title": "Chart title"
+  }
+}
+If no visualization is appropriate, set "visualization": null.
+Do not include any markdown or commentary outside the JSON."""
+
+
+def _clean_json(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # drop leading and trailing fences
+        lines = [line for line in lines if not line.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def _write_csv(path: str, columns: list[str], rows: list[tuple]) -> None:
+    with open(path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(columns)
+        writer.writerows(rows)
+
+
+async def handle_prompt(agent: Agent, request_context: RequestContext, prompt: str) -> dict[str, object]:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    llm_result = await agent.llm_service.send_request({"messages": messages})
+    payload_text = _clean_json(llm_result.content)
+
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as exc:  # pragma: no cover - LLM failure path
+        raise RuntimeError(f"Failed to parse model response as JSON: {payload_text}") from exc
+
+    sql = payload.get("sql")
+    if not sql:
+        raise RuntimeError("Model response did not include 'sql'")
+
+    run_sql_tool = await agent.tool_registry.get_tool("run_sql")
+    if run_sql_tool is None:
+        raise RuntimeError("run_sql tool is not registered")
+
+    result = await run_sql_tool.execute(sql)
+
+    csv_filename = f"query_results_{uuid4().hex[:8]}.csv"
+    csv_path = os.path.join(agent.working_directory, csv_filename)
+    _write_csv(csv_path, result.columns, result.rows)
+
+    preview_limit = 20
+    preview_rows = [list(row) for row in result.rows[:preview_limit]]
+    truncated = len(result.rows) > preview_limit
+
+    viz_summary = None
+    viz_payload = payload.get("visualization")
+    visualize_tool = await agent.tool_registry.get_tool("visualize_data")
+    if viz_payload and visualize_tool:
+        viz_type = (viz_payload.get("type") or "").lower()
+        x_col = viz_payload.get("x")
+        y_col = viz_payload.get("y")
+        title = viz_payload.get("title") or "Visualization"
+        if viz_type in {"bar", "line", "scatter"} and x_col in result.columns and y_col in result.columns:
+            data = {
+                x_col: [row[result.columns.index(x_col)] for row in result.rows],
+                y_col: [row[result.columns.index(y_col)] for row in result.rows],
+            }
+            await visualize_tool.execute(data=data, chart_type=viz_type, title=title)
+            viz_summary = {
+                "title": title,
+                "type": viz_type,
+            }
+
+    return {
+        "columns": result.columns,
+        "preview_rows": preview_rows,
+        "truncated": truncated,
+        "csv_filename": csv_filename,
+        "summary": payload.get("summary", ""),
+        "visualization": viz_summary,
+        "sql": sql,
+    }
 

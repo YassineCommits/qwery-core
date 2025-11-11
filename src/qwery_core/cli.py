@@ -2,33 +2,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from importlib import import_module
 from typing import Optional
 
-_PKG = "".join(chr(code) for code in (118, 97, 110, 110, 97))
-_core_user = import_module(f"{_PKG}.core.user")
-RequestContext = getattr(_core_user, "RequestContext")
-
-from .agent import create_agent
+from .agent import create_agent, handle_prompt
+from .core import RequestContext
 
 
 async def _chat_loop(agent_name: str, prompt: Optional[str]) -> None:
     agent = create_agent()
-    conversation_id = f"cli-{agent_name}"
-
-    # Create a simple request context for CLI usage
-    request_context = RequestContext(
-        headers={"x-user-id": agent_name},
-        cookies={},
-    )
+    request_context = RequestContext(headers={"x-user-id": agent_name}, cookies={})
 
     if prompt:
-        async for component in agent.send_message(
-            request_context=request_context,
-            message=prompt,
-            conversation_id=conversation_id,
-        ):
-            _print_component(component)
+        response = await handle_prompt(agent, request_context, prompt)
+        _print_agent_response(response)
         return
 
     print("Type natural language questions. Ctrl+C to exit.")
@@ -42,21 +28,51 @@ async def _chat_loop(agent_name: str, prompt: Optional[str]) -> None:
         if not message:
             continue
 
-        async for component in agent.send_message(
-            request_context=request_context,
-            message=message,
-            conversation_id=conversation_id,
-        ):
-            _print_component(component)
+        response = await handle_prompt(agent, request_context, message)
+        _print_agent_response(response)
 
 
-def _print_component(component) -> None:  # noqa: ANN001
-    if component.simple_component and getattr(component.simple_component, "text", None):
-        print(f"Agent> {component.simple_component.text}")
-        return
+def _print_agent_response(response: dict[str, object]) -> None:
+    columns = response.get("columns", [])
+    preview_rows = response.get("preview_rows") or []
+    truncated = bool(response.get("truncated"))
+    csv_filename = response.get("csv_filename")
+    summary = response.get("summary", "")
+    viz = response.get("visualization")
 
-    if component.rich_component and getattr(component.rich_component, "content", None):
-        print(f"Agent> {component.rich_component.content}")
+    if columns:
+        header = ",".join(columns)
+        if preview_rows:
+            print(f"Agent> {header}")
+            for row in preview_rows:
+                print(",".join(str(value) for value in row))
+            if truncated:
+                print("(Results truncated to 20 rows. Full results saved to CSV.)")
+        else:
+            print(f"Agent> {header}")
+            print("No rows returned for this query.")
+
+    if csv_filename:
+        print(f"Results saved to file: {csv_filename}")
+        print(f"**IMPORTANT: FOR VISUALIZE_DATA USE FILENAME: {csv_filename}**")
+
+    if viz:
+        print(
+            f"Agent> Created visualization '{viz.get('title')}' using a {viz.get('type')} chart."
+        )
+
+    if summary:
+        print(f"Agent> {summary}")
+
+    suggestions = [
+        "Show additional rows from this result",
+        "Filter results by specific criteria",
+        "Inspect columns for a particular table",
+        "Create a different visualization of this data",
+    ]
+    print("If you want any of these next, tell me which:")
+    for item in suggestions:
+        print(f"- {item}.")
 
 
 def main(argv: Optional[list[str]] = None) -> None:
