@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 import csv
 import json
@@ -25,6 +25,9 @@ from .integrations import PostgresRunner, SqliteRunner
 from .llm import LlmService, build_llm_service
 from .tools import RunSqlTool, VisualizeDataTool
 
+if TYPE_CHECKING:
+    from .supabase.session import ManagedSupabaseSession, SupabaseChatState, SupabaseSessionManager
+
 
 class EnvUserResolver(UserResolver):
     """Resolve users from cookies/headers with env defaults."""
@@ -46,7 +49,7 @@ class EnvUserResolver(UserResolver):
 
 @dataclass(slots=True)
 class AgentSettings:
-    database_url: str
+    database_url: Optional[str]
     working_directory: str
     llm_service: LlmService
     include_thinking_indicators: bool = False
@@ -75,10 +78,10 @@ def _build_sql_runner(database_url: str):
 
 def _build_tool_registry(settings: AgentSettings) -> ToolRegistry:
     file_system = LocalFileSystem(settings.working_directory)
-    sql_runner = _build_sql_runner(settings.database_url)
-
     registry = ToolRegistry()
-    registry.register_local_tool(RunSqlTool(sql_runner=sql_runner, file_system=file_system), [])
+    if settings.database_url:
+        sql_runner = _build_sql_runner(settings.database_url)
+        registry.register_local_tool(RunSqlTool(sql_runner=sql_runner, file_system=file_system), [])
     registry.register_local_tool(VisualizeDataTool(file_system=file_system), [])
     return registry
 
@@ -102,6 +105,7 @@ def create_agent(
     working_directory: Optional[str] = None,
     llm_service: Optional[LlmService] = None,
     user_resolver: Optional[UserResolver] = None,
+    require_database: bool = True,
 ) -> Agent:
     """Create an agent configured for text-to-SQL + visualization."""
 
@@ -109,7 +113,7 @@ def create_agent(
         load_dotenv(override=False)
 
     db_url = database_path or os.environ.get("QWERY_DB_URL") or os.environ.get("QWERY_DB_PATH")
-    if not db_url:
+    if not db_url and require_database:
         raise ValueError("database_path must be provided or set QWERY_DB_URL / QWERY_DB_PATH")
 
     work_dir = working_directory or os.environ.get("QWERY_WORK_DIR", "./data_storage")
@@ -174,11 +178,42 @@ def _write_csv(path: str, columns: list[str], rows: list[tuple]) -> None:
         writer.writerows(rows)
 
 
-async def handle_prompt(agent: Agent, request_context: RequestContext, prompt: str) -> dict[str, object]:
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": prompt},
-    ]
+async def handle_prompt(
+    agent: Agent,
+    request_context: RequestContext,
+    prompt: str,
+    *,
+    session_manager: Optional["SupabaseSessionManager"] = None,
+    project_id: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    refresh_token: Optional[str] = None,
+) -> dict[str, object]:
+    supabase_session: Optional["ManagedSupabaseSession"] = None
+    chat_state: Optional["SupabaseChatState"] = None
+
+    if session_manager and project_id and chat_id and access_token:
+        supabase_session = session_manager.get_session(access_token, refresh_token)
+        chat_state = session_manager.get_chat_state(supabase_session, project_id, chat_id)
+        session_manager.ensure_history_loaded(chat_state)
+
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if chat_state:
+        for record in chat_state.history:
+            role = record.get("role", "user")
+            if role not in {"user", "assistant", "system"}:
+                role = "user"
+            messages.append({"role": role, "content": record.get("content", "")})
+
+    messages.append({"role": "user", "content": prompt})
+
+    if chat_state and supabase_session:
+        session_manager.record_message(
+            supabase_session,
+            chat_state,
+            role="user",
+            content=prompt,
+        )
 
     llm_result = await agent.llm_service.send_request({"messages": messages})
     payload_text = _clean_json(llm_result.content)
@@ -192,11 +227,28 @@ async def handle_prompt(agent: Agent, request_context: RequestContext, prompt: s
     if not sql:
         raise RuntimeError("Model response did not include 'sql'")
 
-    run_sql_tool = await agent.tool_registry.get_tool("run_sql")
-    if run_sql_tool is None:
-        raise RuntimeError("run_sql tool is not registered")
+    database_url = None
+    if chat_state and chat_state.database_url:
+        database_url = chat_state.database_url
 
-    result = await run_sql_tool.execute(sql)
+    file_system = LocalFileSystem(agent.working_directory)
+    env_database_url = os.environ.get("QWERY_DB_URL") or os.environ.get("QWERY_DB_PATH")
+    if not database_url and env_database_url:
+        database_url = env_database_url
+    elif database_url and "://" not in database_url and env_database_url:
+        # TODO: support fetching managed connection strings from Supabase deployments.
+        database_url = env_database_url
+
+    if database_url:
+        sql_runner = _build_sql_runner(database_url)
+        run_sql_tool = RunSqlTool(sql_runner=sql_runner, file_system=file_system)
+        result = await run_sql_tool.execute(sql)
+    else:
+        run_sql_tool = await agent.tool_registry.get_tool("run_sql")
+        if run_sql_tool is None:
+            raise RuntimeError("run_sql tool is not registered and no Supabase context provided")
+        result = await run_sql_tool.execute(sql)
+        file_system = run_sql_tool.file_system
 
     csv_filename = f"query_results_{uuid4().hex[:8]}.csv"
     csv_path = os.path.join(agent.working_directory, csv_filename)
@@ -208,8 +260,8 @@ async def handle_prompt(agent: Agent, request_context: RequestContext, prompt: s
 
     viz_summary = None
     viz_payload = payload.get("visualization")
-    visualize_tool = await agent.tool_registry.get_tool("visualize_data")
-    if viz_payload and visualize_tool:
+    if viz_payload:
+        visualize_tool = await agent.tool_registry.get_tool("visualize_data")
         viz_type = (viz_payload.get("type") or "").lower()
         x_col = viz_payload.get("x")
         y_col = viz_payload.get("y")
@@ -219,18 +271,33 @@ async def handle_prompt(agent: Agent, request_context: RequestContext, prompt: s
                 x_col: [row[result.columns.index(x_col)] for row in result.rows],
                 y_col: [row[result.columns.index(y_col)] for row in result.rows],
             }
-            await visualize_tool.execute(data=data, chart_type=viz_type, title=title)
+            if visualize_tool:
+                await visualize_tool.execute(data=data, chart_type=viz_type, title=title)
+            else:
+                viz_tool = VisualizeDataTool(file_system=file_system)
+                await viz_tool.execute(data=data, chart_type=viz_type, title=title)
             viz_summary = {
                 "title": title,
                 "type": viz_type,
             }
+
+    summary_text = payload.get("summary") or "Query executed successfully."
+    summary_text += f" Results saved to {csv_filename}."
+
+    if chat_state and supabase_session:
+        session_manager.record_message(
+            supabase_session,
+            chat_state,
+            role="assistant",
+            content=f"{summary_text}\nSQL: {sql}",
+        )
 
     return {
         "columns": result.columns,
         "preview_rows": preview_rows,
         "truncated": truncated,
         "csv_filename": csv_filename,
-        "summary": payload.get("summary", ""),
+        "summary": summary_text,
         "visualization": viz_summary,
         "sql": sql,
     }

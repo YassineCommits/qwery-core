@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 
 from fastapi import FastAPI
 
 from .agent import create_agent
 from .server_components.fastapi import QweryFastAPIServer
+from .supabase import SupabaseSessionManager
 
 
 @lru_cache(maxsize=1)
 def _build_app() -> FastAPI:
-    agent = create_agent()
-    server = QweryFastAPIServer(agent)
+    auth_provider = os.environ.get("QWERY_AUTH_PROVIDER", "").strip().lower()
+    use_supabase = auth_provider == "supabase"
+
+    agent = create_agent(require_database=not use_supabase)
+    session_manager = SupabaseSessionManager() if use_supabase else None
+    server = QweryFastAPIServer(agent, session_manager=session_manager)
     app = server.create_app()
 
     @app.get("/health", tags=["system"])
