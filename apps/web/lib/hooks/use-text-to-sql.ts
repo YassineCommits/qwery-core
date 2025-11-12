@@ -230,7 +230,7 @@ export function useTextToSql({
   }, [onResponse, onError]);
 
   const generateSql = useCallback(
-    (prompt: string) => {
+    (prompt: string, connectionString?: string) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         onErrorRef.current?.('Not connected to server');
         return;
@@ -238,6 +238,30 @@ export function useTextToSql({
 
       setIsGenerating(true);
 
+      // If connection string is provided, send SET DATABASE_URL command first
+      if (connectionString) {
+        const commandMessage = {
+          id: crypto.randomUUID(),
+          kind: 'Command',
+          payload: {
+            Command: {
+              command: 'Set',
+              arguments: {
+                SetCommandArgument: {
+                  key: 'DATABASE_URL',
+                  value: connectionString,
+                },
+              },
+            },
+          },
+          from: 'client',
+          to: 'server',
+        };
+
+        wsRef.current.send(JSON.stringify(commandMessage));
+      }
+
+      // Send the prompt message
       const message = {
         id: crypto.randomUUID(),
         kind: 'Message',

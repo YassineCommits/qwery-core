@@ -34,7 +34,7 @@ interface NotebookUIProps {
   title?: string;
   datasources?: Array<{ id: string; name: string }>;
   onRunQuery?: (cellId: number, query: string, datasourceId: string) => void;
-  onGenerateSql?: (cellId: number, prompt: string) => void;
+  onGenerateSql?: (cellId: number, prompt: string, datasourceId: string) => void;
   isGeneratingSql?: Map<number, boolean>;
   onCellsChange?: (cells: NotebookCellData[]) => void;
   onNotebookChange?: (notebook: Partial<Notebook>) => void;
@@ -68,7 +68,7 @@ function SortableCell({
   onQueryChange: (query: string) => void;
   onDatasourceChange: (datasourceId: string) => void;
   onRunQuery?: (query: string, datasourceId: string) => void;
-  onGenerateSql?: (prompt: string) => void;
+  onGenerateSql?: (prompt: string, datasourceId: string) => void;
   isGeneratingSql?: boolean;
   datasources: Array<{ id: string; name: string }>;
   result?: DatasourceResultSet | null;
@@ -506,7 +506,7 @@ export function NotebookUI({
                       }}
                       onGenerateSql={
                         onGenerateSql
-                          ? (prompt) => onGenerateSql(cell.cellId, prompt)
+                          ? (prompt, datasourceId) => onGenerateSql(cell.cellId, prompt, datasourceId)
                           : undefined
                       }
                       isGeneratingSql={externalIsGeneratingSql?.get(cell.cellId)}

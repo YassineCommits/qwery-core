@@ -54,8 +54,8 @@ export default function NotebookPage() {
   // Load datasources
   const savedDatasources = useGetDatasources(datasourceRepository);
 
-  // Track pending SQL generations by cell ID
-  const pendingGenerationsRef = useRef<Map<number, string>>(new Map());
+  // Track pending SQL generations by cell ID (stores prompt and datasourceId)
+  const pendingGenerationsRef = useRef<Map<number, { prompt: string; datasourceId: string }>>(new Map());
 
   // Set up text-to-SQL WebSocket connection
   // Only connect when we have valid project and notebook IDs
@@ -72,7 +72,10 @@ export default function NotebookPage() {
       const cellId = Array.from(pendingGenerationsRef.current.keys())[0];
       if (cellId === undefined) return;
 
-      const prompt = pendingGenerationsRef.current.get(cellId);
+      const pending = pendingGenerationsRef.current.get(cellId);
+      if (!pending) return;
+      
+      const { prompt, datasourceId } = pending;
       pendingGenerationsRef.current.delete(cellId);
 
       setIsGeneratingSql((prev) => {
@@ -106,7 +109,7 @@ export default function NotebookPage() {
           query: response.sql,
           cellId: newCellId,
           cellType: 'query' as const,
-          datasources: currentCells[promptCellIndex]?.datasources || [],
+          datasources: datasourceId ? [datasourceId] : (currentCells[promptCellIndex]?.datasources || []),
           isActive: true,
           runMode: 'default' as const,
         },
@@ -262,11 +265,96 @@ export default function NotebookPage() {
     [project, notebook, saveNotebookMutation],
   );
 
+  // Helper to build database connection string from datasource
+  const buildConnectionString = useCallback(
+    async (datasource: Datasource): Promise<string | null> => {
+      try {
+        // For embedded datasources, we need to get the connection string from the driver
+        if (datasource.datasource_kind === DatasourceKind.EMBEDDED) {
+          const extension = await getExtension(datasource.datasource_provider);
+          if (!extension) {
+            console.error(`Extension not found for ${datasource.datasource_provider}`);
+            return null;
+          }
+
+          // For playground datasources (like PGlite), they run in browser
+          // We can't connect to them from the backend, so return null
+          if (datasource.config?.playground === true) {
+            toast.error('Playground datasources cannot be used for SQL generation');
+            return null;
+          }
+
+          // Build connection string from config
+          const config = datasource.config as Record<string, unknown>;
+          
+          // PostgreSQL connection string format
+          if (datasource.datasource_provider === 'postgresql' || datasource.datasource_provider === 'postgres') {
+            const host = (config.host as string) || 'localhost';
+            const port = (config.port as number) || 5432;
+            const database = (config.database as string) || 'postgres';
+            const user = (config.user as string) || 'postgres';
+            const password = (config.password as string) || '';
+            
+            return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
+          }
+
+          // SQLite connection string
+          if (datasource.datasource_provider === 'sqlite') {
+            const path = (config.path as string) || (config.database as string);
+            if (!path) {
+              return null;
+            }
+            return `sqlite:///${path}`;
+          }
+
+          // MySQL connection string
+          if (datasource.datasource_provider === 'mysql') {
+            const host = (config.host as string) || 'localhost';
+            const port = (config.port as number) || 3306;
+            const database = (config.database as string) || 'mysql';
+            const user = (config.user as string) || 'root';
+            const password = (config.password as string) || '';
+            
+            return `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
+          }
+
+          console.error(`Unsupported datasource provider: ${datasource.datasource_provider}`);
+          return null;
+        }
+
+        // For remote datasources, the connection string might be in config
+        if (datasource.config?.connectionString) {
+          return datasource.config.connectionString as string;
+        }
+
+        return null;
+      } catch (error) {
+        console.error('Failed to build connection string:', error);
+        return null;
+      }
+    },
+    [],
+  );
+
   // Handle SQL generation
   const handleGenerateSql = useCallback(
-    (cellId: number, prompt: string) => {
+    async (cellId: number, prompt: string, datasourceId: string) => {
       if (!isConnected) {
         toast.error('Not connected to SQL generation service');
+        return;
+      }
+
+      // Find the datasource
+      const datasource = savedDatasources.data?.find((ds) => ds.id === datasourceId);
+      if (!datasource) {
+        toast.error('Datasource not found');
+        return;
+      }
+
+      // Build connection string
+      const connectionString = await buildConnectionString(datasource);
+      if (!connectionString) {
+        toast.error('Failed to build connection string for datasource');
         return;
       }
 
@@ -276,10 +364,13 @@ export default function NotebookPage() {
         return next;
       });
 
-      pendingGenerationsRef.current.set(cellId, prompt);
-      generateSql(prompt);
+      // Store both prompt and datasource info
+      pendingGenerationsRef.current.set(cellId, { prompt, datasourceId });
+      
+      // Generate SQL with connection string
+      generateSql(prompt, connectionString);
     },
-    [generateSql, isConnected],
+    [generateSql, isConnected, savedDatasources, buildConnectionString],
   );
 
   // Map datasources to the format expected by NotebookUI

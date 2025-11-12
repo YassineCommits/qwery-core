@@ -60,7 +60,7 @@ interface NotebookCellProps {
   onQueryChange: (query: string) => void;
   onDatasourceChange: (datasourceId: string) => void;
   onRunQuery?: (query: string, datasourceId: string) => void;
-  onGenerateSql?: (prompt: string) => void;
+  onGenerateSql?: (prompt: string, datasourceId: string) => void;
   isGeneratingSql?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
@@ -139,8 +139,8 @@ export function NotebookCell({
   };
 
   const handleGenerateSql = () => {
-    if (onGenerateSql && query && cell.cellType === 'prompt') {
-      onGenerateSql(query);
+    if (onGenerateSql && query && cell.cellType === 'prompt' && selectedDatasource) {
+      onGenerateSql(query, selectedDatasource);
     }
   };
 
@@ -223,26 +223,28 @@ export function NotebookCell({
                   variant="default"
                   className="h-7"
                   onClick={handleGenerateSql}
-                  disabled={!query.trim() || isGeneratingSql}
+                  disabled={!query.trim() || isGeneratingSql || !selectedDatasource}
                 >
                   {isGeneratingSql ? 'Generating...' : 'Generate SQL'}
                 </Button>
               </div>
             )}
 
-            {/* Right: Full view button, Database selector (query cells only), and More menu */}
+            {/* Right: Full view button, Database selector (query and prompt cells), and More menu */}
             <div className="ml-auto flex items-center gap-2">
-              {isQueryCell && (
+              {(isQueryCell || isPromptCell) && (
                 <>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={onFullView}
-                    aria-label="Full view"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </Button>
+                  {isQueryCell && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={onFullView}
+                      aria-label="Full view"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                  )}
                   <DatabaseIcon className="text-muted-foreground h-4 w-4" />
                   <Select
                     value={selectedDatasource}
