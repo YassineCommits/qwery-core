@@ -158,6 +158,12 @@ Respond with JSON containing:
   }
 }
 If no visualization is appropriate, set "visualization": null.
+Guidelines:
+- Always inline literal values directly in the SQL. Do NOT use parameter placeholders such as %s or $1.
+- If you need to perform multiple operations, separate them with semicolons in a single SQL string.
+- Ensure every statement you generate is valid when executed as-is.
+- When inserting data, provide explicit values for all NOT NULL columns using realistic sample data.
+- Prefer DROP ... IF EXISTS patterns when deleting objects.
 Do not include any markdown or commentary outside the JSON."""
 
 
@@ -239,16 +245,19 @@ async def handle_prompt(
         # TODO: support fetching managed connection strings from Supabase deployments.
         database_url = env_database_url
 
-    if database_url:
-        sql_runner = _build_sql_runner(database_url)
-        run_sql_tool = RunSqlTool(sql_runner=sql_runner, file_system=file_system)
-        result = await run_sql_tool.execute(sql)
-    else:
-        run_sql_tool = await agent.tool_registry.get_tool("run_sql")
-        if run_sql_tool is None:
-            raise RuntimeError("run_sql tool is not registered and no Supabase context provided")
-        result = await run_sql_tool.execute(sql)
-        file_system = run_sql_tool.file_system
+    try:
+        if database_url:
+            sql_runner = _build_sql_runner(database_url)
+            run_sql_tool = RunSqlTool(sql_runner=sql_runner, file_system=file_system)
+            result = await run_sql_tool.execute(sql)
+        else:
+            run_sql_tool = await agent.tool_registry.get_tool("run_sql")
+            if run_sql_tool is None:
+                raise RuntimeError("run_sql tool is not registered and no Supabase context provided")
+            result = await run_sql_tool.execute(sql)
+            file_system = run_sql_tool.file_system
+    except Exception as exc:
+        raise RuntimeError(f"{exc}\nSQL:\n{sql}") from exc
 
     csv_filename = f"query_results_{uuid4().hex[:8]}.csv"
     csv_path = os.path.join(agent.working_directory, csv_filename)

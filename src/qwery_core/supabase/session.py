@@ -4,7 +4,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+import logging
 from supabase import Client
+from supabase_auth.errors import AuthApiError
 
 from ..auth import SupabaseAuthError, build_supabase_client, get_supabase_admin_client
 from ..core import RequestContext
@@ -45,6 +47,7 @@ class SupabaseSessionManager:
         self._chat_states: Dict[Tuple[str, str], SupabaseChatState] = {}
         self._admin_client: Optional[Client] = None
         self._message_service: Optional[SupabaseMessageService] = None
+        self._logger = logging.getLogger(__name__)
 
     # ------------------------------------------------------------------
     # Session handling
@@ -59,8 +62,27 @@ class SupabaseSessionManager:
             return self._sessions[session_key]
 
         client = self._client_factory()
-        client.auth.set_session(access_token, refresh_token)
-        user_response = client.auth.get_user()
+        user_response = None
+        try:
+            client.auth.set_session(access_token, refresh_token)
+            user_response = client.auth.get_user()
+        except AuthApiError as exc:  # pragma: no cover - network dependent
+            message = str(exc)
+            if (
+                refresh_token
+                and "Invalid Refresh Token" in message
+                or "Already Used" in message
+            ):
+                self._logger.warning(
+                    "Supabase refresh token rejected; continuing with access token only.",
+                )
+                client.postgrest.auth(access_token)
+                client.storage.auth(access_token)
+                client.functions.auth(access_token)
+                user_response = client.auth.get_user(access_token)
+                refresh_token = None
+            else:
+                raise SupabaseAuthError(message) from exc
         user = getattr(user_response, "user", None) or user_response.get("user")
         if not user:
             raise SupabaseAuthError("Supabase user information not available")

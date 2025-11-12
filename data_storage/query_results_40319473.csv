@@ -1,0 +1,8 @@
+record_type,count
+MX,2
+A,2
+CNAME,2
+NS,2
+TXT,2
+AAAA,1
+SRV,1

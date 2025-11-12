@@ -22,7 +22,10 @@ class SqliteRunner:
     def run(self, query: str, params: Iterable[Any] | None = None) -> QueryResult:
         with sqlite3.connect(self.database_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params or [])
+            if params is not None:
+                cursor = conn.execute(query, params)
+            else:
+                cursor = conn.execute(query)
             rows = cursor.fetchall()
             columns = cursor.keys()
         return QueryResult(columns=list(columns), rows=[tuple(row) for row in rows])
@@ -35,7 +38,10 @@ class PostgresRunner:
     def run(self, query: str, params: Iterable[Any] | None = None) -> QueryResult:
         with psycopg2.connect(self.connection_string) as conn:
             with conn.cursor() as cursor:
-                cursor.execute(query, params or [])
+                if params is not None:
+                    cursor.execute(query, params)
+                else:
+                    cursor.execute(query)
                 if cursor.description is None:
                     return QueryResult(columns=[], rows=[])
                 columns = [column.name for column in cursor.description]
