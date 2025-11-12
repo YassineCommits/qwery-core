@@ -7,38 +7,24 @@ from typing import Optional
 
 from .agent import create_agent, handle_prompt
 from .core import RequestContext
-from .supabase import SupabaseSessionManager
 
 
 async def _chat_loop(
     agent_name: str,
     prompt: Optional[str],
     *,
-    project_id: Optional[str],
-    chat_id: Optional[str],
-    access_token: Optional[str],
-    refresh_token: Optional[str],
+    database_url: Optional[str] = None,
 ) -> None:
-    use_supabase = bool(project_id and chat_id and access_token)
-    agent = create_agent(require_database=not use_supabase)
+    agent = create_agent(require_database=True)
     request_context = RequestContext(headers={"x-user-id": agent_name}, cookies={})
-    session_manager = SupabaseSessionManager() if use_supabase else None
-
-    if use_supabase:
-        print(f"Connected to Supabase project '{project_id}' chat '{chat_id}'.")
-        print("Context and history will be loaded from Supabase.")
 
     async def run_prompt(user_prompt: str) -> None:
         response = await handle_prompt(
             agent,
             request_context,
             user_prompt,
-            session_manager=session_manager,
-            project_id=project_id,
-            chat_id=chat_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
-    )
+            database_url=database_url,
+        )
         _print_agent_response(response)
 
     if prompt:
@@ -110,29 +96,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Qwery text-to-SQL CLI")
     parser.add_argument("--user", default="cli-user", help="User identifier for the session")
     parser.add_argument("--prompt", help="Optional one-off question")
-    parser.add_argument("--project-id", help="Supabase project/deployment identifier")
-    parser.add_argument("--chat-id", help="Supabase chat identifier")
-    parser.add_argument("--supabase-access-token", help="Supabase access token for the user session")
-    parser.add_argument("--supabase-refresh-token", help="Supabase refresh token for the user session")
+    parser.add_argument("--database-url", help="Database connection URL (overrides QWERY_DB_URL)")
     args = parser.parse_args(argv)
 
-    project_id = args.project_id or os.getenv("SUPABASE_PROJECT_ID")
-    chat_id = args.chat_id or os.getenv("SUPABASE_CHAT_ID")
-    access_token = args.supabase_access_token or os.getenv("SUPABASE_ACCESS_TOKEN")
-    refresh_token = args.supabase_refresh_token or os.getenv("SUPABASE_REFRESH_TOKEN")
+    database_url = args.database_url or os.getenv("QWERY_DB_URL") or os.getenv("QWERY_DB_PATH")
 
     asyncio.run(
         _chat_loop(
             agent_name=args.user,
             prompt=args.prompt,
-            project_id=project_id,
-            chat_id=chat_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
+            database_url=database_url,
         )
     )
 
 
 if __name__ == "__main__":
     main()
-

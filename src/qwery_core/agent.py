@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from urllib.parse import urlparse
 import csv
 import json
@@ -10,7 +10,6 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
-from .auth import SupabaseAuthError, SupabaseUserResolver
 from .core import (
     Agent,
     AgentConfig,
@@ -24,9 +23,6 @@ from .core import (
 from .integrations import PostgresRunner, SqliteRunner
 from .llm import LlmService, build_llm_service
 from .tools import RunSqlTool, VisualizeDataTool
-
-if TYPE_CHECKING:
-    from .supabase.session import ManagedSupabaseSession, SupabaseChatState, SupabaseSessionManager
 
 
 class EnvUserResolver(UserResolver):
@@ -89,14 +85,6 @@ def _build_tool_registry(settings: AgentSettings) -> ToolRegistry:
 def _build_user_resolver(explicit_resolver: Optional[UserResolver]) -> UserResolver:
     if explicit_resolver is not None:
         return explicit_resolver
-
-    provider = os.environ.get("QWERY_AUTH_PROVIDER", "").strip().lower()
-    if provider == "supabase":
-        try:
-            return SupabaseUserResolver()
-        except SupabaseAuthError as exc:  # pragma: no cover - configuration error
-            raise RuntimeError("Supabase authentication requested but misconfigured") from exc
-
     return EnvUserResolver()
 
 
@@ -189,37 +177,18 @@ async def handle_prompt(
     request_context: RequestContext,
     prompt: str,
     *,
-    session_manager: Optional["SupabaseSessionManager"] = None,
-    project_id: Optional[str] = None,
-    chat_id: Optional[str] = None,
-    access_token: Optional[str] = None,
-    refresh_token: Optional[str] = None,
+    database_url: Optional[str] = None,
+    chat_history: Optional[list[dict[str, str]]] = None,
 ) -> dict[str, object]:
-    supabase_session: Optional["ManagedSupabaseSession"] = None
-    chat_state: Optional["SupabaseChatState"] = None
-
-    if session_manager and project_id and chat_id and access_token:
-        supabase_session = session_manager.get_session(access_token, refresh_token)
-        chat_state = session_manager.get_chat_state(supabase_session, project_id, chat_id)
-        session_manager.ensure_history_loaded(chat_state)
-
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    if chat_state:
-        for record in chat_state.history:
+    if chat_history:
+        for record in chat_history:
             role = record.get("role", "user")
             if role not in {"user", "assistant", "system"}:
                 role = "user"
             messages.append({"role": role, "content": record.get("content", "")})
 
     messages.append({"role": "user", "content": prompt})
-
-    if chat_state and supabase_session:
-        session_manager.record_message(
-            supabase_session,
-            chat_state,
-            role="user",
-            content=prompt,
-        )
 
     llm_result = await agent.llm_service.send_request({"messages": messages})
     payload_text = _clean_json(llm_result.content)
@@ -233,16 +202,9 @@ async def handle_prompt(
     if not sql:
         raise RuntimeError("Model response did not include 'sql'")
 
-    database_url = None
-    if chat_state and chat_state.database_url:
-        database_url = chat_state.database_url
-
     file_system = LocalFileSystem(agent.working_directory)
     env_database_url = os.environ.get("QWERY_DB_URL") or os.environ.get("QWERY_DB_PATH")
     if not database_url and env_database_url:
-        database_url = env_database_url
-    elif database_url and "://" not in database_url and env_database_url:
-        # TODO: support fetching managed connection strings from Supabase deployments.
         database_url = env_database_url
 
     try:
@@ -253,7 +215,7 @@ async def handle_prompt(
         else:
             run_sql_tool = await agent.tool_registry.get_tool("run_sql")
             if run_sql_tool is None:
-                raise RuntimeError("run_sql tool is not registered and no Supabase context provided")
+                raise RuntimeError("run_sql tool is not registered and no database URL provided")
             result = await run_sql_tool.execute(sql)
             file_system = run_sql_tool.file_system
     except Exception as exc:
@@ -317,14 +279,6 @@ async def handle_prompt(
             if truncated:
                 summary_lines.append("... (truncated)")
         summary_text = "\n".join(summary_lines)
-
-    if chat_state and supabase_session:
-        session_manager.record_message(
-            supabase_session,
-            chat_state,
-            role="assistant",
-            content=summary_text,
-        )
 
     return {
         "columns": result.columns,

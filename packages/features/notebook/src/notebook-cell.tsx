@@ -60,6 +60,8 @@ interface NotebookCellProps {
   onQueryChange: (query: string) => void;
   onDatasourceChange: (datasourceId: string) => void;
   onRunQuery?: (query: string, datasourceId: string) => void;
+  onGenerateSql?: (prompt: string) => void;
+  isGeneratingSql?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
   result?: DatasourceResultSet | null;
@@ -80,6 +82,8 @@ export function NotebookCell({
   onQueryChange,
   onDatasourceChange,
   onRunQuery,
+  onGenerateSql,
+  isGeneratingSql = false,
   dragHandleProps,
   isDragging,
   result,
@@ -134,6 +138,12 @@ export function NotebookCell({
     }
   };
 
+  const handleGenerateSql = () => {
+    if (onGenerateSql && query && cell.cellType === 'prompt') {
+      onGenerateSql(query);
+    }
+  };
+
   const isQueryCell = cell.cellType === 'query';
   const isTextCell = cell.cellType === 'text';
   const isPromptCell = cell.cellType === 'prompt';
@@ -181,7 +191,7 @@ export function NotebookCell({
         <div className="bg-background flex min-h-[120px] flex-1 flex-col overflow-hidden">
           {/* Toolbar - Show for all cells */}
           <div className="border-border bg-background flex h-10 items-center justify-between border-b px-3">
-            {/* Left: Play button with dropdown (only for query cells) */}
+            {/* Left: Play button with dropdown (only for query cells) or Generate SQL (for prompt cells) */}
             {isQueryCell && (
               <div className="flex items-center gap-1">
                 <Button
@@ -204,6 +214,19 @@ export function NotebookCell({
                     <DropdownMenuItem>Run all cells</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+            )}
+            {isPromptCell && onGenerateSql && (
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7"
+                  onClick={handleGenerateSql}
+                  disabled={!query.trim() || isGeneratingSql}
+                >
+                  {isGeneratingSql ? 'Generating...' : 'Generate SQL'}
+                </Button>
               </div>
             )}
 

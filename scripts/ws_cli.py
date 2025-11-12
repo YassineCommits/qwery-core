@@ -5,7 +5,6 @@ import asyncio
 import contextlib
 import json
 import sys
-from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
@@ -15,31 +14,17 @@ from websockets.legacy.client import connect as ws_connect
 from qwery_core.protocol import MessageKind, MessageRole, ProtocolMessage, create_text_message
 
 
-def _load_tokens(token_path: Path) -> dict:
-    if not token_path.exists():
-        raise FileNotFoundError(f"Token file not found: {token_path}")
-    return json.loads(token_path.read_text())
-
-
 async def _interactive_chat(
     *,
     base_url: str,
     project_id: str,
     chat_id: str,
-    access_token: str,
-    refresh_token: Optional[str],
     initial_prompt: Optional[str],
 ) -> None:
     uri = f"{base_url.rstrip('/')}/ws/agent/{project_id}/{chat_id}"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-    }
-    if refresh_token:
-        headers["X-Refresh-Token"] = refresh_token
 
     async with ws_connect(
         uri,
-        extra_headers=list(headers.items()),
         ping_interval=None,
         open_timeout=30,
         close_timeout=30,
@@ -137,25 +122,14 @@ async def _interactive_chat(
             with contextlib.suppress(asyncio.CancelledError):
                 await receiver_task
 
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Interactive websocket client for qwery-core.")
     parser.add_argument("--base-url", default="ws://localhost:8000", help="Base websocket URL")
-    parser.add_argument("--project-id", required=True, help="Supabase deployment (gp_deployment_request.id)")
+    parser.add_argument("--project-id", required=True, help="Project identifier")
     parser.add_argument("--chat-id", help="Chat UUID (defaults to random UUID)")
-    parser.add_argument("--token-file", default="tests/token.json", help="Path to token JSON file")
-    parser.add_argument("--access-token", help="Override access token")
-    parser.add_argument("--refresh-token", help="Override refresh token")
     parser.add_argument("--prompt", help="Optional single prompt (non-interactive)")
     args = parser.parse_args(argv)
-
-    token_path = Path(args.token_file)
-    tokens = _load_tokens(token_path)
-
-    access_token = args.access_token or tokens.get("access_token")
-    refresh_token = args.refresh_token or tokens.get("refresh_token")
-    if not access_token:
-        print("Access token not provided and not found in token file.", file=sys.stderr)
-        sys.exit(1)
 
     chat_id = args.chat_id or str(uuid4())
 
@@ -164,8 +138,6 @@ def main(argv: list[str] | None = None) -> None:
             base_url=args.base_url,
             project_id=args.project_id,
             chat_id=chat_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
             initial_prompt=args.prompt,
         )
     )
@@ -173,4 +145,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

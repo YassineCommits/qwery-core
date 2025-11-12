@@ -34,6 +34,8 @@ interface NotebookUIProps {
   title?: string;
   datasources?: Array<{ id: string; name: string }>;
   onRunQuery?: (cellId: number, query: string, datasourceId: string) => void;
+  onGenerateSql?: (cellId: number, prompt: string) => void;
+  isGeneratingSql?: Map<number, boolean>;
   onCellsChange?: (cells: NotebookCellData[]) => void;
   onNotebookChange?: (notebook: Partial<Notebook>) => void;
   cellResults?: Map<number, DatasourceResultSet>;
@@ -48,6 +50,8 @@ function SortableCell({
   onQueryChange,
   onDatasourceChange,
   onRunQuery,
+  onGenerateSql,
+  isGeneratingSql,
   datasources,
   result,
   error,
@@ -64,6 +68,8 @@ function SortableCell({
   onQueryChange: (query: string) => void;
   onDatasourceChange: (datasourceId: string) => void;
   onRunQuery?: (query: string, datasourceId: string) => void;
+  onGenerateSql?: (prompt: string) => void;
+  isGeneratingSql?: boolean;
   datasources: Array<{ id: string; name: string }>;
   result?: DatasourceResultSet | null;
   error?: string;
@@ -100,6 +106,8 @@ function SortableCell({
         onQueryChange={onQueryChange}
         onDatasourceChange={onDatasourceChange}
         onRunQuery={onRunQuery}
+        onGenerateSql={onGenerateSql}
+        isGeneratingSql={isGeneratingSql}
         dragHandleProps={{ ...attributes, ...listeners }}
         isDragging={isDragging}
         result={result}
@@ -121,6 +129,8 @@ export function NotebookUI({
   title,
   datasources = [],
   onRunQuery,
+  onGenerateSql,
+  isGeneratingSql: externalIsGeneratingSql,
   onCellsChange,
   onNotebookChange,
   cellResults: externalCellResults,
@@ -494,6 +504,12 @@ export function NotebookUI({
                       onRunQuery={(query, datasourceId) => {
                         handleRunQuery(cell.cellId, query, datasourceId);
                       }}
+                      onGenerateSql={
+                        onGenerateSql
+                          ? (prompt) => onGenerateSql(cell.cellId, prompt)
+                          : undefined
+                      }
+                      isGeneratingSql={externalIsGeneratingSql?.get(cell.cellId)}
                       datasources={allDatasources}
                       result={cellResults.get(cell.cellId)}
                       error={cellError}

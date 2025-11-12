@@ -24,13 +24,19 @@ from ..protocol import (
     create_handshake_message,
     create_text_message,
 )
-from ..supabase.session import ManagedSupabaseSession, SupabaseChatState, SupabaseSessionManager
 
 
 logger = logging.getLogger(__name__)
 
 INACTIVITY_TIMEOUT = timedelta(hours=1)
 HEARTBEAT_INTERVAL = timedelta(seconds=45)
+
+
+@dataclass
+class ChatState:
+    chat_id: str
+    database_url: Optional[str] = None
+    history: List[Dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -41,10 +47,10 @@ class ChatConnection:
 
 
 class WebsocketAgentManager:
-    def __init__(self, agent: Any, session_manager: SupabaseSessionManager):
+    def __init__(self, agent: Any):
         self.agent = agent
-        self.session_manager = session_manager
         self._connections: Dict[str, List[ChatConnection]] = {}
+        self._chat_states: Dict[str, ChatState] = {}
         self._last_activity: Dict[str, datetime] = {}
         self._lock = asyncio.Lock()
 
@@ -54,16 +60,19 @@ class WebsocketAgentManager:
         *,
         project_id: str,
         chat_id: str,
-        session: ManagedSupabaseSession,
-        chat_state: SupabaseChatState,
     ) -> None:
         await websocket.accept()
 
-        key = self._chat_key(session.key, chat_state.chat_id)
+        key = self._chat_key(project_id, chat_id)
+        if key not in self._chat_states:
+            self._chat_states[key] = ChatState(chat_id=chat_id)
+
         connection = ChatConnection(websocket=websocket)
         connection.heartbeat_task = asyncio.create_task(self._heartbeat(connection))
         self._connections.setdefault(key, []).append(connection)
         self._last_activity[key] = datetime.now(timezone.utc)
+
+        chat_state = self._chat_states[key]
 
         await self._send_json(
             websocket,
@@ -76,8 +85,8 @@ class WebsocketAgentManager:
         )
         await self._send_history(websocket, chat_state)
 
-    async def disconnect(self, websocket: WebSocket, *, session_key: str, chat_id: str) -> None:
-        key = self._chat_key(session_key, chat_id)
+    async def disconnect(self, websocket: WebSocket, *, project_id: str, chat_id: str) -> None:
+        key = self._chat_key(project_id, chat_id)
         connection: Optional[ChatConnection] = None
         if key in self._connections:
             for existing in list(self._connections[key]):
@@ -96,13 +105,16 @@ class WebsocketAgentManager:
         websocket: WebSocket,
         *,
         message: ProtocolMessage,
-        session: ManagedSupabaseSession,
-        chat_state: SupabaseChatState,
-        access_token: str,
-        refresh_token: Optional[str],
+        project_id: str,
+        chat_id: str,
     ) -> None:
-        key = self._chat_key(session.key, chat_state.chat_id)
+        key = self._chat_key(project_id, chat_id)
         self._last_activity[key] = datetime.now(timezone.utc)
+
+        if key not in self._chat_states:
+            self._chat_states[key] = ChatState(chat_id=chat_id)
+
+        chat_state = self._chat_states[key]
 
         payload_type = message.payload.get_payload_type()
 
@@ -146,11 +158,8 @@ class WebsocketAgentManager:
                 self.agent,
                 request_context,
                 content.content,
-                session_manager=self.session_manager,
-                project_id=chat_state.project_id,
-                chat_id=chat_state.chat_id,
-                access_token=access_token,
-                refresh_token=refresh_token,
+                database_url=chat_state.database_url,
+                chat_history=chat_state.history,
             )
         except Exception as exc:
             logger.exception("Error while handling agent message")
@@ -160,8 +169,8 @@ class WebsocketAgentManager:
             ).to_dict()
             await self._send_json(websocket, error_payload)
             await self._broadcast(
-                session_key=session.key,
-                chat_id=chat_state.chat_id,
+                project_id=project_id,
+                chat_id=chat_id,
                 message=error_payload,
                 exclude={websocket},
             )
@@ -203,9 +212,13 @@ class WebsocketAgentManager:
             to="client",
         )
 
+        # Store messages in history
+        chat_state.history.append({"role": "user", "content": content.content})
+        chat_state.history.append({"role": "assistant", "content": assistant_message.payload.message.content})
+
         await self._broadcast(
-            session_key=session.key,
-            chat_id=chat_state.chat_id,
+            project_id=project_id,
+            chat_id=chat_id,
             message=assistant_message.to_dict(),
         )
 
@@ -224,8 +237,9 @@ class WebsocketAgentManager:
                     await connection.websocket.close(code=1001)
             self._connections.pop(key, None)
             self._last_activity.pop(key, None)
+            self._chat_states.pop(key, None)
 
-    async def _send_history(self, websocket: WebSocket, chat_state: SupabaseChatState) -> None:
+    async def _send_history(self, websocket: WebSocket, chat_state: ChatState) -> None:
         if not chat_state.history:
             return
         for record in chat_state.history:
@@ -245,7 +259,7 @@ class WebsocketAgentManager:
         self,
         websocket: WebSocket,
         message: ProtocolMessage,
-        chat_state: SupabaseChatState,
+        chat_state: ChatState,
     ) -> None:
         command = message.payload.command
         if not command:
@@ -263,11 +277,6 @@ class WebsocketAgentManager:
             }:
                 chat_state.database_url = arg.value
                 response_text = "Database URL updated."
-            elif arg.key == SetCommandArgumentType.ROLE:
-                if chat_state.deployment_info is None:
-                    chat_state.deployment_info = {}
-                chat_state.deployment_info["role"] = arg.value
-                response_text = f"Role context set to {arg.value}"
 
         if response_text:
             await self._send_json(
@@ -283,12 +292,12 @@ class WebsocketAgentManager:
     async def _broadcast(
         self,
         *,
-        session_key: str,
+        project_id: str,
         chat_id: str,
         message: Dict[str, Any],
         exclude: Optional[Set[WebSocket]] = None,
     ) -> None:
-        key = self._chat_key(session_key, chat_id)
+        key = self._chat_key(project_id, chat_id)
         if key not in self._connections:
             return
         send_tasks = []
@@ -329,13 +338,13 @@ class WebsocketAgentManager:
             logger.debug("Heartbeat send failed: %s", exc)
 
     @staticmethod
-    def _chat_key(session_key: str, chat_id: str) -> str:
-        return f"{session_key}:{chat_id}"
+    def _chat_key(project_id: str, chat_id: str) -> str:
+        return f"{project_id}:{chat_id}"
 
 
-def register_websocket_routes(app: FastAPI, agent: Any, session_manager: SupabaseSessionManager) -> None:
+def register_websocket_routes(app: FastAPI, agent: Any) -> None:
     router = APIRouter()
-    manager = WebsocketAgentManager(agent, session_manager)
+    manager = WebsocketAgentManager(agent)
 
     @router.websocket("/ws/agent/{project_id}/{chat_id}")
     async def websocket_endpoint(
@@ -343,23 +352,11 @@ def register_websocket_routes(app: FastAPI, agent: Any, session_manager: Supabas
         project_id: str,
         chat_id: str,
     ):
-        authorization = websocket.headers.get("authorization")
-        refresh_token = websocket.headers.get("x-refresh-token")
-        if not authorization or not authorization.lower().startswith("bearer "):
-            await websocket.close(code=4401)
-            return
-        access_token = authorization.split(" ", 1)[1].strip()
-
         try:
-            session = session_manager.get_session(access_token, refresh_token)
-            chat_state = session_manager.get_chat_state(session, project_id, chat_id)
-            session_manager.ensure_history_loaded(chat_state)
             await manager.connect(
                 websocket,
                 project_id=project_id,
-                chat_id=chat_state.chat_id,
-                session=session,
-                chat_state=chat_state,
+                chat_id=chat_id,
             )
         except Exception:
             logger.exception("Failed to initialize websocket session")
@@ -383,15 +380,12 @@ def register_websocket_routes(app: FastAPI, agent: Any, session_manager: Supabas
                 await manager.handle_message(
                     websocket,
                     message=protocol_message,
-                    session=session,
-                    chat_state=chat_state,
-                    access_token=access_token,
-                    refresh_token=refresh_token,
+                    project_id=project_id,
+                    chat_id=chat_id,
                 )
         except WebSocketDisconnect:
             pass
         finally:
-            await manager.disconnect(websocket, session_key=session.key, chat_id=chat_state.chat_id)
+            await manager.disconnect(websocket, project_id=project_id, chat_id=chat_id)
 
     app.include_router(router)
-

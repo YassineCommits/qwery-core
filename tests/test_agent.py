@@ -57,39 +57,8 @@ async def test_create_agent_requires_database(tmp_path: Path, monkeypatch: pytes
     assert viz is not None
 
 
-def test_build_user_resolver_supabase(monkeypatch: pytest.MonkeyPatch) -> None:
-    from qwery_core.auth import supabase as supabase_module
-
-    supabase_module._cached_config.cache_clear()
-
-    monkeypatch.setenv("QWERY_AUTH_PROVIDER", "supabase")
-    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
-    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon-key")
-
-    class DummyClient:
-        def __init__(self):
-            self.auth = types.SimpleNamespace(
-                set_session=lambda access, refresh: None,
-                get_user=lambda: types.SimpleNamespace(
-                    user=types.SimpleNamespace(id="u-123", user_metadata={"roles": ["read_data"]})
-                ),
-            )
-
-    monkeypatch.setattr("qwery_core.auth.supabase.create_client", lambda url, key: DummyClient())
-
+def test_build_user_resolver_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QWERY_AUTH_PROVIDER", raising=False)
     resolver = _build_user_resolver(None)
-    assert resolver.__class__.__name__ == "SupabaseUserResolver"
-
-
-def test_build_user_resolver_supabase_missing_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    from qwery_core.auth import supabase as supabase_module
-
-    supabase_module._cached_config.cache_clear()
-
-    monkeypatch.setenv("QWERY_AUTH_PROVIDER", "supabase")
-    monkeypatch.delenv("SUPABASE_URL", raising=False)
-    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
-
-    with pytest.raises(RuntimeError):
-        _build_user_resolver(None)
+    assert resolver.__class__.__name__ == "EnvUserResolver"
 

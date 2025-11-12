@@ -5,13 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from ..agent import handle_prompt
-from ..auth import SupabaseAuthError
 from ..core import RequestContext
-from ..supabase import SupabaseSessionManager
 
 
 class RunSqlRequest(BaseModel):
@@ -52,12 +50,9 @@ class QweryFastAPIServer:
     """FastAPI server for qwery-core endpoints."""
 
     agent: Any
-    session_manager: Optional[SupabaseSessionManager] = None
 
     def create_app(self) -> FastAPI:
         app = FastAPI()
-
-        session_manager = self.session_manager or SupabaseSessionManager()
 
         @app.post("/api/v1/run-sql", response_model=RunSqlResponse)
         async def run_sql(payload: RunSqlRequest) -> RunSqlResponse:
@@ -88,13 +83,7 @@ class QweryFastAPIServer:
             chat_id: str,
             payload: ChatRequest,
             request: Request,
-            authorization: str = Header(..., alias="Authorization"),
-            refresh_token: Optional[str] = Header(None, alias="X-Refresh-Token"),
         ) -> ChatResponse:
-            if not authorization.lower().startswith("bearer "):
-                raise HTTPException(status_code=401, detail="Authorization header must be Bearer token")
-            access_token = authorization.split(" ", 1)[1].strip()
-
             headers = {k.lower(): v for k, v in request.headers.items()}
             cookies = dict(request.cookies) if request.cookies else {}
             request_context = RequestContext(headers=headers, cookies=cookies)
@@ -104,14 +93,7 @@ class QweryFastAPIServer:
                     self.agent,
                     request_context,
                     payload.prompt,
-                    session_manager=session_manager,
-                    project_id=project_id,
-                    chat_id=chat_id,
-                    access_token=access_token,
-                    refresh_token=refresh_token,
                 )
-            except SupabaseAuthError as exc:
-                raise HTTPException(status_code=401, detail=str(exc)) from exc
             except RuntimeError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
