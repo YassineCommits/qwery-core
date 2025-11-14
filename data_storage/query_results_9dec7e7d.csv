@@ -1,0 +1,11 @@
+id,name,sku,description,price,stock,category,created_at,discontinued
+1,Widget A,WID-A-001,Compact widget for everyday use,19.99,150,Widgets,2024-01-10 09:30:00+00:00,False
+2,Widget B,WID-B-002,Heavy-duty widget,29.99,80,Widgets,2024-02-05 11:00:00+00:00,False
+3,Gadget Pro,GAD-P-100,Professional gadget with extra features,149.99,25,Gadgets,2024-03-12 14:45:00+00:00,False
+4,Gadget Mini,GAD-M-101,"Small gadget, pocket-sized",49.50,200,Gadgets,2024-03-20 08:20:00+00:00,False
+5,Accessory Pack,ACC-PP-01,Pack of accessories compatible with widgets,12.00,500,Accessories,2024-01-25 12:00:00+00:00,False
+6,Replacement Battery,BAT-R-09,Rechargeable replacement battery,9.99,350,Accessories,2024-02-18 15:30:00+00:00,False
+7,Deluxe Widget,WID-D-010,Premium widget with metal casing,59.99,40,Widgets,2024-04-01 10:10:00+00:00,False
+8,Obsolete Gadget,GAD-OLD-01,"Older model, limited support",39.99,0,Gadgets,2023-11-01 09:00:00+00:00,True
+9,Bundle Starter,BND-ST-1,Starter bundle: Widget A + Accessory Pack,27.99,120,Bundles,2024-02-28 13:15:00+00:00,False
+10,Limited Edition,LTD-ED-99,Limited edition collectible,199.00,5,Collectibles,2024-05-01 16:00:00+00:00,False

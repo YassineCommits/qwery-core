@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
@@ -24,6 +25,7 @@ from ..protocol import (
     create_handshake_message,
     create_text_message,
 )
+from ..toon import encode_query_results
 
 
 logger = logging.getLogger(__name__)
@@ -61,19 +63,27 @@ class WebsocketAgentManager:
         project_id: str,
         chat_id: str,
     ) -> None:
+        start_time = time.time()
+        logger.info(f"[WS_CONNECT_START] project_id={project_id}, chat_id={chat_id}, timestamp={start_time}")
+        
+        connect_start = time.time()
         await websocket.accept()
+        logger.info(f"[WS_CONNECT_ACCEPT] took={time.time() - connect_start:.4f}s")
 
         key = self._chat_key(project_id, chat_id)
         if key not in self._chat_states:
             self._chat_states[key] = ChatState(chat_id=chat_id)
+            logger.info(f"[WS_STATE_CREATED] key={key}")
 
         connection = ChatConnection(websocket=websocket)
         connection.heartbeat_task = asyncio.create_task(self._heartbeat(connection))
         self._connections.setdefault(key, []).append(connection)
         self._last_activity[key] = datetime.now(timezone.utc)
+        logger.info(f"[WS_CONNECTION_ADDED] key={key}, total_connections={len(self._connections.get(key, []))}")
 
         chat_state = self._chat_states[key]
 
+        handshake_start = time.time()
         await self._send_json(
             websocket,
             create_handshake_message(
@@ -83,7 +93,11 @@ class WebsocketAgentManager:
                 to="client",
             ).to_dict(),
         )
+        logger.info(f"[WS_HANDSHAKE_SENT] took={time.time() - handshake_start:.4f}s")
+        
+        history_start = time.time()
         await self._send_history(websocket, chat_state)
+        logger.info(f"[WS_HISTORY_SENT] took={time.time() - history_start:.4f}s, total_time={time.time() - start_time:.4f}s")
 
     async def disconnect(self, websocket: WebSocket, *, project_id: str, chat_id: str) -> None:
         key = self._chat_key(project_id, chat_id)
@@ -108,17 +122,23 @@ class WebsocketAgentManager:
         project_id: str,
         chat_id: str,
     ) -> None:
+        msg_start_time = time.time()
         key = self._chat_key(project_id, chat_id)
         self._last_activity[key] = datetime.now(timezone.utc)
 
+        logger.info(f"[WS_HANDLE_MSG_START] key={key}, kind={message.kind}, timestamp={msg_start_time}")
+
         if key not in self._chat_states:
             self._chat_states[key] = ChatState(chat_id=chat_id)
+            logger.info(f"[WS_STATE_CREATED_IN_HANDLE] key={key}")
 
         chat_state = self._chat_states[key]
 
         payload_type = message.payload.get_payload_type()
+        logger.info(f"[WS_PAYLOAD_TYPE] payload_type={payload_type}")
 
         if message.kind == MessageKind.HEARTBEAT or payload_type == "heartbeat":
+            logger.info(f"[WS_HEARTBEAT] responding to heartbeat")
             await self._send_json(
                 websocket,
                 ProtocolMessage.create(
@@ -128,13 +148,18 @@ class WebsocketAgentManager:
                     to="client",
                 ).to_dict(),
             )
+            logger.info(f"[WS_HEARTBEAT_DONE] took={time.time() - msg_start_time:.4f}s")
             return
 
         if message.kind == MessageKind.COMMAND and message.payload.command:
+            logger.info(f"[WS_COMMAND] handling command")
+            cmd_start = time.time()
             await self._handle_command(websocket, message, chat_state)
+            logger.info(f"[WS_COMMAND_DONE] took={time.time() - cmd_start:.4f}s")
             return
 
         if not message.payload.message:
+            logger.warning(f"[WS_INVALID_PAYLOAD] no message in payload")
             await self._send_json(
                 websocket,
                 create_error_message(
@@ -146,13 +171,18 @@ class WebsocketAgentManager:
 
         content = message.payload.message
         if content.role != MessageRole.USER:
+            logger.info(f"[WS_NON_USER_MSG] role={content.role}, skipping")
             return
+
+        logger.info(f"[WS_USER_MSG] content_length={len(content.content)}, history_length={len(chat_state.history)}")
 
         request_context = RequestContext(
             headers={k.lower(): v for k, v in websocket.headers.items()},
             cookies=dict(websocket.cookies) if websocket.cookies else {},
         )
 
+        prompt_start = time.time()
+        logger.info(f"[WS_HANDLE_PROMPT_START] timestamp={prompt_start}")
         try:
             response = await handle_prompt(
                 self.agent,
@@ -161,8 +191,9 @@ class WebsocketAgentManager:
                 database_url=chat_state.database_url,
                 chat_history=chat_state.history,
             )
+            logger.info(f"[WS_HANDLE_PROMPT_DONE] took={time.time() - prompt_start:.4f}s")
         except Exception as exc:
-            logger.exception("Error while handling agent message")
+            logger.exception(f"[WS_HANDLE_PROMPT_ERROR] took={time.time() - prompt_start:.4f}s, error={exc}")
             error_payload = create_error_message(
                 error_code="agent_error",
                 message=str(exc),
@@ -176,51 +207,65 @@ class WebsocketAgentManager:
             )
             return
 
-        display_lines: List[str] = []
+        format_start = time.time()
+        logger.info(f"[WS_FORMAT_RESPONSE_START] timestamp={format_start}")
+        
+        # Build human-readable answer (just the summary, no SQL/details)
+        answer_lines: List[str] = []
         summary_text = (response.get("summary") or "").strip()
         if summary_text:
-            display_lines.append(summary_text)
+            # Extract the first sentence/line that describes what was done
+            # Skip lines that contain "SQL:", "Preview:", "Results saved", etc.
+            summary_lines = summary_text.split("\n")
+            for line in summary_lines:
+                line = line.strip()
+                if line and not any(skip in line for skip in ["SQL:", "Preview:", "Results saved", "Query executed"]):
+                    answer_lines.append(line)
+                    break  # Take first meaningful line
+        else:
+            answer_lines.append("Query executed successfully.")
 
-        csv_filename = response.get("csv_filename")
-        if csv_filename and (not summary_text or csv_filename not in summary_text):
-            display_lines.append(f"Results saved to {csv_filename}.")
-
-        sql_text = response.get("sql")
-        if sql_text:
-            display_lines.append("")
-            display_lines.append("SQL:")
-            display_lines.append(sql_text)
-
+        # Build TOON format with query and results
+        sql_text = response.get("sql", "")
         columns = response.get("columns") or []
         preview_rows = response.get("preview_rows") or []
-        if columns and preview_rows:
-            display_lines.append("")
-            display_lines.append("Preview:")
-            display_lines.append(", ".join(str(col) for col in columns))
-            for row in preview_rows[:5]:
-                display_lines.append(", ".join(str(value) for value in row))
-            if response.get("truncated"):
-                display_lines.append("... (truncated)")
-
-        if not display_lines:
-            display_lines.append("Query executed successfully.")
+        
+        toon_lines: List[str] = []
+        if sql_text:
+            toon_content = encode_query_results(sql_text, columns, preview_rows)
+            toon_lines.append("```toon")
+            toon_lines.append(toon_content)
+            toon_lines.append("```")
+        
+        # Combine: human answer first, then TOON data
+        final_content_parts: List[str] = []
+        final_content_parts.append("\n".join(answer_lines))
+        
+        if toon_lines:
+            final_content_parts.append("")  # Empty line separator
+            final_content_parts.append("\n".join(toon_lines))
 
         assistant_message = create_text_message(
             role=MessageRole.ASSISTANT,
-            content="\n".join(line for line in display_lines if line),
+            content="\n".join(final_content_parts),
             from_="server",
             to="client",
         )
+        logger.info(f"[WS_FORMAT_RESPONSE_DONE] took={time.time() - format_start:.4f}s")
 
         # Store messages in history
+        history_start = time.time()
         chat_state.history.append({"role": "user", "content": content.content})
         chat_state.history.append({"role": "assistant", "content": assistant_message.payload.message.content})
+        logger.info(f"[WS_HISTORY_UPDATED] took={time.time() - history_start:.4f}s, new_history_length={len(chat_state.history)}")
 
+        broadcast_start = time.time()
         await self._broadcast(
             project_id=project_id,
             chat_id=chat_id,
             message=assistant_message.to_dict(),
         )
+        logger.info(f"[WS_BROADCAST_DONE] took={time.time() - broadcast_start:.4f}s, total_msg_time={time.time() - msg_start_time:.4f}s")
 
     async def cleanup(self) -> None:
         now = datetime.now(timezone.utc)
@@ -352,6 +397,8 @@ def register_websocket_routes(app: FastAPI, agent: Any) -> None:
         project_id: str,
         chat_id: str,
     ):
+        endpoint_start = time.time()
+        logger.info(f"[WS_ENDPOINT_START] project_id={project_id}, chat_id={chat_id}, timestamp={endpoint_start}")
         try:
             await manager.connect(
                 websocket,
@@ -359,16 +406,23 @@ def register_websocket_routes(app: FastAPI, agent: Any) -> None:
                 chat_id=chat_id,
             )
         except Exception:
-            logger.exception("Failed to initialize websocket session")
+            logger.exception(f"[WS_ENDPOINT_CONNECT_ERROR] took={time.time() - endpoint_start:.4f}s")
             await websocket.close(code=4401)
             return
 
         try:
             while True:
+                receive_start = time.time()
+                logger.info(f"[WS_RECEIVE_START] waiting for message, timestamp={receive_start}")
                 data = await websocket.receive_json()
+                logger.info(f"[WS_RECEIVE_DONE] took={time.time() - receive_start:.4f}s, data_size={len(str(data))}")
+                
+                parse_start = time.time()
                 try:
                     protocol_message = ProtocolMessage.model_validate(data)
-                except Exception:
+                    logger.info(f"[WS_PARSE_DONE] took={time.time() - parse_start:.4f}s")
+                except Exception as e:
+                    logger.error(f"[WS_PARSE_ERROR] took={time.time() - parse_start:.4f}s, error={e}")
                     await manager._send_json(
                         websocket,
                         create_error_message(
@@ -384,8 +438,11 @@ def register_websocket_routes(app: FastAPI, agent: Any) -> None:
                     chat_id=chat_id,
                 )
         except WebSocketDisconnect:
+            logger.info(f"[WS_DISCONNECT] project_id={project_id}, chat_id={chat_id}")
             pass
         finally:
+            disconnect_start = time.time()
             await manager.disconnect(websocket, project_id=project_id, chat_id=chat_id)
+            logger.info(f"[WS_ENDPOINT_END] total_lifetime={time.time() - endpoint_start:.4f}s, disconnect_took={time.time() - disconnect_start:.4f}s")
 
     app.include_router(router)

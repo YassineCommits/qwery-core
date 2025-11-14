@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import logging
 import os
+import sys
 
 from fastapi import FastAPI
 
 from .agent import create_agent
 from .server_components.fastapi import QweryFastAPIServer
 from .server_components.websocket import register_websocket_routes
+
+# Configure logging
+log_level = os.environ.get("QWERY_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ],
+    force=True,  # Override any existing configuration
+)
 
 
 @lru_cache(maxsize=1)

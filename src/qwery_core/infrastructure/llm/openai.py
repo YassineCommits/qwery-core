@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import time
 from typing import Any, AsyncGenerator, Dict, Optional
 
 from openai import OpenAI
 
 from .base import LlmResponse, LlmService, LlmStreamChunk
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAILlmService(LlmService):
@@ -22,13 +26,26 @@ class OpenAILlmService(LlmService):
         self._client = OpenAI(api_key=api_key)
 
     async def send_request(self, request: Dict[str, Any]) -> LlmResponse:
+        llm_start = time.time()
+        logger.info(f"[LLM_OPENAI_SEND_START] model={self.model}, timestamp={llm_start}")
+        
+        build_start = time.time()
         messages = self._build_messages(request)
+        logger.info(f"[LLM_OPENAI_BUILD_MSGS] took={time.time() - build_start:.4f}s, msg_count={len(messages)}")
+        
+        api_start = time.time()
+        logger.info(f"[LLM_OPENAI_API_CALL_START] timestamp={api_start}")
         response = await asyncio.to_thread(
             self._client.chat.completions.create,
             model=self.model,
             messages=messages,
         )
-        return self._convert_response(response)
+        logger.info(f"[LLM_OPENAI_API_CALL_DONE] took={time.time() - api_start:.4f}s")
+        
+        convert_start = time.time()
+        result = self._convert_response(response)
+        logger.info(f"[LLM_OPENAI_CONVERT] took={time.time() - convert_start:.4f}s, content_length={len(result.content)}, total_took={time.time() - llm_start:.4f}s")
+        return result
 
     async def stream_request(
         self, request: Dict[str, Any]
