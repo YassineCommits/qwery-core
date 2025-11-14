@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
@@ -33,12 +35,33 @@ logger = logging.getLogger(__name__)
 INACTIVITY_TIMEOUT = timedelta(hours=1)
 HEARTBEAT_INTERVAL = timedelta(seconds=45)
 
+# Scalability limits
+MAX_CONNECTIONS_PER_CHAT = int(os.environ.get("QWERY_MAX_CONNECTIONS_PER_CHAT", "10"))
+MAX_CHAT_HISTORY_LENGTH = int(os.environ.get("QWERY_MAX_CHAT_HISTORY", "100"))
+MAX_CHAT_STATES = int(os.environ.get("QWERY_MAX_CHAT_STATES", "10000"))
+CLEANUP_INTERVAL = timedelta(minutes=5)
+
 
 @dataclass
 class ChatState:
     chat_id: str
     database_url: Optional[str] = None
     history: List[Dict[str, str]] = field(default_factory=list)
+    last_accessed: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    def add_to_history(self, role: str, content: str) -> None:
+        """Add message to history with size limit."""
+        self.history.append({"role": role, "content": content})
+        # Trim history if too long
+        if len(self.history) > MAX_CHAT_HISTORY_LENGTH:
+            # Keep system message if present, then keep most recent messages
+            system_msgs = [msg for msg in self.history if msg.get("role") == "system"]
+            other_msgs = [msg for msg in self.history if msg.get("role") != "system"]
+            # Keep last N messages (excluding system)
+            keep_count = MAX_CHAT_HISTORY_LENGTH - len(system_msgs)
+            self.history = system_msgs + other_msgs[-keep_count:]
+        
+        self.last_accessed = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -51,10 +74,13 @@ class ChatConnection:
 class WebsocketAgentManager:
     def __init__(self, agent: Any):
         self.agent = agent
+        # Use OrderedDict for LRU eviction
         self._connections: Dict[str, List[ChatConnection]] = {}
-        self._chat_states: Dict[str, ChatState] = {}
+        self._chat_states: OrderedDict[str, ChatState] = OrderedDict()
         self._last_activity: Dict[str, datetime] = {}
         self._lock = asyncio.Lock()
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_started = False
 
     async def connect(
         self,
@@ -63,6 +89,10 @@ class WebsocketAgentManager:
         project_id: str,
         chat_id: str,
     ) -> None:
+        # Start cleanup task on first connection (when event loop is running)
+        if not self._cleanup_started:
+            self._start_cleanup_task()
+        
         start_time = time.time()
         logger.info(f"[WS_CONNECT_START] project_id={project_id}, chat_id={chat_id}, timestamp={start_time}")
         
@@ -72,9 +102,26 @@ class WebsocketAgentManager:
 
         key = self._chat_key(project_id, chat_id)
         if key not in self._chat_states:
+            # Evict oldest state if at limit
+            if len(self._chat_states) >= MAX_CHAT_STATES:
+                oldest_key = next(iter(self._chat_states))
+                logger.info(f"[WS_STATE_EVICT] evicting oldest key={oldest_key}")
+                self._chat_states.pop(oldest_key, None)
+                self._last_activity.pop(oldest_key, None)
+            
             self._chat_states[key] = ChatState(chat_id=chat_id)
-            logger.info(f"[WS_STATE_CREATED] key={key}")
+            logger.info(f"[WS_STATE_CREATED] key={key}, total_states={len(self._chat_states)}")
+        
+        # Move to end (LRU)
+        self._chat_states.move_to_end(key)
 
+        # Check connection limit per chat
+        existing_connections = len(self._connections.get(key, []))
+        if existing_connections >= MAX_CONNECTIONS_PER_CHAT:
+            logger.warning(f"[WS_CONNECTION_LIMIT] key={key}, limit={MAX_CONNECTIONS_PER_CHAT}, rejecting")
+            await websocket.close(code=1008, reason="Connection limit exceeded")
+            return
+        
         connection = ChatConnection(websocket=websocket)
         connection.heartbeat_task = asyncio.create_task(self._heartbeat(connection))
         self._connections.setdefault(key, []).append(connection)
@@ -253,10 +300,10 @@ class WebsocketAgentManager:
         )
         logger.info(f"[WS_FORMAT_RESPONSE_DONE] took={time.time() - format_start:.4f}s")
 
-        # Store messages in history
+        # Store messages in history (with automatic trimming)
         history_start = time.time()
-        chat_state.history.append({"role": "user", "content": content.content})
-        chat_state.history.append({"role": "assistant", "content": assistant_message.payload.message.content})
+        chat_state.add_to_history("user", content.content)
+        chat_state.add_to_history("assistant", assistant_message.payload.message.content)
         logger.info(f"[WS_HISTORY_UPDATED] took={time.time() - history_start:.4f}s, new_history_length={len(chat_state.history)}")
 
         broadcast_start = time.time()
@@ -267,13 +314,40 @@ class WebsocketAgentManager:
         )
         logger.info(f"[WS_BROADCAST_DONE] took={time.time() - broadcast_start:.4f}s, total_msg_time={time.time() - msg_start_time:.4f}s")
 
+    def _start_cleanup_task(self) -> None:
+        """Start background cleanup task (call this when event loop is running)."""
+        if self._cleanup_started:
+            return
+        
+        async def cleanup_loop() -> None:
+            while True:
+                try:
+                    await asyncio.sleep(CLEANUP_INTERVAL.total_seconds())
+                    await self.cleanup()
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    logger.error(f"[WS_CLEANUP_ERROR] {exc}")
+        
+        try:
+            loop = asyncio.get_running_loop()
+            self._cleanup_task = loop.create_task(cleanup_loop())
+            self._cleanup_started = True
+            logger.info("[WS_CLEANUP_STARTED] background cleanup task started")
+        except RuntimeError:
+            # No event loop running yet, will start on first connection
+            logger.debug("[WS_CLEANUP_DEFERRED] will start cleanup task when event loop is available")
+
     async def cleanup(self) -> None:
+        """Clean up expired connections and states."""
         now = datetime.now(timezone.utc)
         expired = [
             key
             for key, last_active in self._last_activity.items()
             if now - last_active > INACTIVITY_TIMEOUT
         ]
+        
+        cleaned = 0
         for key in expired:
             connections = self._connections.get(key, [])
             for connection in list(connections):
@@ -283,6 +357,25 @@ class WebsocketAgentManager:
             self._connections.pop(key, None)
             self._last_activity.pop(key, None)
             self._chat_states.pop(key, None)
+            cleaned += 1
+        
+        if cleaned > 0:
+            logger.info(f"[WS_CLEANUP] cleaned {cleaned} expired chats")
+        
+        # Also evict oldest states if we're over limit
+        while len(self._chat_states) > MAX_CHAT_STATES:
+            oldest_key = next(iter(self._chat_states))
+            # Only evict if not recently active
+            if oldest_key in self._last_activity:
+                last_active = self._last_activity[oldest_key]
+                if now - last_active > INACTIVITY_TIMEOUT:
+                    logger.info(f"[WS_CLEANUP_EVICT] evicting inactive key={oldest_key}")
+                    self._chat_states.pop(oldest_key, None)
+                    self._last_activity.pop(oldest_key, None)
+                else:
+                    break  # All remaining are active
+            else:
+                self._chat_states.pop(oldest_key, None)
 
     async def _send_history(self, websocket: WebSocket, chat_state: ChatState) -> None:
         if not chat_state.history:

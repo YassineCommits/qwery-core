@@ -8,6 +8,7 @@ import sys
 from fastapi import FastAPI
 
 from .agent import create_agent
+from .middleware.rate_limit import RateLimitMiddleware
 from .server_components.fastapi import QweryFastAPIServer
 from .server_components.websocket import register_websocket_routes
 
@@ -23,12 +24,20 @@ logging.basicConfig(
 )
 
 
-@lru_cache(maxsize=1)
 def _build_app() -> FastAPI:
     agent = create_agent(require_database=True)
     server = QweryFastAPIServer(agent)
     app = server.create_app()
     register_websocket_routes(app, agent)
+
+    # Add rate limiting middleware
+    rate_limit_rpm = int(os.environ.get("QWERY_RATE_LIMIT_RPM", "60"))
+    rate_limit_rph = int(os.environ.get("QWERY_RATE_LIMIT_RPH", "1000"))
+    app.add_middleware(
+        RateLimitMiddleware,
+        requests_per_minute=rate_limit_rpm,
+        requests_per_hour=rate_limit_rph,
+    )
 
     @app.get("/health", tags=["system"])
     async def health() -> dict[str, str]:

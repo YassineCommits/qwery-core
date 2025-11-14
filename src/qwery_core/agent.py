@@ -4,7 +4,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 import csv
 import json
@@ -57,12 +57,22 @@ class AgentSettings:
     user_resolver: Optional[UserResolver] = None
 
 
+# Global runner cache to reuse connection pools
+_sql_runner_cache: Dict[str, Any] = {}
+
 def _build_sql_runner(database_url: str):
+    """Build SQL runner with connection pooling and caching."""
+    # Cache runners by URL to reuse connection pools
+    if database_url in _sql_runner_cache:
+        return _sql_runner_cache[database_url]
+    
     parsed = urlparse(database_url)
     scheme = parsed.scheme.lower()
 
     if scheme in {"postgres", "postgresql"}:
-        return PostgresRunner(connection_string=database_url)
+        runner = PostgresRunner(connection_string=database_url)
+        _sql_runner_cache[database_url] = runner
+        return runner
 
     if scheme in {"sqlite", "file"} or not scheme:
         path = parsed.path if scheme else database_url
@@ -71,7 +81,9 @@ def _build_sql_runner(database_url: str):
         abs_path = os.path.abspath(path)
         if not os.path.exists(abs_path):
             raise FileNotFoundError(f"SQLite database not found: {abs_path}")
-        return SqliteRunner(database_path=abs_path)
+        runner = SqliteRunner(database_path=abs_path)
+        _sql_runner_cache[database_url] = runner
+        return runner
 
     raise ValueError(f"Unsupported database scheme: {scheme}")
 
