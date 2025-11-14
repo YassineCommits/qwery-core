@@ -149,4 +149,4 @@ apps/desktop/release
 apps/desktop/dist
 
 #csv
-.csv
+data_storage/*

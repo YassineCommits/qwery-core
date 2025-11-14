@@ -1,2 +1,0 @@
-schema,table_name,owner,tablespace,hasindexes,hasrules,hastriggers
-public,customers,postgres,,True,False,False
