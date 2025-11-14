@@ -7,8 +7,9 @@ import pytest
 
 import types
 
-from qwery_core.agent import _build_user_resolver, create_agent
-from qwery_core.llm import MockLlmService
+from qwery_core.application.services import create_agent
+from qwery_core.application.services.agent_service import _build_user_resolver
+from qwery_core.infrastructure.llm import MockLlmService
 
 
 def _build_temp_db(tmp_path: Path) -> str:

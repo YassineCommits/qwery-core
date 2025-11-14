@@ -7,8 +7,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from qwery_core.protocol import MessageRole, create_text_message
-from qwery_core.server_components.websocket import register_websocket_routes
+from qwery_core.domain.protocols import MessageRole, create_text_message
+from qwery_core.presentation.websocket import register_websocket_routes
 
 
 class StubAgent:
@@ -29,7 +29,7 @@ def stub_agent(monkeypatch: pytest.MonkeyPatch):
             "csv_filename": "query.csv",
             "visualization": None,
         }
-    monkeypatch.setattr("qwery_core.server_components.websocket.handle_prompt", fake_handle_prompt)
+    monkeypatch.setattr("qwery_core.presentation.websocket.handle_prompt", fake_handle_prompt)
     return StubAgent()
 
 

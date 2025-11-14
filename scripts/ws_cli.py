@@ -11,7 +11,7 @@ from uuid import uuid4
 from websockets.exceptions import ConnectionClosedError
 from websockets.legacy.client import connect as ws_connect
 
-from qwery_core.protocol import MessageKind, MessageRole, ProtocolMessage, create_text_message
+from qwery_core.domain.protocols import MessageKind, MessageRole, ProtocolMessage, create_text_message
 
 
 async def _interactive_chat(
