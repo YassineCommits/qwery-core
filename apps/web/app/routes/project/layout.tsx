@@ -6,8 +6,9 @@ import {
   PageMobileNavigation,
   PageNavigation,
   PageTopNavigation,
+  AgentSidebar,
 } from '@qwery/ui/page';
-import { SidebarProvider } from '@qwery/ui/shadcn-sidebar';
+import { SidebarProvider, SidebarTrigger } from '@qwery/ui/shadcn-sidebar';
 
 import { sidebarStateCookie } from '~/lib/cookies';
 import type { Route } from '~/types/app/routes/project/+types/layout';
@@ -16,6 +17,7 @@ import { LayoutFooter } from '../layout/_components/layout-footer';
 import { LayoutMobileNavigation } from '../layout/_components/layout-mobile-navigation';
 import { LayoutTopBar } from '../layout/_components/layout-topbar';
 import { ProjectSidebar } from './_components/project-sidebar';
+import QweryAgentUI from '@qwery/ui/agent-ui';
 
 export async function loader(args: Route.LoaderArgs) {
   const request = args.request;
@@ -46,6 +48,7 @@ function SidebarLayout(props: Route.ComponentProps & React.PropsWithChildren) {
   return (
     <SidebarProvider defaultOpen={layoutState.open}>
       <Page>
+        <SidebarTrigger />
         <PageTopNavigation>
           <LayoutTopBar />
         </PageTopNavigation>
@@ -58,6 +61,9 @@ function SidebarLayout(props: Route.ComponentProps & React.PropsWithChildren) {
         <PageFooter>
           <LayoutFooter />
         </PageFooter>
+        <AgentSidebar>
+          <QweryAgentUI />
+        </AgentSidebar>
         {props.children}
       </Page>
     </SidebarProvider>

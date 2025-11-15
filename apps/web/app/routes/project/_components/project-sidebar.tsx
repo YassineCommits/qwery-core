@@ -6,13 +6,14 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarNavigation,
 } from '@qwery/ui/shadcn-sidebar';
+import { SidebarNavigation } from '@qwery/ui/sidebar-navigation';
 
 import { AccountDropdownContainer } from '~/components/account-dropdown-container';
 import pathsConfig from '~/config/paths.config';
 import { createNavigationConfig } from '~/config/project.navigation.config';
 import { createPath } from '~/config/qwery.navigation.config';
+import { Shortcuts } from 'node_modules/@qwery/ui/src/qwery/shortcuts';
 
 export function ProjectSidebar() {
   const navigate = useNavigate();
@@ -38,6 +39,16 @@ export function ProjectSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        <div className="p-4">
+          <Shortcuts
+            items={[
+              {
+                text: 'Agent',
+                keys: ['⌘', 'L'],
+              },
+            ]}
+          />
+        </div>
         <AccountDropdownContainer />
       </SidebarFooter>
     </Sidebar>

@@ -14,6 +14,7 @@ import {
   Copy,
   DatabaseIcon,
   GripVertical,
+  Loader2,
   Maximize2,
   MoreVertical,
   PlayIcon,
@@ -64,6 +65,7 @@ interface NotebookCellProps {
   isDragging?: boolean;
   result?: DatasourceResultSet | null;
   error?: string;
+  isLoading?: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDuplicate: () => void;
@@ -84,6 +86,7 @@ export function NotebookCell({
   isDragging,
   result,
   error,
+  isLoading = false,
   onMoveUp,
   onMoveDown,
   onDuplicate,
@@ -187,11 +190,15 @@ export function NotebookCell({
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-7 w-7"
+                  className="h-7 w-7 cursor-pointer"
                   onClick={handleRunQuery}
-                  disabled={!query.trim()}
+                  disabled={!query.trim() || isLoading}
                 >
-                  <PlayIcon className="h-4 w-4" />
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlayIcon className="h-4 w-4" />
+                  )}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -313,6 +320,7 @@ export function NotebookCell({
                   onChange={(value) => handleQueryChange(value)}
                   extensions={[sql()]}
                   theme={isDarkMode ? oneDark : undefined}
+                  editable={!isLoading}
                   basicSetup={{
                     lineNumbers: true,
                     foldGutter: true,
@@ -330,6 +338,7 @@ export function NotebookCell({
                   ref={textareaRef}
                   value={query}
                   onChange={(e) => handleQueryChange(e.target.value)}
+                  disabled={isLoading}
                   className={cn(
                     'min-h-[120px] w-full resize-none rounded-none border-0 text-sm',
                     'bg-transparent px-4 py-2 focus-visible:ring-0',
@@ -380,11 +389,15 @@ export function NotebookCell({
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7"
+              className="h-7 w-7 cursor-pointer"
               onClick={handleRunQuery}
-              disabled={!query.trim()}
+              disabled={!query.trim() || isLoading}
             >
-              <PlayIcon className="h-4 w-4" />
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <PlayIcon className="h-4 w-4" />
+              )}
             </Button>
           ) : (
             <span className="text-muted-foreground truncate text-sm">

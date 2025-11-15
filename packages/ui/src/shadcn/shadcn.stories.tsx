@@ -57,7 +57,7 @@ import {
 import { Input } from './input';
 import { Label } from './label';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import { RadioGroup, RadioGroupItem, RadioGroupItemLabel } from './radio-group';
+import { RadioGroup, RadioGroupItem } from './radio-group';
 import {
   Select,
   SelectContent,
@@ -147,9 +147,9 @@ function AllComponents() {
           <Badge variant="secondary">Secondary</Badge>
           <Badge variant="destructive">Destructive</Badge>
           <Badge variant="outline">Outline</Badge>
-          <Badge variant="success">Success</Badge>
-          <Badge variant="warning">Warning</Badge>
-          <Badge variant="info">Info</Badge>
+          <Badge variant="default">Success</Badge>
+          <Badge variant="destructive">Warning</Badge>
+          <Badge variant="secondary">Info</Badge>
         </div>
       </section>
 
@@ -199,21 +199,21 @@ function AllComponents() {
               This is a destructive alert message.
             </AlertDescription>
           </Alert>
-          <Alert variant="success">
+          <Alert variant="default">
             <CheckIcon />
             <AlertTitle>Success Alert</AlertTitle>
             <AlertDescription>
               This is a success alert message.
             </AlertDescription>
           </Alert>
-          <Alert variant="warning">
+          <Alert variant="destructive">
             <AlertCircleIcon />
             <AlertTitle>Warning Alert</AlertTitle>
             <AlertDescription>
               This is a warning alert message.
             </AlertDescription>
           </Alert>
-          <Alert variant="info">
+          <Alert variant="destructive">
             <InfoIcon />
             <AlertTitle>Info Alert</AlertTitle>
             <AlertDescription>This is an info alert message.</AlertDescription>
@@ -264,19 +264,19 @@ function AllComponents() {
           </div>
           <div className="space-y-2">
             <Label>Radio Group</Label>
-            <RadioGroup value={radioValue} onValueChange={setRadioValue}>
-              <RadioGroupItemLabel selected={radioValue === 'option1'}>
-                <RadioGroupItem value="option1" id="radio1" />
-                <span>Option 1</span>
-              </RadioGroupItemLabel>
-              <RadioGroupItemLabel selected={radioValue === 'option2'}>
-                <RadioGroupItem value="option2" id="radio2" />
-                <span>Option 2</span>
-              </RadioGroupItemLabel>
-              <RadioGroupItemLabel selected={radioValue === 'option3'}>
-                <RadioGroupItem value="option3" id="radio3" />
-                <span>Option 3</span>
-              </RadioGroupItemLabel>
+            <RadioGroup defaultValue="default" onValueChange={setRadioValue}>
+              <div className="flex items-center gap-3">
+                <RadioGroupItem value="default" id="r1" />
+                <Label htmlFor="r1">Default</Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <RadioGroupItem value="comfortable" id="r2" />
+                <Label htmlFor="r2">Comfortable</Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <RadioGroupItem value="compact" id="r3" />
+                <Label htmlFor="r3">Compact</Label>
+              </div>
             </RadioGroup>
           </div>
         </div>
@@ -539,7 +539,7 @@ function AllComponents() {
             <TableRow>
               <TableCell className="font-medium">INV001</TableCell>
               <TableCell>
-                <Badge variant="success">Paid</Badge>
+                <Badge variant="default">Paid</Badge>
               </TableCell>
               <TableCell>Credit Card</TableCell>
               <TableCell className="text-right">$250.00</TableCell>
@@ -547,7 +547,7 @@ function AllComponents() {
             <TableRow>
               <TableCell className="font-medium">INV002</TableCell>
               <TableCell>
-                <Badge variant="warning">Pending</Badge>
+                <Badge variant="destructive">Pending</Badge>
               </TableCell>
               <TableCell>PayPal</TableCell>
               <TableCell className="text-right">$150.00</TableCell>

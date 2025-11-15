@@ -1,9 +1,7 @@
 import * as React from 'react';
-
-import { ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
-import { Slot } from 'radix-ui';
-
+import { Slot } from '@radix-ui/react-slot';
 import { cn } from '../lib/utils';
+import { ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 
 const Breadcrumb = React.forwardRef<
   HTMLElement,
@@ -20,7 +18,7 @@ const BreadcrumbList = React.forwardRef<
   <ol
     ref={ref}
     className={cn(
-      'text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm break-words',
+      'text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm break-words sm:gap-2.5',
       className,
     )}
     {...props}
@@ -46,15 +44,12 @@ const BreadcrumbLink = React.forwardRef<
     asChild?: boolean;
   }
 >(({ asChild, className, ...props }, ref) => {
-  const Comp = asChild ? Slot.Root : 'a';
+  const Comp = asChild ? Slot : 'a';
 
   return (
     <Comp
       ref={ref}
-      className={cn(
-        'text-foreground transition-colors hover:underline',
-        className,
-      )}
+      className={cn('hover:text-foreground transition-colors', className)}
       {...props}
     />
   );
@@ -84,7 +79,7 @@ const BreadcrumbSeparator = ({
   <li
     role="presentation"
     aria-hidden="true"
-    className={cn('[&>svg]:size-3.5', className)}
+    className={cn('[&>svg]:h-3.5 [&>svg]:w-3.5', className)}
     {...props}
   >
     {children ?? <ChevronRightIcon />}

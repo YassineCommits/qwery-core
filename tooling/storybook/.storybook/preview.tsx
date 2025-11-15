@@ -12,22 +12,12 @@ const ThemeWrapper = ({
   children: React.ReactNode;
   theme: string;
 }) => {
-  useEffect(() => {
-    // Apply theme class to document element
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
   return (
     <ThemeProvider
       attribute="class"
-      enableSystem={false}
+      enableSystem
       disableTransitionOnChange
       defaultTheme={theme}
-      forcedTheme={theme}
       enableColorScheme={false}
     >
       <div className="min-h-screen w-full p-4">{children}</div>
@@ -36,10 +26,12 @@ const ThemeWrapper = ({
 };
 
 const wrapper = (Story: any, context: any) => {
-  const theme = context.globals.theme || 'light';
+  const theme =
+    context?.globals?.backgrounds?.value == '#333' ? 'dark' : 'light';
+  console.log('theme', theme);
 
   return (
-    <ThemeWrapper theme={theme}>
+    <ThemeWrapper theme={theme as string}>
       <Story />
     </ThemeWrapper>
   );

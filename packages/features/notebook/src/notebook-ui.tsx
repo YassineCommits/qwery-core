@@ -38,6 +38,7 @@ interface NotebookUIProps {
   onNotebookChange?: (notebook: Partial<Notebook>) => void;
   cellResults?: Map<number, DatasourceResultSet>;
   cellErrors?: Map<number, string>;
+  cellLoadingStates?: Map<number, boolean>;
 }
 
 // Sortable wrapper for cells
@@ -51,6 +52,7 @@ function SortableCell({
   datasources,
   result,
   error,
+  isLoading,
   onMoveUp,
   onMoveDown,
   onDuplicate,
@@ -67,6 +69,7 @@ function SortableCell({
   datasources: Array<{ id: string; name: string }>;
   result?: DatasourceResultSet | null;
   error?: string;
+  isLoading?: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDuplicate: () => void;
@@ -104,6 +107,7 @@ function SortableCell({
         isDragging={isDragging}
         result={result}
         error={error}
+        isLoading={isLoading}
         onMoveUp={onMoveUp}
         onMoveDown={onMoveDown}
         onDuplicate={onDuplicate}
@@ -125,6 +129,7 @@ export function NotebookUI({
   onNotebookChange,
   cellResults: externalCellResults,
   cellErrors: externalCellErrors,
+  cellLoadingStates: externalCellLoadingStates,
 }: NotebookUIProps) {
   // Initialize cells from notebook or initialCells, default to empty array
   const [cells, setCells] = React.useState<NotebookCellData[]>(() => {
@@ -479,6 +484,10 @@ export function NotebookUI({
                   }
                 }
 
+                // Get loading state for this cell
+                const isLoading =
+                  externalCellLoadingStates?.get(cell.cellId) ?? false;
+
                 return (
                   <React.Fragment key={cell.cellId}>
                     <SortableCell
@@ -497,6 +506,7 @@ export function NotebookUI({
                       datasources={allDatasources}
                       result={cellResults.get(cell.cellId)}
                       error={cellError}
+                      isLoading={isLoading}
                       onMoveUp={() => handleMoveCellUp(cell.cellId)}
                       onMoveDown={() => handleMoveCellDown(cell.cellId)}
                       onDuplicate={() => handleDuplicateCell(cell.cellId)}

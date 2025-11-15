@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
-
-import { DashIcon } from '@radix-ui/react-icons';
 import { OTPInput, OTPInputContext } from 'input-otp';
-
 import { cn } from '../lib/utils';
+import { MinusIcon } from '@radix-ui/react-icons';
 
 const InputOTP = React.forwardRef<
   React.ElementRef<typeof OTPInput>,
@@ -36,19 +34,13 @@ const InputOTPSlot = React.forwardRef<
   React.ComponentPropsWithoutRef<'div'> & { index: number }
 >(({ index, className, ...props }, ref) => {
   const inputOTPContext = React.useContext(OTPInputContext);
-  const slot = inputOTPContext.slots[index];
-
-  if (!slot) {
-    return null;
-  }
-
-  const { char, isActive, hasFakeCaret } = slot;
+  const { char, hasFakeCaret, isActive } = inputOTPContext.slots[index];
 
   return (
     <div
       ref={ref}
       className={cn(
-        'border-input relative flex h-9 w-9 items-center justify-center border-y border-r text-sm shadow-xs transition-all first:rounded-l-md first:border-l last:rounded-r-md',
+        'border-input relative flex h-9 w-9 items-center justify-center border-y border-r text-sm shadow-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md',
         isActive && 'ring-ring z-10 ring-1',
         className,
       )}
@@ -70,7 +62,7 @@ const InputOTPSeparator = React.forwardRef<
   React.ComponentPropsWithoutRef<'div'>
 >(({ ...props }, ref) => (
   <div ref={ref} role="separator" {...props}>
-    <DashIcon />
+    <MinusIcon />
   </div>
 ));
 InputOTPSeparator.displayName = 'InputOTPSeparator';

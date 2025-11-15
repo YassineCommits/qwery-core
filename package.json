@@ -57,7 +57,8 @@
     "syncpack:list": "pnpm dlx syncpack list-mismatches",
     "syncpack:fix": "pnpm dlx syncpack fix-mismatches",
     "env:generate": "turbo gen env",
-    "env:validate": "turbo gen validate-env"
+    "env:validate": "turbo gen validate-env",
+    "check": "pnpm format && pnpm lint && pnpm typecheck && pnpm build && pnpm test"
   },
   "prettier": "@qwery/prettier-config",
   "packageManager": "pnpm@10.18.1",

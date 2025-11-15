@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { cn } from '../lib/utils/cn';
+import { ResizableContent } from './resizable-content';
 
 type PageProps = React.PropsWithChildren<{
   contentContainerClassName?: string;
@@ -13,12 +14,18 @@ export function Page(props: PageProps) {
 }
 
 function PageWithHeaderSidebar(props: PageProps) {
-  const { Navigation, Children, MobileNavigation, TopNavigation, Footer } =
-    getSlotsFromPage(props);
+  const {
+    Navigation,
+    Children,
+    MobileNavigation,
+    TopNavigation,
+    Footer,
+    AgentSidebar,
+  } = getSlotsFromPage(props);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden">
-      {/* TopBar */}
+    <div className="flex h-screen w-screen flex-col overflow-hidden">
+      {/* Topbar */}
       <div
         className={cn(
           'bg-sidebar dark:border-border relative flex h-14 w-full shrink-0 items-center justify-between border-b px-4',
@@ -35,24 +42,19 @@ function PageWithHeaderSidebar(props: PageProps) {
         {MobileNavigation}
       </div>
 
-      {/* Layout below TopBar: Sidebar + Content */}
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* Sidebar on the left */}
-        {/* <div className="hidden lg:flex w-64 flex-col border-r bg-sidebar"> */}
-        {Navigation}
-        {/* </div> */}
-        {/* Scrollable Main Content */}
-        <div
-          className={cn(
-            'bg-background relative flex flex-1 flex-col overflow-hidden',
-            props.contentContainerClassName,
-          )}
-        >
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex w-full flex-col lg:rounded-lg">{Children}</div>
-          </div>
-          {Footer}
+      {/* Sidebar + Content */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <div className="bg-sidebar dark:border-border px w-[224px] shrink-0 border-r p-4">
+          {Navigation}
         </div>
+        {/* Main Content */}
+        <div className="bg-background relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex-1">
+            <ResizableContent Content={Children} AgentSidebar={AgentSidebar} />
+          </div>
+        </div>
+        {Footer}
       </div>
     </div>
   );
@@ -84,6 +86,9 @@ export function PageFooter(props: React.PropsWithChildren) {
   return <div className={'shrink-0'}>{props.children}</div>;
 }
 
+export function AgentSidebar(props: React.PropsWithChildren) {
+  return <div className={'hidden lg:flex'}>{props.children}</div>;
+}
 export function PageBody(
   props: React.PropsWithChildren<{
     className?: string;
@@ -174,6 +179,7 @@ function getSlotsFromPage(props: React.PropsWithChildren) {
     MobileNavigation: React.ReactElement | null;
     TopNavigation: React.ReactElement | null;
     Footer: React.ReactElement | null;
+    AgentSidebar: React.ReactElement | null;
   }>(
     (acc, child) => {
       if (!React.isValidElement(child)) {
@@ -208,6 +214,13 @@ function getSlotsFromPage(props: React.PropsWithChildren) {
         };
       }
 
+      if (child.type === AgentSidebar) {
+        return {
+          ...acc,
+          AgentSidebar: child,
+        };
+      }
+
       return {
         ...acc,
         Children: child,
@@ -219,6 +232,7 @@ function getSlotsFromPage(props: React.PropsWithChildren) {
       MobileNavigation: null,
       TopNavigation: null,
       Footer: null,
+      AgentSidebar: null,
     },
   );
 }

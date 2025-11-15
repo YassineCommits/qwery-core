@@ -7,16 +7,14 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
-  type Datasource,
-  DatasourceKind,
   type DatasourceResultSet,
   type Notebook,
 } from '@qwery/domain/entities';
-import { getExtension } from '@qwery/extensions-sdk';
 import { NotebookCellData, NotebookUI } from '@qwery/notebook';
 
 import { useWorkspace } from '~/lib/context/workspace-context';
 import { useNotebook } from '~/lib/mutations/use-notebook';
+import { useRunQuery } from '~/lib/mutations/use-run-query';
 import { useGetDatasources } from '~/lib/queries/use-get-datasources';
 import { useGetNotebookByProjectId } from '~/lib/queries/use-get-notebook';
 import { useGetProjectBySlug } from '~/lib/queries/use-get-projects';
@@ -31,10 +29,15 @@ export default function NotebookPage() {
   const datasourceRepository = repositories.datasource;
 
   // Store query results by cell ID
-  const [cellResults] = useState<Map<number, DatasourceResultSet>>(new Map());
+  const [cellResults, setCellResults] = useState<
+    Map<number, DatasourceResultSet>
+  >(new Map());
 
   // Store query errors by cell ID
-  const [cellErrors] = useState<Map<number, string>>(new Map());
+  const [cellErrors, setCellErrors] = useState<Map<number, string>>(new Map());
+
+  // Track which cell is currently loading
+  const [loadingCellId, setLoadingCellId] = useState<number | null>(null);
 
   // Load project
   const project = useGetProjectBySlug(projectRepository, slug);
@@ -63,27 +66,44 @@ export default function NotebookPage() {
     },
   );
 
-  // Get plugin type from datasource provider
-  const getDatasourceType = (datasource: Datasource): string => {
-    if (!datasource.datasource_provider) {
-      throw new Error(
-        `Datasource ${datasource.id} is missing datasource_provider`,
-      );
-    }
+  // Run query mutation
+  const runQueryMutation = useRunQuery(
+    (result, cellId) => {
+      setCellResults((prev) => {
+        const next = new Map(prev);
+        next.set(cellId, result);
+        return next;
+      });
+      // Clear error on success
+      setCellErrors((prev) => {
+        const next = new Map(prev);
+        next.delete(cellId);
+        return next;
+      });
+      setLoadingCellId(null);
+    },
+    (error, cellId) => {
+      setCellErrors((prev) => {
+        const next = new Map(prev);
+        next.set(cellId, error.message);
+        return next;
+      });
+      // Clear result on error
+      setCellResults((prev) => {
+        const next = new Map(prev);
+        next.delete(cellId);
+        return next;
+      });
+      setLoadingCellId(null);
+      toast.error(error.message);
+    },
+  );
 
-    return datasource.datasource_provider;
-  };
-
-  const handleRunQuery = async (
+  const handleRunQuery = (
     cellId: number,
     query: string,
     datasourceId: string,
   ) => {
-    if (!query.trim()) {
-      toast.error('Query cannot be empty');
-      return;
-    }
-
     const datasource = savedDatasources.data?.find(
       (ds) => ds.id === datasourceId,
     );
@@ -92,24 +112,13 @@ export default function NotebookPage() {
       return;
     }
 
-    const datasourceType = getDatasourceType(datasource);
-
-    if (datasource.datasource_kind === DatasourceKind.EMBEDDED) {
-      const extension = await getExtension(datasourceType);
-      if (!extension) {
-        throw new Error('Extension not found');
-      }
-      const driver = await extension.getDriver(
-        datasource.name,
-        datasource.config,
-      );
-      if (!driver) {
-        throw new Error('Driver not found');
-      }
-      const result = await driver.query(query);
-      return result;
-    }
-    return null;
+    setLoadingCellId(cellId);
+    runQueryMutation.mutate({
+      cellId,
+      query,
+      datasourceId,
+      datasource,
+    });
   };
 
   // Handle cells change - save notebook
@@ -133,16 +142,14 @@ export default function NotebookPage() {
           notebook?.data?.datasources ||
           savedDatasources.data?.map((ds) => ds.id) ||
           [],
-        cells:
-          notebook?.data?.cells ||
-          cells.map((cell) => ({
-            query: cell.query,
-            cellType: cell.cellType,
-            cellId: cell.cellId,
-            datasources: cell.datasources,
-            isActive: cell.isActive ?? true,
-            runMode: cell.runMode ?? 'default',
-          })),
+        cells: cells.map((cell) => ({
+          query: cell.query,
+          cellType: cell.cellType,
+          cellId: cell.cellId,
+          datasources: cell.datasources,
+          isActive: cell.isActive ?? true,
+          runMode: cell.runMode ?? 'default',
+        })),
       };
 
       saveNotebookMutation.mutate(notebookData);
@@ -172,6 +179,12 @@ export default function NotebookPage() {
     name: ds.name,
   }));
 
+  // Create loading states map
+  const cellLoadingStates = new Map<number, boolean>();
+  if (loadingCellId !== null) {
+    cellLoadingStates.set(loadingCellId, runQueryMutation.isPending);
+  }
+
   return (
     <NotebookUI
       notebook={notebook.data || undefined}
@@ -181,6 +194,7 @@ export default function NotebookPage() {
       onNotebookChange={handleNotebookChange}
       cellResults={cellResults}
       cellErrors={cellErrors}
+      cellLoadingStates={cellLoadingStates}
     />
   );
 }

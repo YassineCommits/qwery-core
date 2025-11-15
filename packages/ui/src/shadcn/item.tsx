@@ -1,10 +1,9 @@
 import * as React from 'react';
-
-import { type VariantProps, cva } from 'class-variance-authority';
-import { Slot } from 'radix-ui';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '../lib/utils';
-import { Separator } from './separator';
+import { Separator } from '../shadcn/separator';
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
@@ -32,7 +31,7 @@ function ItemSeparator({
 }
 
 const itemVariants = cva(
-  'group/item [a]:hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 flex flex-wrap items-center rounded-md border border-transparent text-sm transition-colors duration-100 outline-none focus-visible:ring-[3px] [a]:transition-colors',
+  'group/item [a]:hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 [a]:transition-colors flex flex-wrap items-center rounded-md border border-transparent text-sm outline-none transition-colors duration-100 focus-visible:ring-[3px]',
   {
     variants: {
       variant: {
@@ -41,7 +40,7 @@ const itemVariants = cva(
         muted: 'bg-muted/50',
       },
       size: {
-        default: 'gap-4 p-4',
+        default: 'gap-4 p-4 ',
         sm: 'gap-2.5 px-4 py-3',
       },
     },
@@ -60,8 +59,7 @@ function Item({
   ...props
 }: React.ComponentProps<'div'> &
   VariantProps<typeof itemVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot.Root : 'div';
-
+  const Comp = asChild ? Slot : 'div';
   return (
     <Comp
       data-slot="item"

@@ -4,8 +4,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarNavigation,
 } from '@qwery/ui/shadcn-sidebar';
+import { SidebarNavigation } from '@qwery/ui/sidebar-navigation';
 
 import { AccountDropdownContainer } from '~/components/account-dropdown-container';
 import { createNavigationConfig } from '~/config/org.navigation.config';

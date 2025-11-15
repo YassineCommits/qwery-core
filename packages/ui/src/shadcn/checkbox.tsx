@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
-
+import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
+import { cn } from '../lib/utils';
 import { CheckIcon } from '@radix-ui/react-icons';
-import { Checkbox as CheckboxPrimitive } from 'radix-ui';
-
-import { cn } from '../lib/utils/cn';
 
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
@@ -14,13 +12,13 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer border-primary focus-visible:ring-ring data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground h-4 w-4 shrink-0 border shadow-xs focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+      'peer border-primary focus-visible:ring-ring data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground grid h-4 w-4 shrink-0 place-content-center rounded-sm border shadow focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
       className,
     )}
     {...props}
   >
     <CheckboxPrimitive.Indicator
-      className={cn('flex items-center justify-center text-current')}
+      className={cn('grid place-content-center text-current')}
     >
       <CheckIcon className="h-4 w-4" />
     </CheckboxPrimitive.Indicator>

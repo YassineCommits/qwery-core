@@ -7,7 +7,7 @@ import {
   PageNavigation,
   PageTopNavigation,
 } from '@qwery/ui/page';
-import { SidebarProvider } from '@qwery/ui/shadcn-sidebar';
+import { SidebarProvider, SidebarTrigger } from '@qwery/ui/shadcn-sidebar';
 
 import { sidebarStateCookie } from '~/lib/cookies';
 import type { Route } from '~/types/app/routes/layout/+types/layout';
@@ -46,6 +46,7 @@ function SidebarLayout(props: Route.ComponentProps & React.PropsWithChildren) {
   return (
     <SidebarProvider defaultOpen={layoutState.open}>
       <Page>
+        <SidebarTrigger />
         <PageTopNavigation>
           <LayoutTopBar />
         </PageTopNavigation>
