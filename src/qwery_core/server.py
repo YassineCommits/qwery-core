@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .agent import create_agent
+from .datasources import DatasourceStore
 from .middleware.rate_limit import RateLimitMiddleware
 from .server_components.fastapi import QweryFastAPIServer
 from .server_components.websocket import register_websocket_routes
@@ -24,6 +25,9 @@ logging.basicConfig(
 )
 
 
+datasource_store = DatasourceStore()
+
+
 def _parse_env_list(value: str, *, allow_wildcard: bool = True) -> list[str]:
     if not value:
         return []
@@ -35,9 +39,9 @@ def _parse_env_list(value: str, *, allow_wildcard: bool = True) -> list[str]:
 
 def _build_app() -> FastAPI:
     agent = create_agent(require_database=True)
-    server = QweryFastAPIServer(agent)
+    server = QweryFastAPIServer(agent=agent, datasource_store=datasource_store)
     app = server.create_app()
-    register_websocket_routes(app, agent)
+    register_websocket_routes(app, agent, datasource_store)
 
     cors_origins = _parse_env_list(os.environ.get("QWERY_CORS_ALLOW_ORIGINS", "*"))
     cors_methods = _parse_env_list(os.environ.get("QWERY_CORS_ALLOW_METHODS", "*"))

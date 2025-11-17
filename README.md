@@ -71,6 +71,107 @@ The web app will be available at `http://localhost:3000`
 pnpm desktop:dev
 ```
 
+## 🔌 Backend API & Multi-Datasource Support
+
+The Qwery backend (`qwery-core`) provides a REST API and WebSocket interface for natural language querying with support for multiple datasources per project.
+
+### Starting the Backend Server
+
+```bash
+# Set up Python virtual environment
+./scripts/setup_venv.sh
+
+# Set required environment variables (see .env.example)
+export QWERY_DB_URL=postgresql://user:pass@host:5432/db
+export AZURE_API_KEY=your-key
+export AZURE_ENDPOINT=https://your-resource.openai.azure.com
+
+# Start server
+PYTHONPATH=src .venv/bin/python -m uvicorn qwery_core.server:create_app --host 0.0.0.0 --port 8000 --factory
+```
+
+### Managing Datasources
+
+The backend supports in-memory datasource management (persistence coming soon). Each project can have multiple datasources, and queries can target specific datasources.
+
+#### Create a Datasource
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects/demo/datasources \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "production-db",
+    "description": "Primary production database",
+    "datasourceProvider": "postgres",
+    "datasourceDriver": "psycopg",
+    "datasourceKind": "remote",
+    "config": {
+      "connection_url": "postgresql://user:pass@host:5432/db?sslmode=require"
+    }
+  }'
+```
+
+#### List Datasources
+
+```bash
+curl http://localhost:8000/api/v1/projects/demo/datasources
+```
+
+#### Use Datasource in Query
+
+```bash
+# Blocking query with datasource ID
+curl -X POST http://localhost:8000/api/v1/projects/demo/chat-1/messages \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prompt": "list top 5 tables",
+    "datasourceId": "166660ad-4e35-4ccf-9254-667815d1d698"
+  }'
+
+# Streaming query with datasource slug
+curl -N -X POST http://localhost:8000/api/v1/projects/demo/chat-1/messages/stream \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prompt": "describe users table",
+    "datasourceSlug": "production-db"
+  }'
+```
+
+### API Endpoints
+
+See [API_ENDPOINTS.md](API_ENDPOINTS.md) for the complete endpoint reference.
+
+**Key Endpoints:**
+- `GET /health` - Health check
+- `POST /api/v1/projects/{project_id}/datasources` - Create datasource
+- `GET /api/v1/projects/{project_id}/datasources` - List datasources
+- `POST /api/v1/projects/{project_id}/{chat_id}/messages` - Query with datasource
+- `POST /api/v1/projects/{project_id}/{chat_id}/messages/stream` - Streaming query
+- `WS /ws/agent/{project_id}/{chat_id}` - WebSocket agent protocol
+
+### WebSocket Datasource Switching
+
+Via WebSocket, you can switch datasources mid-conversation:
+
+```json
+{
+  "kind": "Command",
+  "payload": {
+    "Command": {
+      "command": "Set",
+      "arguments": {
+        "SetCommandArgument": {
+          "key": "database",
+          "value": "production-db"
+        }
+      }
+    }
+  }
+}
+```
+
+The server will resolve the datasource by ID or slug and use its connection URL for subsequent queries in that chat session.
+
 ## 📚 Documentation
 
 - [Contributing Guide](CONTRIBUTING.md)

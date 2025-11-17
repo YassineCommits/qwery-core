@@ -14,6 +14,7 @@ from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
 from ..agent import handle_prompt
 from ..core import RequestContext
+from ..datasources import DatasourceStore
 from ..protocol import (
     CommandType,
     Heartbeat,
@@ -46,6 +47,7 @@ CLEANUP_INTERVAL = timedelta(minutes=5)
 class ChatState:
     chat_id: str
     database_url: Optional[str] = None
+    datasource_id: Optional[str] = None
     history: List[Dict[str, str]] = field(default_factory=list)
     last_accessed: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
@@ -72,8 +74,9 @@ class ChatConnection:
 
 
 class WebsocketAgentManager:
-    def __init__(self, agent: Any):
+    def __init__(self, agent: Any, datasource_store: DatasourceStore):
         self.agent = agent
+        self.datasource_store = datasource_store
         # Use OrderedDict for LRU eviction
         self._connections: Dict[str, List[ChatConnection]] = {}
         self._chat_states: OrderedDict[str, ChatState] = OrderedDict()
@@ -201,7 +204,12 @@ class WebsocketAgentManager:
         if message.kind == MessageKind.COMMAND and message.payload.command:
             logger.info(f"[WS_COMMAND] handling command")
             cmd_start = time.time()
-            await self._handle_command(websocket, message, chat_state)
+            await self._handle_command(
+                websocket,
+                message,
+                chat_state,
+                project_id=project_id,
+            )
             logger.info(f"[WS_COMMAND_DONE] took={time.time() - cmd_start:.4f}s")
             return
 
@@ -398,6 +406,8 @@ class WebsocketAgentManager:
         websocket: WebSocket,
         message: ProtocolMessage,
         chat_state: ChatState,
+        *,
+        project_id: str,
     ) -> None:
         command = message.payload.command
         if not command:
@@ -407,13 +417,13 @@ class WebsocketAgentManager:
         if command.command == CommandType.SET and isinstance(command.arguments, SetCommandArgument):
             arg = command.arguments
             if arg.key in {SetCommandArgumentType.DATABASE, SetCommandArgumentType.DATABASE_UPPER}:
-                chat_state.database_url = arg.value
-                response_text = f"Database context set to {arg.value}"
+                response_text = self._update_datasource_context(chat_state, project_id, arg.value)
             elif arg.key in {
                 SetCommandArgumentType.DATABASE_URL,
                 SetCommandArgumentType.DATABASE_URL_UPPER,
             }:
                 chat_state.database_url = arg.value
+                chat_state.datasource_id = None
                 response_text = "Database URL updated."
 
         if response_text:
@@ -452,6 +462,25 @@ class WebsocketAgentManager:
         except RuntimeError:
             pass
 
+    def _update_datasource_context(
+        self,
+        chat_state: ChatState,
+        project_id: str,
+        identifier: str,
+    ) -> str:
+        record = self.datasource_store.get_for_project(project_id, identifier)
+        if record and record.connection_url:
+            chat_state.datasource_id = record.id
+            chat_state.database_url = record.connection_url
+            return f"Datasource context set to {record.name}"
+
+        if "://" in identifier:
+            chat_state.datasource_id = None
+            chat_state.database_url = identifier
+            return "Database context updated."
+
+        return f"Datasource '{identifier}' not found or missing connection_url."
+
     async def _stop_heartbeat(self, connection: ChatConnection) -> None:
         if connection.heartbeat_task:
             connection.heartbeat_task.cancel()
@@ -480,9 +509,9 @@ class WebsocketAgentManager:
         return f"{project_id}:{chat_id}"
 
 
-def register_websocket_routes(app: FastAPI, agent: Any) -> None:
+def register_websocket_routes(app: FastAPI, agent: Any, datasource_store: DatasourceStore) -> None:
     router = APIRouter()
-    manager = WebsocketAgentManager(agent)
+    manager = WebsocketAgentManager(agent, datasource_store)
 
     @router.websocket("/ws/agent/{project_id}/{chat_id}")
     async def websocket_endpoint(

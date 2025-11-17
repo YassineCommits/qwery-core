@@ -8,8 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from qwery_core.application.services import create_agent
-from qwery_core.infrastructure.llm import MockLlmService
+from qwery_core.datasources import DatasourceStore
 from qwery_core.server_components.fastapi import QweryFastAPIServer
 
 
@@ -42,7 +41,12 @@ def mock_agent():
 
 
 @pytest.fixture
-def app(mock_agent):
+def datasource_store():
+    return DatasourceStore()
+
+
+@pytest.fixture
+def app(mock_agent, datasource_store):
     """Create FastAPI app for testing - using the same method as server.py."""
     from qwery_core.server import _build_app
     from qwery_core.server_components.fastapi import QweryFastAPIServer
@@ -62,9 +66,9 @@ def app(mock_agent):
     
     try:
         # Create app directly without caching
-        server = QweryFastAPIServer(mock_agent)
+        server = QweryFastAPIServer(mock_agent, datasource_store)
         app = server.create_app()
-        register_websocket_routes(app, mock_agent)
+        register_websocket_routes(app, mock_agent, datasource_store)
         
         # Add health endpoint
         @app.get("/health", tags=["system"])
@@ -101,7 +105,7 @@ def test_streaming_endpoint_exists(app):
     """Test streaming endpoint is registered."""
     # Check that the route exists in the app
     routes = [r.path for r in app.routes if hasattr(r, 'path')]
-    assert "/api/v1/projects/{project_id}/chats/{chat_id}/messages/stream" in routes, \
+    assert "/api/v1/projects/{project_id}/{chat_id}/messages/stream" in routes, \
         f"Streaming route not found. Available routes: {routes}"
 
 
@@ -109,7 +113,7 @@ def test_messages_endpoint_exists(app):
     """Test messages endpoint is registered."""
     # Check that the route exists in the app
     routes = [r.path for r in app.routes if hasattr(r, 'path')]
-    assert "/api/v1/projects/{project_id}/chats/{chat_id}/messages" in routes, \
+    assert "/api/v1/projects/{project_id}/{chat_id}/messages" in routes, \
         f"Messages route not found. Available routes: {routes}"
 
 
@@ -145,7 +149,7 @@ def test_streaming_endpoint_returns_sse(app):
     # Find the streaming route
     stream_route = None
     for route in app.routes:
-        if hasattr(route, 'path') and route.path == "/api/v1/projects/{project_id}/chats/{chat_id}/messages/stream":
+        if hasattr(route, 'path') and route.path == "/api/v1/projects/{project_id}/{chat_id}/messages/stream":
             stream_route = route
             break
     
@@ -162,4 +166,30 @@ def test_streaming_endpoint_returns_sse(app):
     assert 'payload' in sig.parameters, "Endpoint should accept payload parameter"
     assert 'project_id' in sig.parameters, "Endpoint should accept project_id parameter"
     assert 'chat_id' in sig.parameters, "Endpoint should accept chat_id parameter"
+
+
+def test_datasource_crud(client):
+    payload = {
+        "name": "Test DS",
+        "description": "Test datasource",
+        "datasourceProvider": "custom",
+        "datasourceDriver": "postgres",
+        "datasourceKind": "remote",
+        "config": {"connection_url": "postgresql://demo:demo@localhost:5432/demo"},
+    }
+    create_resp = client.post("/api/v1/projects/project-123/datasources", json=payload)
+    assert create_resp.status_code == 200, create_resp.text
+    body = create_resp.json()
+    datasource_id = body["id"]
+
+    list_resp = client.get("/api/v1/projects/project-123/datasources")
+    assert list_resp.status_code == 200
+    assert any(item["id"] == datasource_id for item in list_resp.json())
+
+    get_resp = client.get(f"/api/v1/projects/project-123/datasources/{datasource_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["id"] == datasource_id
+
+    delete_resp = client.delete(f"/api/v1/projects/project-123/datasources/{datasource_id}")
+    assert delete_resp.status_code == 204
 
