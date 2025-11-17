@@ -99,15 +99,21 @@ class PostgresRunner:
         try:
             connect_start = time.time()
             conn = connection_pool.getconn()
-            logger.info(f"[POSTGRES_POOL_GET] took={time.time() - connect_start:.4f}s")
+            pool_get_time = time.time() - connect_start
+            logger.info(f"[POSTGRES_POOL_GET] took={pool_get_time:.4f}s")
             
+            cursor_start = time.time()
             with conn.cursor() as cursor:
+                cursor_create_time = time.time() - cursor_start
+                logger.info(f"[POSTGRES_CURSOR_CREATE] took={cursor_create_time:.4f}s")
+                
                 execute_start = time.time()
                 if params is not None:
                     cursor.execute(query, params)
                 else:
                     cursor.execute(query)
-                logger.info(f"[POSTGRES_EXECUTE] took={time.time() - execute_start:.4f}s")
+                execute_time = time.time() - execute_start
+                logger.info(f"[POSTGRES_EXECUTE] took={execute_time:.4f}s, query_length={len(query)}")
                 
                 if cursor.description is None:
                     logger.info(f"[POSTGRES_NO_RESULT] total_took={time.time() - pg_start:.4f}s")

@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable
 
-import plotly.express as px
+import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +35,39 @@ class VisualizeDataTool:
         logger.info(f"[VIZ_TOOL_EXEC_START] chart_type={chart_type}, title={title}, data_size={data_size}, timestamp={viz_start}")
         
         fig_create_start = time.time()
+        
+        # Extract column names and data
+        # Data dict comes from agent.py with x_col and y_col as keys
+        columns = list(data.keys())
+        if len(columns) < 2:
+            raise ValueError("Visualization requires at least 2 columns")
+        
+        # Use first two columns (x_col, y_col from agent)
+        x_col = columns[0]
+        y_col = columns[1]
+        x_data = list(data[x_col])
+        y_data = list(data[y_col])
+        
+        # Ensure data lengths match
+        if len(x_data) != len(y_data):
+            raise ValueError(f"X and Y data lengths don't match: {len(x_data)} vs {len(y_data)}")
+        
+        # Create figure using graph_objects (doesn't require pandas)
+        fig = go.Figure()
+        
         if chart_type == "line":
-            fig = px.line(data, title=title)
+            fig.add_trace(go.Scatter(x=x_data, y=y_data, mode='lines+markers', name=y_col))
         elif chart_type == "scatter":
-            fig = px.scatter(data, title=title)
-        else:
-            fig = px.bar(data, title=title)
+            fig.add_trace(go.Scatter(x=x_data, y=y_data, mode='markers', name=y_col))
+        else:  # bar
+            fig.add_trace(go.Bar(x=x_data, y=y_data, name=y_col))
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=x_col,
+            yaxis_title=y_col,
+        )
+        
         logger.info(f"[VIZ_TOOL_FIG_CREATE] took={time.time() - fig_create_start:.4f}s")
         
         json_start = time.time()

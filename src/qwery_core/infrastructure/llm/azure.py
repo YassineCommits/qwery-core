@@ -55,13 +55,20 @@ class AzureOpenAILlmService(LlmService):
         logger.info(f"[LLM_AZURE_BUILD_MSGS] took={time.time() - build_start:.4f}s, msg_count={len(messages)}")
         
         api_start = time.time()
-        logger.info(f"[LLM_AZURE_API_CALL_START] timestamp={api_start}")
+        logger.info(f"[LLM_AZURE_API_CALL_START] timestamp={api_start}, msg_count={len(messages)}, model={self.model}")
+        
+        # Log message sizes for debugging
+        total_chars = sum(len(str(msg.get('content', ''))) for msg in messages)
+        logger.info(f"[LLM_AZURE_MSG_SIZE] total_chars={total_chars}, avg_chars_per_msg={total_chars//len(messages) if messages else 0}")
+        
+        thread_start = time.time()
         response = await asyncio.to_thread(
             self._client.chat.completions.create,
             model=self.model,
             messages=messages,
         )
-        logger.info(f"[LLM_AZURE_API_CALL_DONE] took={time.time() - api_start:.4f}s")
+        thread_done = time.time()
+        logger.info(f"[LLM_AZURE_API_CALL_DONE] took={thread_done - api_start:.4f}s (thread_wait={thread_done - thread_start:.4f}s)")
         
         convert_start = time.time()
         result = self._convert_response(response)
