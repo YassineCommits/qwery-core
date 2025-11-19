@@ -71,6 +71,16 @@ export BEDROCK_MODEL_ID="anthropic.claude-3-5-sonnet-20241022-v2:0"  # optional
 export CLI_LLM_PROVIDER="azure"  # or "bedrock"
 ```
 
+> **Note:** WebLLM is browser-only and requires DOM/WebGPU APIs.  
+> The CLI intentionally rejects `CLI_LLM_PROVIDER=webllm`.  
+> Use the web app to exercise the WebLLM path and the CLI for Azure/Bedrock flows.
+
+### SQL Safety Rules
+
+- Natural language cells are restricted to `SELECT`/`WITH` statements
+- Destructive statements (`ALTER`, `DROP`, `DELETE`, `UPDATE`, etc.) are rejected
+- Any invalid or empty LLM response fails fast with a helpful error
+
 **PostgreSQL SSL:**
 For databases with self-signed certificates:
 ```bash

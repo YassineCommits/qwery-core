@@ -15,6 +15,7 @@
     "./browser-chat-transport": "./src/browser-chat-transport.ts",
     "./langgraph-transport": "./src/langgraph-transport.ts",
     "./langgraph-agent": "./src/langgraph-agent.ts",
+    "./llm-provider": "./src/llm-provider.ts",
     "./tool-registry": "./src/tool-registry.ts",
     "./tools/base-tool": "./src/tools/base-tool.ts",
     "./components/agents-provider": "./src/components/agents-provider.tsx",

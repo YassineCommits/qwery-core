@@ -6,6 +6,13 @@ import { bedrock, createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { AiSdkChatModel } from './ai-sdk-chat-model';
 import { WebLLMChatModel } from './webllm-chat-model';
 
+const getEnv = (key: string): string | undefined => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  return undefined;
+};
+
 interface BaseProviderConfig {
   provider: 'webllm' | 'azure' | 'bedrock';
   temperature?: number;
@@ -45,25 +52,26 @@ export function createChatModel(
   config: LlmProviderConfig,
 ): BaseChatModel {
   if (config.provider === 'azure') {
+    const resolvedEndpoint =
+      config.endpoint ?? getEnv('AZURE_ENDPOINT');
     const azureOptions = {
-      apiKey: config.apiKey ?? process.env.AZURE_API_KEY,
-      baseURL: config.endpoint
-        ? `${config.endpoint.replace(/\/+$/, '')}/openai`
+      apiKey: config.apiKey ?? getEnv('AZURE_API_KEY'),
+      baseURL: resolvedEndpoint
+        ? `${resolvedEndpoint.replace(/\/+$/, '')}/openai`
         : undefined,
-      apiVersion: config.apiVersion ?? process.env.AZURE_API_VERSION,
+      apiVersion: config.apiVersion ?? getEnv('AZURE_API_VERSION'),
       useDeploymentBasedUrls: true,
     };
 
     const azureProvider =
       azureOptions.apiKey ||
       azureOptions.baseURL ||
-      azureOptions.apiVersion ||
-      azureOptions.useDeploymentBasedUrls
+      azureOptions.apiVersion
         ? createAzure(azureOptions)
         : azure;
 
     const deploymentId =
-      config.deployment ?? process.env.AZURE_DEPLOYMENT_ID ?? 'gpt-4o-mini';
+      config.deployment ?? getEnv('AZURE_DEPLOYMENT_ID') ?? 'gpt-4o-mini';
 
     return new AiSdkChatModel({
       model: azureProvider(deploymentId),
@@ -74,11 +82,11 @@ export function createChatModel(
 
   if (config.provider === 'bedrock') {
     const bedrockOptions = {
-      region: config.region ?? process.env.AWS_REGION,
-      accessKeyId: config.accessKeyId ?? process.env.AWS_ACCESS_KEY_ID,
+      region: config.region ?? getEnv('AWS_REGION'),
+      accessKeyId: config.accessKeyId ?? getEnv('AWS_ACCESS_KEY_ID'),
       secretAccessKey:
-        config.secretAccessKey ?? process.env.AWS_SECRET_ACCESS_KEY,
-      sessionToken: config.sessionToken ?? process.env.AWS_SESSION_TOKEN,
+        config.secretAccessKey ?? getEnv('AWS_SECRET_ACCESS_KEY'),
+      sessionToken: config.sessionToken ?? getEnv('AWS_SESSION_TOKEN'),
     };
 
     const bedrockProvider =

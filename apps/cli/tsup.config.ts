@@ -12,6 +12,10 @@ export default defineConfig({
   keepNames: true,
   platform: 'node',
   dts: false,
-  noExternal: ['@qwery/domain', '@qwery/repository-in-memory'],
+  noExternal: [
+    '@qwery/domain',
+    '@qwery/repository-in-memory',
+    '@qwery/ai-agents',
+  ],
 });
 

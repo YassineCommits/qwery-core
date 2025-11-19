@@ -26,6 +26,8 @@
     "@ai-sdk/azure": "^2.0.68",
     "@ai-sdk/openai": "^2.0.68",
     "@ai-sdk/provider": "^2.0.0",
+    "@langchain/core": "^0.3.0",
+    "@mlc-ai/web-llm": "^0.2.79",
     "@qwery/ai-agents": "workspace:*",
     "@qwery/domain": "workspace:*",
     "@qwery/repository-in-memory": "workspace:*",
@@ -52,4 +54,3 @@
   },
   "prettier": "@qwery/prettier-config"
 }
-
