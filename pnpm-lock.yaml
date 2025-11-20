@@ -35,6 +35,9 @@ importers:
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
+      playwright:
+        specifier: ^1.56.1
+        version: 1.56.1
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -558,10 +561,10 @@ importers:
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
       '@vitest/browser':
-        specifier: ^4.0.9
+        specifier: ^4.0.7
         version: 4.0.9(vite@7.2.1(@types/node@24.9.2)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.8.1))(vitest@4.0.7)
       '@vitest/browser-playwright':
-        specifier: ^4.0.9
+        specifier: ^4.0.7
         version: 4.0.9(playwright@1.56.1)(vite@7.2.1(@types/node@24.9.2)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.8.1))(vitest@4.0.7)
       '@vitest/coverage-istanbul':
         specifier: ^4.0.7
@@ -576,7 +579,7 @@ importers:
         specifier: 0.4.6
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       playwright:
-        specifier: ^1.48.0
+        specifier: ^1.56.1
         version: 1.56.1
       react:
         specifier: 19.2.0

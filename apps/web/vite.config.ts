@@ -10,7 +10,10 @@ const ALLOWED_HOSTS =
 
 export default defineConfig(({ command }) => ({
   ssr: {
-    noExternal: command === 'build' ? true : ['posthog-js', '@posthog/react'],
+    noExternal:
+      command === 'build'
+        ? true
+        : ['posthog-js', '@posthog/react', 'streamdown'],
   },
   plugins: [
     devtoolsJson(),
