@@ -1,6 +1,6 @@
 import type { Datasource } from '@qwery/domain/entities';
-import type { DatasourceDriver } from '@qwery/extensions-sdk/datasource.driver';
-import { getExtension } from '@qwery/extensions-sdk/registry';
+import type { DatasourceDriver } from '@qwery/extensions-sdk';
+import { getExtension } from '@qwery/extensions-sdk';
 
 export async function createDriverFromExtension(
   providerId: string,

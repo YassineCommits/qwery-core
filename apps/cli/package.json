@@ -30,7 +30,6 @@
     "@mlc-ai/web-llm": "^0.2.79",
     "@qwery/ai-agents": "workspace:*",
     "@qwery/domain": "workspace:*",
-    "@qwery/extension-postgresql": "workspace:*",
     "@qwery/extensions-sdk": "workspace:*",
     "@qwery/repository-in-memory": "workspace:*",
     "ai": "^5.0.93",
