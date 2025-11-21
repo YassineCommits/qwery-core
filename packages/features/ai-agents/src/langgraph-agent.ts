@@ -1,9 +1,10 @@
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { BaseMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import { StateGraph, END, START } from '@langchain/langgraph/web';
 import { ToolRegistry } from './tool-registry';
 import type { StructuredTool } from '@langchain/core/tools';
-import { WebLLMChatModel } from './webllm-chat-model';
 import type { InitProgressCallback } from '@mlc-ai/web-llm';
+import { WebLLMChatModel } from './webllm-chat-model';
 
 /**
  * State schema for the LangGraph agent
@@ -21,6 +22,7 @@ export interface LangGraphAgentOptions {
   maxIterations?: number;
   temperature?: number;
   initProgressCallback?: InitProgressCallback;
+  llm?: BaseChatModel;
 }
 
 /**
@@ -32,15 +34,16 @@ export function createLangGraphAgent(options: LangGraphAgentOptions = {}) {
     tools = [],
     temperature = 0.1,
     initProgressCallback,
+    llm,
   } = options;
 
-  // Initialize WebLLM ChatModel using MLCEngine directly
-  // This approach explicitly loads the model like browser-chat-transport
-  const llm = new WebLLMChatModel({
-    model,
-    temperature,
-    initProgressCallback,
-  });
+  const chatModel =
+    llm ??
+    new WebLLMChatModel({
+      model,
+      temperature,
+      initProgressCallback,
+    });
 
   // Create tool registry
   const toolRegistry = new ToolRegistry();
@@ -51,7 +54,9 @@ export function createLangGraphAgent(options: LangGraphAgentOptions = {}) {
   // Bind tools to LLM
   const allTools = toolRegistry.getAll();
   const llmWithTools =
-    allTools.length > 0 && llm.bindTools ? llm.bindTools(allTools) : llm;
+    allTools.length > 0 && chatModel.bindTools
+      ? chatModel.bindTools(allTools)
+      : chatModel;
 
   /**
    * Agent node: Invokes LLM with messages and tools
@@ -170,6 +175,6 @@ export function createLangGraphAgent(options: LangGraphAgentOptions = {}) {
   return {
     app,
     toolRegistry,
-    llm,
+    llm: chatModel,
   };
 }
