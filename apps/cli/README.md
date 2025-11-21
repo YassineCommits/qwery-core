@@ -52,18 +52,18 @@ qwery --help
 qwery workspace show
 ```
 
-Angry Star Smoke Test
+PostgreSQL Smoke Test
 ---------------------
-End-to-end commands for the prod datasource `postgresql://postgres:YUX5he1NC3cn@angry-star-sooomu.us-west-aws.db.guepard.run:22050/postgres?sslmode=require`:
+End-to-end commands for any PostgreSQL datasource (replace `POSTGRES_CONNECTION_URL` with your own connection string):
 
 ```
 qwery workspace init
-qwery datasource create angry-star --connection "postgresql://postgres:YUX5he1NC3cn@angry-star-sooomu.us-west-aws.db.guepard.run:22050/postgres?sslmode=require" --description "Angry star prod"
+qwery datasource create demo-postgres --connection "POSTGRES_CONNECTION_URL" --description "Demo Postgres"
 qwery datasource list
-qwery datasource test d7d411d0-8fbf-46a8-859d-7aca6abfad14
-qwery notebook create angry-notes --description "Angry star smoke"
-qwery notebook add-cell f4d184d5-1fc9-48a9-938e-fbe652c411a1 --datasources d7d411d0-8fbf-46a8-859d-7aca6abfad14 --query "select current_date"
-qwery notebook run f4d184d5-1fc9-48a9-938e-fbe652c411a1
+qwery datasource test <datasource-id>
+qwery notebook create demo-notes --description "Postgres smoke"
+qwery notebook add-cell <notebook-id> --datasources <datasource-id> --query "select current_date"
+qwery notebook run <notebook-id>
 ```
 
 Update / Uninstall
