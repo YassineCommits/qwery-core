@@ -14,7 +14,7 @@ export default defineConfig(({ command }) => ({
       command === 'build'
         ? true
         : ['posthog-js', '@posthog/react', 'streamdown'],
-    external: ['better-sqlite3', '@qwery/repository-sqlite'],
+    external: ['better-sqlite3', '@duckdb/node-api'],
   },
   plugins: [
     devtoolsJson(),
@@ -38,14 +38,19 @@ export default defineConfig(({ command }) => ({
       external: (id: string) => {
         if (id === 'fsevents') return true;
         if (id === 'better-sqlite3') return true;
-        if (id === '@qwery/repository-sqlite') return true;
+        if (id === '@duckdb/node-api') return true;
         if (id.startsWith('node:')) return true;
         return false;
       },
     },
   },
   optimizeDeps: {
-    exclude: ['fsevents', '@electric-sql/pglite'],
+    exclude: [
+      'fsevents',
+      '@electric-sql/pglite',
+      '@duckdb/node-api',
+      '@qwery/agent-factory-sdk',
+    ],
     entries: [
       './app/root.tsx',
       './app/entry.server.tsx',

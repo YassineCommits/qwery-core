@@ -11,16 +11,16 @@ export class WorkspaceService extends WorkspaceRuntimeService {
   }
 
   async getWorkspace(port: Workspace): Promise<Workspace> {
-    const mode = await this.execute();
-    console.info(`Workspace mode: ${mode}`);
+    const runtime = await this.execute();
+    console.info(`Workspace runtime: ${runtime}`);
 
-    switch (mode) {
+    switch (runtime) {
       case WorkspaceRuntimeEnum.DESKTOP:
         return port;
       case WorkspaceRuntimeEnum.BROWSER:
         return port;
       default:
-        throw new Error(`Unknown workspace mode: ${mode}`);
+        throw new Error(`Unknown workspace runtime: ${runtime}`);
     }
   }
 }

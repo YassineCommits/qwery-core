@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { v4 as uuidv4 } from 'uuid';
 
@@ -66,35 +66,22 @@ export function WorkspaceProvider(props: React.PropsWithChildren) {
           projectId: workspaceQuery.data?.projectId as string,
         });
 
-        // Convert WorkspaceUseCaseDto to Workspace format
-        const workspaceData: Workspace = {
-          id: uuidv4(),
-          userId: initializedWorkspace.user.id,
-          username: initializedWorkspace.user.username,
-          organizationId: initializedWorkspace.organization?.id,
-          projectId: initializedWorkspace.project?.id,
-          isAnonymous: initializedWorkspace.isAnonymous,
-          mode: initializedWorkspace.mode,
-          runtime: initializedWorkspace.runtime,
-        };
-
-        setWorkspace(workspaceData);
-
         // Only update localStorage for organization/project changes, not for anonymous user IDs
         // Anonymous users get new IDs each time, which would cause infinite loops
         const currentStored = getWorkspaceFromLocalStorage();
-        const workspaceToStore: Workspace = {
-          id: workspaceData.id,
+        const workspaceData: Workspace = {
+          id: currentStored.id || uuidv4(),
           userId: currentStored.userId || initializedWorkspace.user.id,
           username:
             currentStored.username || initializedWorkspace.user.username,
           organizationId: initializedWorkspace.organization?.id,
           projectId: initializedWorkspace.project?.id,
           isAnonymous: initializedWorkspace.isAnonymous,
-          mode: initializedWorkspace.mode,
+          mode: currentStored.mode || initializedWorkspace.mode,
           runtime: initializedWorkspace.runtime,
         };
-        setWorkspaceInLocalStorage(workspaceToStore);
+        setWorkspaceInLocalStorage(workspaceData);
+        setWorkspace(workspaceData);
       } finally {
         setIsInitializing(false);
       }
@@ -102,6 +89,16 @@ export function WorkspaceProvider(props: React.PropsWithChildren) {
 
     initWorkspace();
   }, [repositories, workspaceQuery.data]);
+
+  const contextValue = useMemo(() => {
+    if (!repositories || !workspace) {
+      return null;
+    }
+    return {
+      repositories,
+      workspace,
+    };
+  }, [repositories, workspace]);
 
   const isLoading =
     workspaceQuery.isLoading || !repositories || isInitializing || !workspace;
@@ -114,12 +111,12 @@ export function WorkspaceProvider(props: React.PropsWithChildren) {
     );
   }
 
-  if (!repositories || !workspace) {
+  if (!contextValue) {
     return null;
   }
 
   return (
-    <WorkspaceContext.Provider value={{ repositories, workspace }}>
+    <WorkspaceContext.Provider value={contextValue}>
       {props.children}
     </WorkspaceContext.Provider>
   );

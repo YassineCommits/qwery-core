@@ -30,11 +30,11 @@ export function useWorkspaceMode(workspace: Workspace) {
 export function useSwitchWorkspaceMode() {
   const { workspace } = useWorkspace();
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<void, Error, WorkspaceModeEnum>({
     mutationFn: (mode: WorkspaceModeEnum) => workspaceModeService.execute(mode),
-    onSuccess: () => {
+    onSuccess: (_data: void, mode: WorkspaceModeEnum) => {
       queryClient.invalidateQueries({
-        queryKey: getWorkspaceQueryKey(workspace),
+        queryKey: getWorkspaceQueryKey({ ...workspace, mode }),
       });
     },
   });

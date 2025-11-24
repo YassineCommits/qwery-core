@@ -32,14 +32,18 @@ export function LayoutTopBar() {
           )}
           <WorkspaceModeSwitch
             onChange={handleSwitchWorkspaceMode}
-            defaultMode={workspace.mode}
+            defaultMode={
+              workspace.mode === WorkspaceModeEnum.ADVANCED
+                ? 'advanced'
+                : 'simple'
+            }
           />
         </div>
         <div className="flex items-center space-x-4">
           <LayoutConversationHistory />
           <Button asChild size="icon" variant="ghost">
             <Link
-              to="https://docs.guepard.run"
+              to="https://docs.qwery.run"
               target="_blank"
               data-test="docs-link"
               rel="noopener noreferrer"

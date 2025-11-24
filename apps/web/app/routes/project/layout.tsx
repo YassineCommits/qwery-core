@@ -20,6 +20,7 @@ import { ProjectSidebar } from './_components/project-sidebar';
 import { AgentUIWrapper } from './_components/agent-ui-wrapper';
 import { useWorkspace } from '~/lib/context/workspace-context';
 import { WorkspaceModeEnum } from '@qwery/domain/enums';
+import { AgentTabs } from '@qwery/ui/ai';
 
 export async function loader(args: Route.LoaderArgs) {
   const request = args.request;
@@ -86,6 +87,24 @@ function SimpleModeSidebarLayout(
       <PageFooter>
         <LayoutFooter />
       </PageFooter>
+      <AgentSidebar>
+        <AgentTabs
+          tabs={[
+            {
+              id: 'query-sql-results',
+              title: 'Results',
+              description: 'Query SQL Results',
+              component: <div>Query SQL Results</div>,
+            },
+            {
+              id: 'query-sql-visualisation',
+              title: 'Visualisation',
+              description: 'Visualisation of the query SQL results',
+              component: <div>Query SQL Results</div>,
+            },
+          ]}
+        />
+      </AgentSidebar>
       {props.children}
     </Page>
   );
