@@ -33,6 +33,7 @@ export class ConversationOutput {
 
 export type CreateConversationInput = {
   title: string;
+  seedMessage: string;
   projectId: string;
   taskId: string;
   datasources: string[];

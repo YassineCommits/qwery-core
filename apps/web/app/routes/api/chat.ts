@@ -1,5 +1,11 @@
+'use server';
+
 import type { ActionFunctionArgs } from 'react-router';
-import { type UIMessage, ManagerAgent } from '@qwery/agent-factory-sdk';
+import {
+  type UIMessage,
+  ManagerAgent,
+  validateUIMessages,
+} from '@qwery/agent-factory-sdk';
 
 // Map to persist manager agent instances by conversation slug
 const managerAgents = new Map<string, ManagerAgent>();
@@ -27,7 +33,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
   }
 
   const agent = managerAgent.getAgent();
-  const streamResponse = await agent.getStreamResponse(messages, 'start');
+  const streamResponse = await agent.respond({
+    messages: await validateUIMessages({ messages }),
+  });
 
   if (!streamResponse.body) {
     return new Response(null, { status: 204 });

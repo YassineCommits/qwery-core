@@ -10,6 +10,10 @@ import {
 export const ConversationSchema = z.object({
   id: z.string().uuid().describe('The unique identifier for the action'),
   title: z.string().describe('The title of the conversation'),
+  seedMessage: z
+    .string()
+    .optional()
+    .describe('The seed message for the conversation'),
   taskId: z.string().uuid().describe('The unique identifier for the task'),
   projectId: z
     .string()
@@ -41,6 +45,8 @@ export class ConversationEntity extends Entity<
   @Expose()
   public title!: string;
   @Expose()
+  public seedMessage!: string;
+  @Expose()
   public projectId!: string;
   @Expose()
   public slug!: string;
@@ -67,6 +73,7 @@ export class ConversationEntity extends Entity<
       projectId: newConversation.projectId,
       taskId: newConversation.taskId,
       title: newConversation.title,
+      seedMessage: newConversation.seedMessage,
       slug,
       datasources: newConversation.datasources || [],
       createdAt: now,

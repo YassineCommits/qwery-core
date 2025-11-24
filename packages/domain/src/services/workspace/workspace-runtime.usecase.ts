@@ -7,12 +7,12 @@ export abstract class WorkspaceRuntimeService
   public abstract detectWorkspaceRuntime(): Promise<WorkspaceRuntimeEnum>;
 
   public async execute(): Promise<WorkspaceRuntimeEnum> {
-    const mode = await this.detectWorkspaceRuntime();
+    const runtime = await this.detectWorkspaceRuntime();
 
-    if (!mode) {
+    if (!runtime) {
       return WorkspaceRuntimeEnum.BROWSER;
     }
 
-    return mode;
+    return runtime;
   }
 }

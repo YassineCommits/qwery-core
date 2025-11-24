@@ -13,7 +13,7 @@ import { useGetProjectBySlug } from '~/lib/queries/use-get-projects';
 import { createPath } from '~/config/paths.config';
 import pathsConfig from '~/config/paths.config';
 
-export default function ProjectIndexPage() {
+export default function ConversationIndexPage() {
   const { workspace, repositories } = useWorkspace();
   const navigate = useNavigate();
   const projectSlug = useParams().slug;
@@ -57,6 +57,7 @@ export default function ProjectIndexPage() {
       projectId: project.data.id,
       taskId: uuidv4(), // TODO: Create or get actual task
       title: messageText.slice(0, 100) || 'New Conversation',
+      seedMessage: messageText,
       datasources: [],
       createdBy: workspace.userId,
     });

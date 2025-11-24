@@ -9,9 +9,13 @@ export type WorkspaceMode = 'simple' | 'advanced';
 type WorkspaceModeSwitchProps = {
   simpleLabel?: string;
   advancedLabel?: string;
-  defaultMode?: WorkspaceMode;
-  onChange?: (mode: string) => void;
+  defaultMode?: WorkspaceMode | string;
+  onChange?: (mode: WorkspaceMode) => void;
 };
+
+function normalizeMode(mode?: string): WorkspaceMode {
+  return mode?.toLowerCase() === 'advanced' ? 'advanced' : 'simple';
+}
 
 export function WorkspaceModeSwitch({
   simpleLabel = 'Simple mode',
@@ -19,7 +23,13 @@ export function WorkspaceModeSwitch({
   defaultMode = 'simple',
   onChange,
 }: WorkspaceModeSwitchProps = {}) {
-  const [mode, setMode] = React.useState<WorkspaceMode>(defaultMode);
+  const [mode, setMode] = React.useState<WorkspaceMode>(
+    normalizeMode(defaultMode),
+  );
+
+  React.useEffect(() => {
+    setMode(normalizeMode(defaultMode));
+  }, [defaultMode]);
 
   const handleCheckedChange = (checked: boolean) => {
     const newMode: WorkspaceMode = checked ? 'advanced' : 'simple';

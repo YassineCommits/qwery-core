@@ -5,5 +5,10 @@ export * from './agents';
 
 // Reexport AI SDK
 export type { UIMessage } from 'ai';
-export { convertToModelMessages, streamText, generateText } from 'ai';
+export {
+  convertToModelMessages,
+  streamText,
+  generateText,
+  validateUIMessages,
+} from 'ai';
 export { createAzure } from '@ai-sdk/azure';

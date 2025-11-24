@@ -19,15 +19,14 @@ export type Repositories = {
   conversation: IConversationRepository;
 };
 
-const WorkspaceContext = createContext<{
+type WorkspaceContextValue = {
   repositories: Repositories;
   workspace: Workspace;
-} | null>(null);
+};
 
-export function useWorkspace(): {
-  repositories: Repositories;
-  workspace: Workspace;
-} {
+const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+
+export function useWorkspace(): WorkspaceContextValue {
   const context = useContext(WorkspaceContext);
   if (!context) {
     throw new Error('useWorkspace must be used within a WorkspaceProvider');
