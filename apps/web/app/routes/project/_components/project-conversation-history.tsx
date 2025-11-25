@@ -1,18 +1,21 @@
 import { ConversationHistory } from '@qwery/ui/ai';
 import { useWorkspace } from '~/lib/context/workspace-context';
 import { useGetConversations } from '~/lib/queries/use-get-conversations';
+import { Conversation } from '@qwery/domain/entities';
 
-export function LayoutConversationHistory() {
+export function ProjectConversationHistory() {
   const { repositories } = useWorkspace();
   const { data: conversations = [], isLoading } = useGetConversations(
     repositories.conversation,
   );
 
-  const mappedConversations = conversations.map((conversation) => ({
-    id: conversation.id,
-    title: conversation.title,
-    createdAt: conversation.createdAt,
-  }));
+  const mappedConversations = conversations.map(
+    (conversation: Conversation) => ({
+      id: conversation.id,
+      title: conversation.title,
+      createdAt: conversation.createdAt,
+    }),
+  );
 
   return (
     <ConversationHistory

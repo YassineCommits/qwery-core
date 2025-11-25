@@ -1,75 +1,47 @@
 'use server';
 
-import { AgentFactory, StateData, StateMachineDefinition } from '../';
-import { MANAGER_AGENT_PROMPT } from './manager.agent.prompt';
+import { AgentFactory } from '../..';
 import { Experimental_Agent, stepCountIs, tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
-import { extractSchema } from '../tools/extract-schema';
-import { gsheetToDuckdb } from '../tools/gsheet-to-duckdb';
-import { runQuery } from '../tools/run-query';
-import { testConnection } from '../tools/test-connection';
+import { extractSchema } from '../../tools/extract-schema';
+import { gsheetToDuckdb } from '../../tools/gsheet-to-duckdb';
+import { runQuery } from '../../tools/run-query';
+import { testConnection } from '../../tools/test-connection';
+import { fromPromise } from 'xstate/actors';
+import { READ_DATA_AGENT_PROMPT } from '../prompts/read-data-agent.prompt';
+
+export const readDataAgentActor = fromPromise(
+  async ({
+    input,
+  }: {
+    input: {
+      inputMessage: string;
+      conversationId: string;
+    };
+  }) => {
+    const agent = new ReadDataAgent({
+      conversationId: input.conversationId,
+    });
+    const result = agent.getAgent().stream({
+      prompt: input.inputMessage,
+    });
+    return result;
+  },
+);
 
 const WORKSPACE = import.meta.env.VITE_WORKING_DIR;
 
-export const MANAGER_STATE_MACHINE: StateMachineDefinition<StateData> = {
-  id: 'fsm.text-to-sql.v1',
-  name: 'Text to SQL State Machine',
-  initialPhase: 'idle',
-  terminalPhases: new Set(['done', 'error']),
-  transitions: [
-    { from: 'idle', command: 'start', to: 'detect-intent' },
-    {
-      from: 'detect-intent',
-      command: 'intent-detected',
-      to: 'summarize-intent',
-    },
-    {
-      from: 'detect-intent',
-      command: 'intent-not-clear',
-      to: 'resolve-intent',
-    },
-    { from: 'detect-intent', command: 'needs-context', to: 'gather-context' },
-    {
-      from: 'gather-context',
-      command: 'context-gathered',
-      to: 'detect-intent',
-    },
-    {
-      from: 'resolve-intent',
-      command: 'intent-resolved',
-      to: 'summarize-intent',
-    },
-    {
-      from: 'resolve-intent',
-      command: 'intent-not-resolved',
-      to: 'resolve-intent',
-    },
-    {
-      from: 'summarize-intent',
-      command: 'intent-confirmed',
-      to: 'create-task',
-    },
-    {
-      from: 'summarize-intent',
-      command: 'intent-not-confirmed',
-      to: 'resolve-intent',
-    },
-    { from: 'create-task', command: 'task-created', to: 'execute-task' },
-    { from: 'execute-task', command: 'task-executed', to: 'done' },
-  ],
-};
-
-export interface ManagerAgentOptions {
+export interface ReadDataAgentOptions {
   conversationId: string;
 }
 
-export class ManagerAgent {
+export class ReadDataAgent {
   private readonly factory = new AgentFactory();
-  private readonly agent: ReturnType<ManagerAgent['createAgent']>;
+  private readonly agent: ReturnType<ReadDataAgent['createAgent']>;
   private readonly conversationId: string;
 
-  constructor(opts: ManagerAgentOptions) {
+  constructor(opts: ReadDataAgentOptions) {
     this.conversationId = opts.conversationId;
 
     const model = this.factory.resolveModel({
@@ -81,16 +53,20 @@ export class ManagerAgent {
     }
 
     this.agent = this.createAgent(model);
+
+    console.log(
+      `###ReadDataAgent created for conversation ${this.conversationId}`,
+    );
   }
 
-  getAgent(): ReturnType<ManagerAgent['createAgent']> {
+  getAgent(): ReturnType<ReadDataAgent['createAgent']> {
     return this.agent;
   }
 
   private createAgent(model: LanguageModel) {
     return new Experimental_Agent({
       model,
-      system: MANAGER_AGENT_PROMPT,
+      system: READ_DATA_AGENT_PROMPT,
       tools: {
         testConnection: tool({
           description:

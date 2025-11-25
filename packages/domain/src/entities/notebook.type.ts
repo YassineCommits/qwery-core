@@ -2,7 +2,7 @@ import { Entity } from '../common/entity';
 import { z } from 'zod';
 import { CellTypeSchema } from '../enums/cellType';
 import { RunModeSchema } from '../enums/runMode';
-import { Exclude, Expose, plainToClass } from 'class-transformer';
+import { Exclude, Expose, plainToClass, Type } from 'class-transformer';
 import { generateIdentity } from '../utils/identity.generator';
 import { CreateNotebookInput, UpdateNotebookInput } from '../usecases';
 
@@ -69,8 +69,10 @@ export class NotebookEntity extends Entity<string, typeof NotebookSchema> {
   @Expose()
   public version!: number;
   @Expose()
+  @Type(() => Date)
   public createdAt!: Date;
   @Expose()
+  @Type(() => Date)
   public updatedAt!: Date;
   @Expose()
   public datasources!: string[];
@@ -101,13 +103,12 @@ export class NotebookEntity extends Entity<string, typeof NotebookSchema> {
     notebookDTO: UpdateNotebookInput,
   ): NotebookEntity {
     const date = new Date();
-
     const { cells, ...restDTO } = notebookDTO;
 
     const updatedNotebook: Notebook = {
       ...notebook,
       ...restDTO,
-      ...(cells && { cells: cells as Cell[] }),
+      ...(cells !== undefined && { cells: cells as Cell[] }),
       updatedAt: date,
     };
 

@@ -15,7 +15,7 @@ import type { Route } from '~/types/app/routes/project/+types/layout';
 
 import { LayoutFooter } from '../layout/_components/layout-footer';
 import { LayoutMobileNavigation } from '../layout/_components/layout-mobile-navigation';
-import { LayoutTopBar } from '../layout/_components/layout-topbar';
+import { ProjectLayoutTopBar } from './_components/project-topbar';
 import { ProjectSidebar } from './_components/project-sidebar';
 import { AgentUIWrapper } from './_components/agent-ui-wrapper';
 import { useWorkspace } from '~/lib/context/workspace-context';
@@ -53,7 +53,7 @@ function SidebarLayout(props: Route.ComponentProps & React.PropsWithChildren) {
       <Page>
         <SidebarTrigger />
         <PageTopNavigation>
-          <LayoutTopBar />
+          <ProjectLayoutTopBar />
         </PageTopNavigation>
         <PageNavigation>
           <ProjectSidebar />
@@ -79,7 +79,7 @@ function SimpleModeSidebarLayout(
   return (
     <Page>
       <PageTopNavigation>
-        <LayoutTopBar />
+        <ProjectLayoutTopBar />
       </PageTopNavigation>
       <PageMobileNavigation className={'flex items-center justify-between'}>
         <LayoutMobileNavigation />

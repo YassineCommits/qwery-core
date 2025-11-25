@@ -1,1 +1,1 @@
-export * from './manager.agent';
+export * from './factory-agent';

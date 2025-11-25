@@ -3,12 +3,13 @@
 import type { ActionFunctionArgs } from 'react-router';
 import {
   type UIMessage,
-  ManagerAgent,
+  FactoryAgent,
   validateUIMessages,
 } from '@qwery/agent-factory-sdk';
+import {} from '@qwery/agent-factory-sdk';
 
 // Map to persist manager agent instances by conversation slug
-const managerAgents = new Map<string, ManagerAgent>();
+const agents = new Map<string, FactoryAgent>();
 
 export async function action({ request, params }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -23,16 +24,17 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const body = await request.json();
   const messages: UIMessage[] = body.messages;
 
-  console.log(JSON.stringify(messages, null, 2));
-
   // Get or create manager agent for this conversation
-  let managerAgent = managerAgents.get(conversationSlug);
-  if (!managerAgent) {
-    managerAgent = new ManagerAgent({ conversationId: conversationSlug });
-    managerAgents.set(conversationSlug, managerAgent);
+  let agent = agents.get(conversationSlug);
+  if (!agent) {
+    agent = new FactoryAgent({ conversationId: conversationSlug });
+    agents.set(conversationSlug, agent);
+    console.log(
+      `Agent ${agent.id} created for conversation ${conversationSlug}`,
+    );
   }
 
-  const agent = managerAgent.getAgent();
+  //const agent = managerAgent.getAgent();
   const streamResponse = await agent.respond({
     messages: await validateUIMessages({ messages }),
   });

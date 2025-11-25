@@ -19,7 +19,7 @@ export class DatasourceRepository extends DatasourceRepositoryPort {
 
   async findByProjectId(projectId: string): Promise<Datasource[] | null> {
     const result = await apiGet<Datasource[]>(
-      `/datasources/project/${projectId}`,
+      `/datasources?projectId=${projectId}`,
       true,
     );
     if (!result) {
