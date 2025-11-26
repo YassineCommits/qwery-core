@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-import { registerExtension } from '@qwery/extensions-sdk/registry';
-import { ExtensionScope } from '@qwery/extensions-sdk/types';
+import { ExtensionScope, registerExtension } from '@qwery/extensions-sdk';
 
 import { PostgresDatasourceDriver } from './driver';
 
@@ -26,7 +25,7 @@ export function registerPostgresqlExtension(): void {
     logo: '/images/datasources/postgresql.png',
     scope: ExtensionScope.DATASOURCE,
     schema,
-    getDriver: async (name, config) => {
+    getDriver: async (name: string, config: z.infer<typeof schema>) => {
       return new PostgresDatasourceDriver(name, config);
     },
   });

@@ -1,8 +1,8 @@
 import { Client } from 'pg';
 import type { ConnectionOptions } from 'tls';
 
-import type { DatasourceResultSet } from '@qwery/extensions-sdk/model';
-import { DatasourceDriver } from '@qwery/extensions-sdk/datasource.driver';
+import type { DatasourceResultSet } from '@qwery/extensions-sdk';
+import { DatasourceDriver } from '@qwery/extensions-sdk';
 
 export interface PostgresDriverConfig extends Record<string, unknown> {
   connectionUrl: string;

@@ -18,6 +18,7 @@ export default defineConfig({
     '@qwery/repository-in-memory',
     '@qwery/ai-agents',
     '@qwery/extensions-sdk',
+    '@qwery/extension-postgresql',
   ],
 });
 
