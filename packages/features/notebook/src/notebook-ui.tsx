@@ -19,14 +19,20 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Pencil } from 'lucide-react';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
 
 import type { DatasourceResultSet, Notebook } from '@qwery/domain/entities';
 import { Button } from '@qwery/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@qwery/ui/popover';
 import { Input } from '@qwery/ui/input';
 
 import { CellDivider } from './cell-divider';
 import { NotebookCell, type NotebookCellData } from './notebook-cell';
+import { useState } from 'react';
 
 interface NotebookUIProps {
   notebook?: Notebook;
@@ -44,6 +50,8 @@ interface NotebookUIProps {
   cellResults?: Map<number, DatasourceResultSet>;
   cellErrors?: Map<number, string>;
   cellLoadingStates?: Map<number, boolean>;
+  onDeleteNotebook?: () => void;
+  isDeletingNotebook?: boolean;
 }
 
 // Sortable wrapper for cells
@@ -127,6 +135,83 @@ function SortableCell({
   );
 }
 
+function DeleteNotebookButton({
+  onDeleteNotebook,
+  isDeleting,
+  isHovering,
+}: {
+  onDeleteNotebook?: () => void;
+  isDeleting?: boolean;
+  isHovering?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!onDeleteNotebook) {
+    return null;
+  }
+
+  const handleConfirm = () => {
+    if (isDeleting) {
+      return;
+    }
+    setOpen(false);
+    onDeleteNotebook();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          className={`h-7 w-7 transition-opacity ${isHovering ? 'opacity-100' : 'opacity-0'}`}
+          data-test="notebook-delete-trigger"
+          disabled={isDeleting}
+          aria-label="Delete notebook"
+        >
+          {isDeleting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="end">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <h4 className="font-semibold leading-none">Delete notebook?</h4>
+            <p className="text-muted-foreground text-sm">
+              This action permanently removes the notebook and all of its cells.
+              You cannot undo this.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Delete
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function NotebookUI({
   notebook,
   initialCells,
@@ -139,6 +224,8 @@ export function NotebookUI({
   cellResults: externalCellResults,
   cellErrors: externalCellErrors,
   cellLoadingStates: externalCellLoadingStates,
+  onDeleteNotebook,
+  isDeletingNotebook,
 }: NotebookUIProps) {
   // Initialize cells from notebook or initialCells, default to empty array
   const [cells, setCells] = React.useState<NotebookCellData[]>(() => {
@@ -383,10 +470,14 @@ export function NotebookUI({
 
   // Get default title from notebook or prop
   const displayTitle = title || notebook?.title || '';
-
-  // State for editable title
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [titleValue, setTitleValue] = React.useState(displayTitle);
+  const headerTitle =
+    (titleValue?.trim()?.length ? titleValue : displayTitle) ||
+    'Untitled notebook';
+  const shouldRenderHeader = Boolean(headerTitle || onDeleteNotebook);
+
+  // State for editable title
   const [isHoveringTitle, setIsHoveringTitle] = React.useState(false);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -404,9 +495,14 @@ export function NotebookUI({
   }, [isEditingTitle]);
 
   const handleTitleSave = () => {
-    if (titleValue.trim() && titleValue !== displayTitle) {
-      onNotebookChange?.({ title: titleValue.trim() });
-    } else if (!titleValue.trim()) {
+    const trimmed = titleValue.trim();
+    const didChange = Boolean(trimmed) && trimmed !== displayTitle;
+
+    if (didChange) {
+      if (onNotebookChange) {
+        onNotebookChange({ title: trimmed });
+      }
+    } else if (!trimmed) {
       setTitleValue(displayTitle);
     }
     setIsEditingTitle(false);
@@ -446,36 +542,47 @@ export function NotebookUI({
 
   return (
     <div className="bg-background flex h-full flex-col overflow-hidden">
-      {/* Title */}
-      {displayTitle && (
+      {/* Title / Actions */}
+      {shouldRenderHeader && (
         <div
           className="border-border border-b px-6 py-4"
           onMouseEnter={() => setIsHoveringTitle(true)}
           onMouseLeave={() => setIsHoveringTitle(false)}
         >
-          {isEditingTitle ? (
-            <Input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={handleTitleSave}
-              onKeyDown={handleTitleKeyDown}
-              className="focus-visible:ring-ring h-auto border-0 bg-transparent px-0 py-0 text-2xl font-semibold focus-visible:ring-2"
-            />
-          ) : (
-            <div className="group flex items-center gap-2">
-              <h1 className="text-2xl font-semibold">{displayTitle}</h1>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 transition-opacity ${isHoveringTitle ? 'opacity-100' : 'opacity-0'}`}
-                onClick={() => setIsEditingTitle(true)}
-                aria-label="Edit title"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-1 items-center">
+              {isEditingTitle ? (
+                <Input
+                  ref={titleInputRef}
+                  value={titleValue}
+                  onChange={(e) => setTitleValue(e.target.value)}
+                  onBlur={handleTitleSave}
+                  onKeyDown={handleTitleKeyDown}
+                  className="focus-visible:ring-ring h-auto w-full border-0 bg-transparent px-0 py-0 text-2xl font-semibold focus-visible:ring-2"
+                />
+              ) : (
+                <div className="group flex items-center gap-2">
+                  <h1 className="text-2xl font-semibold">{headerTitle}</h1>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-7 w-7 transition-opacity ${isHoveringTitle ? 'opacity-100' : 'opacity-0'}`}
+                    onClick={() => setIsEditingTitle(true)}
+                    aria-label="Edit title"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <DeleteNotebookButton
+                    onDeleteNotebook={onDeleteNotebook}
+                    isDeleting={isDeletingNotebook}
+                    isHovering={isHoveringTitle}
+                  />
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="flex flex-wrap items-center gap-2" />
+          </div>
         </div>
       )}
 

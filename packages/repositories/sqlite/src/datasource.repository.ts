@@ -26,11 +26,27 @@ export class DatasourceRepository extends DatasourceRepositoryPort {
     return this.initPromise;
   }
 
+  private ensureDate(value: unknown): Date {
+    if (value instanceof Date) {
+      return value;
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+    return new Date();
+  }
+
   private serialize(datasource: Datasource): Record<string, unknown> {
+    const createdAt = this.ensureDate(datasource.createdAt);
+    const updatedAt = this.ensureDate(datasource.updatedAt);
+
     return {
       ...datasource,
-      created_at: datasource.createdAt.toISOString(),
-      updated_at: datasource.updatedAt.toISOString(),
+      created_at: createdAt.toISOString(),
+      updated_at: updatedAt.toISOString(),
       project_id: datasource.projectId,
       datasource_provider: datasource.datasource_provider,
       datasource_driver: datasource.datasource_driver,

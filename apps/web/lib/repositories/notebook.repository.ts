@@ -33,7 +33,8 @@ export class NotebookRepository extends NotebookRepositoryPort {
   }
 
   async update(entity: Notebook): Promise<Notebook> {
-    return apiPut<Notebook>(`/notebooks/${entity.id}`, entity);
+    const { createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = entity;
+    return apiPut<Notebook>(`/notebooks/${entity.id}`, payload);
   }
 
   async delete(id: string): Promise<boolean> {

@@ -36,7 +36,7 @@ function handleDomainException(error: unknown): Response {
   return Response.json({ error: errorMessage }, { status: 500 });
 }
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function loader({ request, params }: LoaderFunctionArgs) {
   const repositories = await createRepositories();
   const repository = repositories.datasource;
 
@@ -50,7 +50,16 @@ export async function loader({ params }: LoaderFunctionArgs) {
       return Response.json(datasource);
     }
 
-    return Response.json({ error: 'Not found' }, { status: 404 });
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get('projectId');
+
+    if (projectId) {
+      const datasources = await repository.findByProjectId(projectId);
+      return Response.json(datasources ?? []);
+    }
+
+    const datasources = await repository.findAll();
+    return Response.json(datasources);
   } catch (error) {
     console.error('Error in datasource loader:', error);
     return handleDomainException(error);
@@ -62,6 +71,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const repository = repositories.datasource;
 
   try {
+    // POST /api/datasources - Create datasource
+    if (request.method === 'POST') {
+      // TODO: Create CreateDatasourceService use case
+      const body = await request.json();
+      const datasource = await repository.create(body);
+      return Response.json(datasource, { status: 201 });
+    }
+
     // PUT /api/datasources/:id - Update datasource
     if (request.method === 'PUT' && params.id) {
       const body = await request.json();
