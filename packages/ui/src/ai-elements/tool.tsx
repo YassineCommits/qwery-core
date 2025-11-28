@@ -24,7 +24,7 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn('not-prose mb-4 w-full rounded-md border', className)}
+    className={cn('not-prose mb-4 w-full max-w-full rounded-md border', className)}
     {...props}
   />
 );
@@ -107,11 +107,11 @@ export type ToolInputProps = ComponentProps<'div'> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
+  <div className={cn('space-y-2 overflow-hidden p-4 min-w-0', className)} {...props}>
     <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
       Parameters
     </h4>
-    <div className="bg-muted/50 rounded-md">
+    <div className="bg-muted/50 rounded-md min-w-0 max-w-full overflow-hidden">
       <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
     </div>
   </div>
@@ -142,20 +142,32 @@ export const ToolOutput = ({
     Output = <CodeBlock code={output} language="json" />;
   }
 
+  if (errorText) {
+    return (
+      <div className={cn('space-y-2 p-4 min-w-0', className)} {...props}>
+        <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Error
+        </h4>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4 min-w-0 max-w-full">
+          <div className="flex items-start gap-2">
+            <XCircleIcon className="size-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <pre className="text-sm text-destructive whitespace-pre-wrap wrap-break-word font-sans m-0">
+                {errorText}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn('space-y-2 p-4', className)} {...props}>
+    <div className={cn('space-y-2 p-4 min-w-0', className)} {...props}>
       <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        {errorText ? 'Error' : 'Result'}
+        Result
       </h4>
-      <div
-        className={cn(
-          'overflow-x-auto rounded-md text-xs [&_table]:w-full',
-          errorText
-            ? 'bg-destructive/10 text-destructive'
-            : 'bg-muted/50 text-foreground',
-        )}
-      >
-        {errorText && <div>{errorText}</div>}
+      <div className="bg-muted/50 rounded-md min-w-0 max-w-full overflow-hidden">
         {Output}
       </div>
     </div>

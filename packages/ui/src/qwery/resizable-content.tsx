@@ -46,17 +46,27 @@ export function ResizableContent(props: ResizableContentProps) {
   const contentSize = isOpen ? 50 : 100;
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="h-full w-full overflow-hidden">
-      <ResizablePanel defaultSize={contentSize} minSize={isOpen ? 50 : 100} className="h-full overflow-hidden flex flex-col min-h-0">
-        <div className="h-full w-full overflow-hidden min-h-0">
-        {Content}
+    <ResizablePanelGroup
+      key={isOpen ? 'open' : 'closed'}
+      direction="horizontal"
+      className="h-full w-full overflow-hidden"
+    >
+      <ResizablePanel defaultSize={contentSize} minSize={isOpen ? 50 : 100} className="h-full overflow-hidden flex flex-col min-h-0 min-w-0">
+        <div className="h-full w-full overflow-hidden min-h-0 min-w-0 max-w-full">
+          {Content}
         </div>
       </ResizablePanel>
       {isOpen && <ResizableHandle withHandle />}
       {isOpen && (
-        <ResizablePanel defaultSize={sidebarSize} minSize={10} maxSize={80} className="h-full overflow-hidden min-w-[320px] flex flex-col min-h-0">
-          <div className="h-full w-full overflow-hidden min-h-0">
-          {AgentSidebar}
+        <ResizablePanel 
+          defaultSize={sidebarSize} 
+          minSize={10} 
+          maxSize={80}
+          className="h-full overflow-hidden flex flex-col min-h-0 min-w-0"
+          style={{ minWidth: '400px' }}
+        >
+          <div className="h-full w-full overflow-hidden min-h-0 min-w-0 max-w-full">
+            {AgentSidebar}
           </div>
         </ResizablePanel>
       )}

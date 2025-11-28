@@ -53,6 +53,7 @@ export const createStateMachine = (conversationId: string) => {
               uiMessages: ({ event }) => event.messages,
               inputMessage: ({ event }) =>
                 event.messages[event.messages.length - 1]?.parts[0]?.text ?? '',
+              streamResult: undefined, // Clear previous result when starting new request
             }),
           },
           STOP: 'stopped',
@@ -60,6 +61,18 @@ export const createStateMachine = (conversationId: string) => {
       },
       running: {
         initial: 'detectIntent',
+        on: {
+          USER_INPUT: {
+            target: 'running',
+            actions: assign({
+              uiMessages: ({ event }) => event.messages,
+              inputMessage: ({ event }) =>
+                event.messages[event.messages.length - 1]?.parts[0]?.text ?? '',
+              streamResult: undefined,
+            }),
+          },
+          STOP: 'idle',
+        },
         states: {
           detectIntent: {
             invoke: {
@@ -93,6 +106,9 @@ export const createStateMachine = (conversationId: string) => {
               ],
               onError: {
                 target: '#factory-agent.idle',
+                actions: assign({
+                  streamResult: undefined,
+                }),
               },
             },
           },
@@ -112,6 +128,9 @@ export const createStateMachine = (conversationId: string) => {
               },
               onError: {
                 target: '#factory-agent.idle',
+                actions: assign({
+                  streamResult: undefined,
+                }),
               },
             },
           },
@@ -130,6 +149,9 @@ export const createStateMachine = (conversationId: string) => {
               },
               onError: {
                 target: '#factory-agent.idle',
+                actions: assign({
+                  streamResult: undefined,
+                }),
               },
             },
           },
@@ -149,12 +171,12 @@ export const createStateMachine = (conversationId: string) => {
               },
               onError: {
                 target: '#factory-agent.idle',
+                actions: assign({
+                  streamResult: undefined,
+                }),
               },
             },
           },
-        },
-        on: {
-          STOP: 'idle',
         },
       },
       stopped: {

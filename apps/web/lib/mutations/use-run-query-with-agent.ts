@@ -22,10 +22,6 @@ export function useRunQueryWithAgent(
     ): Promise<{ sqlQuery: string; datasourceId: string }> => {
       const { query, datasourceId, datasourceRepository } = payload;
 
-      if (!query.trim()) {
-        throw new Error('Query cannot be empty');
-      }
-
       const sqlQuery = await runQueryWithAgent(
         datasourceRepository,
         query,
