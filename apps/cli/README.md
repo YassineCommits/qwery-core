@@ -68,6 +68,41 @@ WORKING_DIR=workspace
 
 See `.env.example` for a complete template.
 
+## Testing the CLI
+
+You no longer need ad-hoc helper scripts—everything can be exercised directly from the built CLI.
+
+1. **Export the required environment variables (or place them in `.env`):**
+   ```bash
+   export AZURE_API_KEY="<your-azure-api-key>"
+   export AZURE_RESOURCE_NAME="guepard-agent-rs"
+   export AZURE_OPENAI_DEPLOYMENT="gpt-5-mini"
+   export VITE_AGENT_PROVIDER=azure
+   export AGENT_PROVIDER=azure
+   export VITE_WORKING_DIR=workspace
+   export WORKING_DIR=workspace
+   ```
+2. **Build and launch the interactive REPL:**
+   ```bash
+   pnpm --filter cli build
+   cd apps/cli
+   node dist/index.js
+   ```
+3. **Paste any of the sample prompts below (run one at a time and wait for `✓ Response complete`):**
+   ```
+   list all the data here https://docs.google.com/spreadsheets/d/1yfjcBF4X8waukFdI5u9ctkagFwAn-BRgM5IUCUK1Ay8/edit?gid=0#gid=0
+   create view https://docs.google.com/spreadsheets/d/1zEWG9K_Bsbz9Gj8lYr7St1CMlqg5tRbSkCSxMnmaGNU/edit?usp=sharing
+   create view https://docs.google.com/spreadsheets/d/172Su4VnS0EK7KS6_URA_Fqxz41El9BBHTJGd-w117tc/edit?usp=sharing
+   check view status
+   join sheet_1zEWG9K_ and sheet_172Su4Vn on user_id and show login time with project role
+   ```
+4. **Optional:** Pipe a one-off query without interactive mode:
+   ```bash
+   echo "average score from https://docs.google.com/spreadsheets/d/1yfjc..." | node dist/index.js
+   ```
+
+These steps replace all of the previous test scripts and documentation artifacts; everything lives in this README now.
+
 ### Step-by-Step Installation
 
 #### 1. Build the CLI
