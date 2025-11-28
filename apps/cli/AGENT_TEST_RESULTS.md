@@ -49,7 +49,7 @@ For regular database datasources (PostgreSQL, etc.):
 
 1. Set environment variables:
    ```bash
-   export AZURE_API_KEY="3894e814ba674c0fa20b932c67334c1c"
+   export AZURE_API_KEY="<your-azure-api-key>"
    export AZURE_RESOURCE_NAME="guepard-agent-rs"
    export AZURE_OPENAI_DEPLOYMENT="gpt-5-mini"
    export AGENT_PROVIDER="azure"

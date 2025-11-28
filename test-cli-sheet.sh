@@ -1,13 +1,14 @@
 #!/bin/bash
 # Test CLI with Google Sheet query
 
-export AZURE_API_KEY="3894e814ba674c0fa20b932c67334c1c"
-export AZURE_RESOURCE_NAME="guepard-agent-rs"
-export AZURE_OPENAI_DEPLOYMENT="gpt-5-mini"
-export VITE_AGENT_PROVIDER="azure"
-export AGENT_PROVIDER="azure"
-export VITE_WORKING_DIR="workspace"
-export WORKING_DIR="workspace"
+: "${AZURE_API_KEY:?Set AZURE_API_KEY before running this script}"
+export AZURE_API_KEY
+export AZURE_RESOURCE_NAME="${AZURE_RESOURCE_NAME:-guepard-agent-rs}"
+export AZURE_OPENAI_DEPLOYMENT="${AZURE_OPENAI_DEPLOYMENT:-gpt-5-mini}"
+export VITE_AGENT_PROVIDER="${VITE_AGENT_PROVIDER:-azure}"
+export AGENT_PROVIDER="${AGENT_PROVIDER:-azure}"
+export VITE_WORKING_DIR="${VITE_WORKING_DIR:-workspace}"
+export WORKING_DIR="${WORKING_DIR:-workspace}"
 
 cd apps/cli
 

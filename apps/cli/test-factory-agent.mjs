@@ -7,8 +7,12 @@
 
 import { readFile } from 'fs/promises';
 
+if (!process.env.AZURE_API_KEY) {
+  console.error('AZURE_API_KEY must be set in the environment before running this test.');
+  process.exit(1);
+}
+
 // Set environment variables
-process.env.AZURE_API_KEY = process.env.AZURE_API_KEY || '3894e814ba674c0fa20b932c67334c1c';
 process.env.AZURE_RESOURCE_NAME = process.env.AZURE_RESOURCE_NAME || 'guepard-agent-rs';
 process.env.AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5-mini';
 process.env.AGENT_PROVIDER = process.env.AGENT_PROVIDER || 'azure';

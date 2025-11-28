@@ -19,7 +19,7 @@ pnpm build
 
 ```bash
 cd /home/guepard/work/qwery-core/apps/cli
-export AZURE_API_KEY="3894e814ba674c0fa20b932c67334c1c"
+export AZURE_API_KEY="<your-azure-api-key>"
 export AZURE_RESOURCE_NAME="guepard-agent-rs"
 export AZURE_OPENAI_DEPLOYMENT="gpt-5-mini"
 export VITE_AGENT_PROVIDER="azure"
@@ -37,7 +37,7 @@ Make sure your `apps/cli/.env` file has:
 ```
 VITE_AGENT_PROVIDER=azure
 AGENT_PROVIDER=azure
-AZURE_API_KEY=3894e814ba674c0fa20b932c67334c1c
+AZURE_API_KEY=<your-azure-api-key>
 AZURE_RESOURCE_NAME=guepard-agent-rs
 AZURE_OPENAI_DEPLOYMENT=gpt-5-mini
 VITE_WORKING_DIR=workspace
