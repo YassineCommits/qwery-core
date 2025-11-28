@@ -296,3 +296,4 @@ Add to environment variables:
 - `QUERY_DEFAULT_LIMIT`: Default LIMIT for SELECT * (default: 1000)
 
 
+
