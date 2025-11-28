@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import type { NotebookUseCaseDto } from '@qwery/domain/usecases';
+import type { NotebookOutput } from '@qwery/domain/usecases';
 import type { Notebook } from '@qwery/domain/entities';
 import { CliContainer } from '../container/cli-container';
 import { CliUsageError } from '../utils/errors';
@@ -113,7 +113,7 @@ export function registerNotebookCommands(
       const notebooks =
         await useCases.getNotebooksByProjectId.execute(projectId);
 
-      const rows = notebooks.map((notebook: NotebookUseCaseDto) => ({
+      const rows = notebooks.map((notebook: NotebookOutput) => ({
         id: notebook.id,
         title: notebook.title,
         projectId: notebook.projectId,

@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { Workspace } from '@qwery/domain/entities';
-import { WorkspaceModeEnum } from '@qwery/domain/enums';
+import { WorkspaceModeEnum, WorkspaceRuntimeEnum } from '@qwery/domain/enums';
 
 import { CliContainer } from '../container/cli-container';
 import { CliUsageError } from '../utils/errors';
@@ -55,7 +55,8 @@ export function registerWorkspaceCommands(
         organizationId: workspaceDto.organization?.id,
         projectId: workspaceDto.project?.id,
         isAnonymous: workspaceDto.isAnonymous,
-        mode: WorkspaceModeEnum.DESKTOP,
+        mode: WorkspaceModeEnum.SIMPLE,
+        runtime: WorkspaceRuntimeEnum.DESKTOP,
       };
 
       container.setWorkspace(state);

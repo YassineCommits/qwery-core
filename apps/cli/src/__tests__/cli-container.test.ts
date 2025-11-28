@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CliContainer } from '../container/cli-container';
 import type { Workspace } from '@qwery/domain/entities';
-import { WorkspaceModeEnum } from '@qwery/domain/enums';
+import { WorkspaceModeEnum, WorkspaceRuntimeEnum } from '@qwery/domain/enums';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import os from 'node:os';
@@ -38,7 +38,8 @@ describe('CliContainer', () => {
         organizationId: 'org-1',
         projectId: 'proj-1',
         isAnonymous: false,
-        mode: WorkspaceModeEnum.DESKTOP,
+        mode: WorkspaceModeEnum.SIMPLE,
+        runtime: WorkspaceRuntimeEnum.DESKTOP,
       };
       container.setWorkspace(workspace);
       await container.persist();
@@ -87,7 +88,8 @@ describe('CliContainer', () => {
         organizationId: 'org-1',
         projectId: 'proj-1',
         isAnonymous: false,
-        mode: WorkspaceModeEnum.DESKTOP,
+        mode: WorkspaceModeEnum.SIMPLE,
+        runtime: WorkspaceRuntimeEnum.DESKTOP,
       };
       container.setWorkspace(workspace);
       expect(container.getWorkspace()?.id).toBe('ws-1');

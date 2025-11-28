@@ -1,4 +1,4 @@
-import { WorkspaceModeEnum, WorkspaceRuntimeEnum } from '@qwery/domain/enums';
+import { WorkspaceRuntimeEnum } from '@qwery/domain/enums';
 import { WorkspaceRuntimeService } from '@qwery/domain/services';
 
 export class CliWorkspaceModeService extends WorkspaceRuntimeService {

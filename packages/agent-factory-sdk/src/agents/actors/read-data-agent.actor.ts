@@ -34,7 +34,10 @@ export const readDataAgentActor = fromPromise(
 const WORKSPACE = resolveWorkspaceDir();
 
 function resolveWorkspaceDir(): string | undefined {
-  const globalProcess = typeof globalThis !== 'undefined' ? (globalThis as { process?: NodeJS.Process }).process : undefined;
+  const globalProcess =
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { process?: NodeJS.Process }).process
+      : undefined;
   const envValue =
     globalProcess?.env?.WORKSPACE ??
     globalProcess?.env?.VITE_WORKING_DIR ??
@@ -44,7 +47,8 @@ function resolveWorkspaceDir(): string | undefined {
   }
 
   try {
-    return (import.meta as { env?: Record<string, string> })?.env?.VITE_WORKING_DIR;
+    return (import.meta as { env?: Record<string, string> })?.env
+      ?.VITE_WORKING_DIR;
   } catch {
     return undefined;
   }

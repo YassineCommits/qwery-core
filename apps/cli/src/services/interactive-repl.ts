@@ -5,10 +5,7 @@ import { InteractiveContext } from './interactive-context';
 import { InteractiveQueryHandler } from './interactive-query-handler';
 import { InteractiveCommandRouter } from './interactive-command-router';
 import { printInteractiveResult } from '../utils/output';
-import {
-  colored,
-  colors,
-} from '../utils/formatting';
+import { colored, colors } from '../utils/formatting';
 import { FactoryAgent, validateUIMessages } from '@qwery/agent-factory-sdk';
 import { nanoid } from 'nanoid';
 
@@ -79,7 +76,9 @@ export class InteractiveRepl {
 
     this.rl.on('close', () => {
       this.isRunning = false;
-      console.log('\n' + colored('✓ Goodbye! See you next time!', colors.green) + '\n');
+      console.log(
+        '\n' + colored('✓ Goodbye! See you next time!', colors.green) + '\n',
+      );
       process.exit(0);
     });
   }
@@ -113,7 +112,10 @@ export class InteractiveRepl {
               '\n' +
               colored('Example:', colors.dim) +
               ' ' +
-              colored('/use d7d411d0-8fbf-46a8-859d-7aca6abfad14', colors.white) +
+              colored(
+                '/use d7d411d0-8fbf-46a8-859d-7aca6abfad14',
+                colors.white,
+              ) +
               '\n',
           );
         } else {
@@ -153,7 +155,7 @@ export class InteractiveRepl {
     try {
       // Check if this is a Google Sheet query (contains google.com/spreadsheets)
       const isGoogleSheetQuery = /google\.com\/spreadsheets/.test(query);
-      
+
       if (isGoogleSheetQuery) {
         // For Google Sheets, use FactoryAgent directly (no datasource needed)
         await this.handleGoogleSheetQuery(query);
@@ -163,9 +165,10 @@ export class InteractiveRepl {
       // Check if this looks like a natural language query (not SQL)
       // SQL queries typically start with SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, etc.
       // Note: "SHOW" is a SQL keyword, but "show me" is natural language, so we need to be more specific
-      const sqlKeywordPattern = /^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|EXPLAIN|WITH|SHOW\s+(TABLES|DATABASES|COLUMNS|INDEXES|GRANTS|PROCESSLIST|VARIABLES|STATUS|SCHEMAS|CREATE|FULL|ENGINE|WARNINGS|ERRORS)|DESCRIBE|DESC)\s+/i;
+      const sqlKeywordPattern =
+        /^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|EXPLAIN|WITH|SHOW\s+(TABLES|DATABASES|COLUMNS|INDEXES|GRANTS|PROCESSLIST|VARIABLES|STATUS|SCHEMAS|CREATE|FULL|ENGINE|WARNINGS|ERRORS)|DESCRIBE|DESC)\s+/i;
       const isSqlQuery = sqlKeywordPattern.test(query);
-      
+
       if (!isSqlQuery) {
         // Natural language query - use FactoryAgent (no datasource needed)
         await this.handleNaturalLanguageQuery(query);
@@ -191,14 +194,26 @@ export class InteractiveRepl {
       }
 
       // Show query
-      console.log('\n' + colored('📝 Query:', colors.brand) + ' ' + colored(query, colors.white) + '\n');
+      console.log(
+        '\n' +
+          colored('📝 Query:', colors.brand) +
+          ' ' +
+          colored(query, colors.white) +
+          '\n',
+      );
 
       try {
         const result = await this.queryHandler.execute(query, datasource);
         printInteractiveResult(result);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.log('\n' + colored('❌ Error:', colors.red) + ' ' + colored(message, colors.white) + '\n');
+        console.log(
+          '\n' +
+            colored('❌ Error:', colors.red) +
+            ' ' +
+            colored(message, colors.white) +
+            '\n',
+        );
       }
     } finally {
       this.isProcessing = false;
@@ -215,7 +230,7 @@ export class InteractiveRepl {
     // Blocking is already handled in handleQuery
     console.log('\n' + colored('💬 Natural Language Query', colors.brand));
     console.log(colored('─'.repeat(60), colors.gray));
-    
+
     await this.processAgentQuery(query);
   }
 
@@ -223,7 +238,7 @@ export class InteractiveRepl {
     // Blocking is already handled in handleQuery
     console.log('\n' + colored('🌐 Google Sheet Query Detected', colors.brand));
     console.log(colored('─'.repeat(60), colors.gray));
-    
+
     await this.processAgentQuery(query);
   }
 
@@ -246,18 +261,23 @@ export class InteractiveRepl {
 
       // Validate and call agent
       validateUIMessages({ messages });
-      
-      const responsePromise = agent.respond({
-        messages: messages,
-      }).catch((error) => {
-        console.error(colored('❌ Agent error:', colors.red), error);
-        throw error;
-      });
-      
+
+      const responsePromise = agent
+        .respond({
+          messages: messages,
+        })
+        .catch((error) => {
+          console.error(colored('❌ Agent error:', colors.red), error);
+          throw error;
+        });
+
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Agent response timeout after 120 seconds')), 120000);
+        setTimeout(
+          () => reject(new Error('Agent response timeout after 120 seconds')),
+          120000,
+        );
       });
-      
+
       let response: Response;
       try {
         response = await Promise.race([responsePromise, timeoutPromise]);
@@ -283,28 +303,28 @@ export class InteractiveRepl {
           if (done) {
             break;
           }
-          
+
           buffer += decoder.decode(value, { stream: true });
-          
+
           // Parse SSE format (data: {...}\n\n or data: {...}\n)
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Keep incomplete line in buffer
-          
+
           for (const line of lines) {
             if (!line.trim() || line.startsWith(':')) {
               continue; // Skip empty lines and comments
             }
-            
+
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim(); // Remove 'data: ' prefix
-              
+
               if (data === '[DONE]') {
                 continue;
               }
-              
+
               try {
                 const parsed = JSON.parse(data);
-                
+
                 // Handle text deltas - stream them directly with clean formatting
                 if (parsed.type === 'text-delta' && parsed.delta) {
                   if (isFirstChunk) {
@@ -314,16 +334,19 @@ export class InteractiveRepl {
                   process.stdout.write(parsed.delta);
                   textContent += parsed.delta;
                 }
-                
+
                 // Handle tool output errors - show them cleanly
                 if (parsed.type === 'tool-output-error') {
-                  const errorMsg = parsed.errorText || parsed.message || 'Unknown error';
+                  const errorMsg =
+                    parsed.errorText || parsed.message || 'Unknown error';
                   // Only show non-critical errors (DuckDB import errors are expected in some cases)
                   if (!errorMsg.includes('Cannot find package')) {
-                    console.log(`\n${colored('⚠️  Warning:', colors.yellow)} ${errorMsg}`);
+                    console.log(
+                      `\n${colored('⚠️  Warning:', colors.yellow)} ${errorMsg}`,
+                    );
                   }
                 }
-                
+
                 // Handle finish
                 if (parsed.type === 'finish' || parsed.type === 'text-end') {
                   // Response complete
@@ -334,7 +357,7 @@ export class InteractiveRepl {
             }
           }
         }
-        
+
         // Process any remaining buffer
         if (buffer.trim()) {
           if (buffer.startsWith('data: ')) {
@@ -353,7 +376,14 @@ export class InteractiveRepl {
           }
         }
       } catch (streamError) {
-        console.error('\n' + colored('⚠️  Error while streaming:', colors.yellow) + ' ' + (streamError instanceof Error ? streamError.message : String(streamError)));
+        console.error(
+          '\n' +
+            colored('⚠️  Error while streaming:', colors.yellow) +
+            ' ' +
+            (streamError instanceof Error
+              ? streamError.message
+              : String(streamError)),
+        );
       } finally {
         reader.releaseLock();
       }
@@ -363,12 +393,21 @@ export class InteractiveRepl {
         console.log('\n' + colored('─'.repeat(60), colors.gray));
         console.log(colored('✓ Response complete', colors.green) + '\n');
       } else {
-        console.log('\n' + colored('⚠️  Warning: Response stream was empty', colors.yellow) + '\n');
+        console.log(
+          '\n' +
+            colored('⚠️  Warning: Response stream was empty', colors.yellow) +
+            '\n',
+        );
       }
-
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.log('\n' + colored('❌ Error:', colors.red) + ' ' + colored(message, colors.white) + '\n');
+      console.log(
+        '\n' +
+          colored('❌ Error:', colors.red) +
+          ' ' +
+          colored(message, colors.white) +
+          '\n',
+      );
     } finally {
       // Re-enable input after processing is complete
       this.isProcessing = false;
@@ -405,7 +444,13 @@ export class InteractiveRepl {
       await this.commandRouter.execute(cmd, args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.log('\n' + colored('❌ Error:', colors.red) + ' ' + colored(message, colors.white) + '\n');
+      console.log(
+        '\n' +
+          colored('❌ Error:', colors.red) +
+          ' ' +
+          colored(message, colors.white) +
+          '\n',
+      );
     }
 
     if (this.isRunning) {
@@ -458,7 +503,11 @@ ${colored('Query Tips:', colors.white)}
   }
 
   private showWelcome(): void {
-    console.log('\n' + colored('Welcome to Qwery CLI Interactive Mode!', colors.brand) + '\n');
+    console.log(
+      '\n' +
+        colored('Welcome to Qwery CLI Interactive Mode!', colors.brand) +
+        '\n',
+    );
     console.log(
       colored('Type', colors.dim) +
         ' ' +
@@ -473,11 +522,19 @@ ${colored('Query Tips:', colors.white)}
         ' ' +
         colored('to select a datasource.', colors.dim),
     );
-    console.log(colored('Natural language queries go to the AI agent automatically.', colors.dim));
+    console.log(
+      colored(
+        'Natural language queries go to the AI agent automatically.',
+        colors.dim,
+      ),
+    );
     console.log(
       colored('Tip:', colors.dim) +
         ' ' +
-        colored('Run one query at a time and wait for ✓ Response complete.', colors.dim) +
+        colored(
+          'Run one query at a time and wait for ✓ Response complete.',
+          colors.dim,
+        ) +
         '\n',
     );
   }

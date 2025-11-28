@@ -659,9 +659,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      tsx:
-        specifier: ^4.19.1
-        version: 4.20.6
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -19876,6 +19873,7 @@ snapshots:
       get-tsconfig: 4.13.0
     optionalDependencies:
       fsevents: 2.3.3
+    optional: true
 
   tunnel-agent@0.6.0:
     dependencies:

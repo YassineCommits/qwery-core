@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import type { DatasourceUseCaseDto } from '@qwery/domain/usecases';
+import type { DatasourceOutput } from '@qwery/domain/usecases';
 import type { Datasource } from '@qwery/domain/entities';
 import { DatasourceKind } from '@qwery/domain/entities';
 
@@ -147,7 +147,7 @@ export function registerDatasourceCommands(
       const datasources =
         await useCases.getDatasourcesByProjectId.execute(projectId);
 
-      const rows = datasources.map((datasource: DatasourceUseCaseDto) => ({
+      const rows = datasources.map((datasource: DatasourceOutput) => ({
         id: datasource.id,
         name: datasource.name,
         projectId: datasource.projectId,

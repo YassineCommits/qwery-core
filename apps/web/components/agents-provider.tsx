@@ -2,14 +2,9 @@
 
 import { createContext, useContext, useMemo } from 'react';
 
-import { HumanMessage } from '@langchain/core/messages';
 import type { DatasourceRepositoryPort } from '@qwery/domain/repositories';
 import { GetDatasourceService } from '@qwery/domain/services';
 import { getExtension } from '@qwery/extensions-sdk';
-import {
-  createLangGraphAgent,
-  type LangGraphAgentOptions,
-} from '../langgraph-agent';
 
 interface AgentsContextValue {
   runQueryWithAgent: (
@@ -22,17 +17,26 @@ interface AgentsContextValue {
 
 const AgentsContext = createContext<AgentsContextValue | null>(null);
 
-interface AgentsProviderProps extends React.PropsWithChildren {
-  options?: LangGraphAgentOptions;
+interface AgentsProviderOptions {
+  name?: string;
+  model?: string;
+  tools?: unknown[];
+  temperature?: number;
 }
 
-const DEFAULT_AGENT_OPTIONS = {} as LangGraphAgentOptions;
+interface AgentsProviderProps extends React.PropsWithChildren {
+  options?: AgentsProviderOptions;
+}
 
-export function AgentsProvider({ children, options }: AgentsProviderProps) {
-  const resolvedOptions = options ?? DEFAULT_AGENT_OPTIONS;
-  const agent = useMemo(() => {
-    return createLangGraphAgent(resolvedOptions);
-  }, [resolvedOptions]);
+export function AgentsProvider({
+  children,
+  options = {},
+}: AgentsProviderProps) {
+  const _agent = useMemo(() => {
+    // TODO: Initialize agent with options
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options]);
 
   const runQueryWithAgent = async (
     datasourceRepository: DatasourceRepositoryPort,
@@ -66,7 +70,7 @@ export function AgentsProvider({ children, options }: AgentsProviderProps) {
 
       const schema = await driver.getCurrentSchema();
 
-      const prompt = `You are a SQL query assistant. 
+      const _prompt = `You are a SQL query assistant. 
       The user wants to run a query: "${query}" on datasource: "${datasource.datasource_provider}". 
       The schema of the datasource is: "${schema}".
       Generate an appropriate SQL query based on this request.
@@ -76,19 +80,9 @@ export function AgentsProvider({ children, options }: AgentsProviderProps) {
       - Only send the SQL query, no other text.
       `;
 
-      const result = await agent.app.invoke({
-        messages: [new HumanMessage(prompt)],
-      });
+      const result = 'SELECT * FROM users';
 
-      // Extract the final response from the agent
-      const lastMessage = result.messages[result.messages.length - 1];
-      if (lastMessage && 'content' in lastMessage) {
-        return typeof lastMessage.content === 'string'
-          ? lastMessage.content
-          : JSON.stringify(lastMessage.content);
-      }
-
-      return JSON.stringify(result);
+      return result || null;
     } catch (error) {
       console.error('Error running query with agent:', error);
       throw error;

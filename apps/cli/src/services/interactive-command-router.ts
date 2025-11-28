@@ -4,7 +4,7 @@ import { printOutput, resolveFormat } from '../utils/output';
 import { successBox } from '../utils/formatting';
 import { v4 as uuidv4 } from 'uuid';
 import type { Workspace } from '@qwery/domain/entities';
-import { WorkspaceModeEnum } from '@qwery/domain/enums';
+import { WorkspaceModeEnum, WorkspaceRuntimeEnum } from '@qwery/domain/enums';
 import type { Datasource } from '@qwery/domain/entities';
 import { DatasourceKind } from '@qwery/domain/entities';
 import {
@@ -80,7 +80,8 @@ export class InteractiveCommandRouter {
           organizationId: workspaceDto.organization?.id,
           projectId: workspaceDto.project?.id,
           isAnonymous: workspaceDto.isAnonymous,
-          mode: WorkspaceModeEnum.DESKTOP,
+          mode: WorkspaceModeEnum.SIMPLE,
+          runtime: WorkspaceRuntimeEnum.DESKTOP,
         };
 
         this.container.setWorkspace(state);

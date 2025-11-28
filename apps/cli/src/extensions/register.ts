@@ -24,6 +24,7 @@ export function registerCliExtensions(): void {
     name: 'PostgreSQL',
     description: 'Connect to PostgreSQL databases using the pg driver',
     scope: ExtensionScope.DATASOURCE,
+    logo: '/images/datasources/postgresql_icon.png',
     schema: postgresSchema,
     getDriver: async (name: string, config: z.infer<typeof postgresSchema>) => {
       return new PostgresDatasourceDriver(name, config);

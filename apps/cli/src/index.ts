@@ -21,10 +21,9 @@ if (!process.env.WORKSPACE) {
 }
 
 async function bootstrap() {
-  const [{ CliApplication }, { registerCliExtensions }, { handleCliError }] = await Promise.all([
+  const [{ CliApplication }, { registerCliExtensions }] = await Promise.all([
     import('./cli-application'),
     import('./extensions/register'),
-    import('./utils/errors'),
   ]);
 
   registerCliExtensions();

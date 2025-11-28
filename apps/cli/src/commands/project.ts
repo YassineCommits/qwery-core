@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline/promises';
 
 import type { Command } from 'commander';
 
-import type { ProjectUseCaseDto } from '@qwery/domain/usecases';
+import type { ProjectOutput } from '@qwery/domain/usecases';
 
 import { CliContainer } from '../container/cli-container';
 import { CliUsageError } from '../utils/errors';
@@ -144,7 +144,7 @@ export function registerProjectCommands(
     });
 }
 
-function projectToSummary(project: ProjectUseCaseDto) {
+function projectToSummary(project: ProjectOutput) {
   return {
     id: project.id,
     name: project.name,

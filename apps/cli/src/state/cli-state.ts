@@ -6,7 +6,7 @@ import type {
   User,
   Workspace,
 } from '@qwery/domain/entities';
-import { WorkspaceModeEnum } from '@qwery/domain/enums';
+import { WorkspaceModeEnum, WorkspaceRuntimeEnum } from '@qwery/domain/enums';
 
 export const CLI_STATE_VERSION = 1;
 
@@ -41,6 +41,7 @@ export function ensureWorkspaceMode(
 
   return {
     ...workspace,
-    mode: WorkspaceModeEnum.DESKTOP,
+    mode: WorkspaceModeEnum.SIMPLE,
+    runtime: WorkspaceRuntimeEnum.DESKTOP,
   };
 }

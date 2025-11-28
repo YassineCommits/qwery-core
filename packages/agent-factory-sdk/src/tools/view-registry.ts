@@ -64,8 +64,7 @@ export const registerSheetView = async (
 ): Promise<{ record: ViewRecord; isNew: boolean }> => {
   await ensureConversationDir(context);
   const existing = await loadViewRegistry(context);
-  const sourceId =
-    sharedLink.match(SHEET_REGEX)?.[1] ?? `sheet_${nanoid(8)}`;
+  const sourceId = sharedLink.match(SHEET_REGEX)?.[1] ?? `sheet_${nanoid(8)}`;
 
   const match = existing.find((rec) => rec.sourceId === sourceId);
   if (match) {
@@ -110,4 +109,3 @@ export const updateViewUsage = async (
   target.updatedAt = target.lastUsedAt;
   await saveViewRegistry(context, registry);
 };
-
