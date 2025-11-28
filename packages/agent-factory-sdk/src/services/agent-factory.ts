@@ -81,11 +81,7 @@ export class AgentFactory extends IAgentFactory {
       return undefined;
     };
 
-    const isBrowser =
-      typeof window !== 'undefined' || typeof document !== 'undefined';
-    const defaultProvider = (
-      getEnv('AGENT_PROVIDER') ?? (isBrowser ? 'webllm' : 'azure')
-    ).toLowerCase();
+    const defaultProvider = determineDefaultProvider(getEnv);
     const resolvedProviderId = providerId ?? defaultProvider;
 
     // Create provider factories
@@ -187,12 +183,7 @@ export class AgentFactory extends IAgentFactory {
       return undefined;
     };
 
-    // Default to webllm in browser environments, azure in Node.js
-    const isBrowser =
-      typeof window !== 'undefined' || typeof document !== 'undefined';
-    const defaultProvider = (
-      getEnv('AGENT_PROVIDER') ?? (isBrowser ? 'webllm' : 'azure')
-    ).toLowerCase();
+    const defaultProvider = determineDefaultProvider(getEnv);
 
     const providerFactories: Record<string, ProviderFactory> = {
       azure: (modelName) =>
@@ -249,4 +240,24 @@ function requireEnv(
     );
   }
   return value;
+}
+
+const isBrowserEnvironment = (): boolean =>
+  typeof window !== 'undefined' || typeof document !== 'undefined';
+
+const hasAzureCredentials = (getEnv: (key: string) => string | undefined) =>
+  Boolean(getEnv('AZURE_RESOURCE_NAME') && getEnv('AZURE_API_KEY'));
+
+function determineDefaultProvider(getEnv: (key: string) => string | undefined) {
+  const configuredProvider = getEnv('AGENT_PROVIDER');
+  if (configuredProvider) {
+    return configuredProvider.toLowerCase();
+  }
+
+  const browser = isBrowserEnvironment();
+  if (!browser && !hasAzureCredentials(getEnv)) {
+    return 'webllm';
+  }
+
+  return browser ? 'webllm' : 'azure';
 }

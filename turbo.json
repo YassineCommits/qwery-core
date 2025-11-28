@@ -28,6 +28,9 @@
         "next-env.d.ts",
         "build/**",
         "dist/**"
+      ],
+      "env": [
+        "NODE_ENV"
       ]
     },
     "dev": {

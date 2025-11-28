@@ -28,6 +28,7 @@ export class NotebookRepository extends NotebookRepositoryPort {
   private serialize(notebook: Notebook): Record<string, unknown> {
     return {
       ...notebook,
+      description: notebook.description ?? null,
       created_at: notebook.createdAt.toISOString(),
       updated_at: notebook.updatedAt.toISOString(),
       project_id: notebook.projectId,
@@ -37,11 +38,17 @@ export class NotebookRepository extends NotebookRepositoryPort {
   }
 
   private deserialize(row: Record<string, unknown>): Notebook {
+    const rawDescription = row.description;
+    const normalizedDescription =
+      typeof rawDescription === 'string' && rawDescription.trim().length > 0
+        ? (rawDescription as string)
+        : undefined;
+
     return {
       id: row.id as string,
       slug: row.slug as string,
       title: row.title as string,
-      description: row.description as string | undefined,
+      description: normalizedDescription,
       projectId: row.project_id as string,
       datasources: JSON.parse(row.datasources as string) as string[],
       cells: JSON.parse(row.cells as string),

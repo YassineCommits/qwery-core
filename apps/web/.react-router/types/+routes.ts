@@ -46,12 +46,9 @@ type Pages = {
       "id": string;
     };
   };
-  "/api/datasources": {
-    params: {};
-  };
-  "/api/datasources/:id": {
+  "/api/datasources/:id?": {
     params: {
-      "id": string;
+      "id"?: string;
     };
   };
   "/api/notebooks": {
@@ -129,7 +126,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/version" | "/healthcheck" | "/qwery/*" | "/api/chat/:slug" | "/api/organizations" | "/api/organizations/:id" | "/api/projects" | "/api/projects/:id" | "/api/datasources" | "/api/datasources/:id" | "/api/notebooks" | "/api/notebooks/:id" | "/api/conversations" | "/api/conversations/:id" | "/organizations" | "/org/:slug" | "/prj/:slug" | "/notebook/:slug" | "/prj/:slug/ds" | "/prj/:slug/ds/new" | "/prj/:slug/ds/:id/new" | "/ds/:slug" | "/prj/:slug/playground" | "/prj/:slug/c" | "/c/:slug";
+    page: "/" | "/version" | "/healthcheck" | "/qwery/*" | "/api/chat/:slug" | "/api/organizations" | "/api/organizations/:id" | "/api/projects" | "/api/projects/:id" | "/api/datasources/:id?" | "/api/notebooks" | "/api/notebooks/:id" | "/api/conversations" | "/api/conversations/:id" | "/organizations" | "/org/:slug" | "/prj/:slug" | "/notebook/:slug" | "/prj/:slug/ds" | "/prj/:slug/ds/new" | "/prj/:slug/ds/:id/new" | "/ds/:slug" | "/prj/:slug/playground" | "/prj/:slug/c" | "/c/:slug";
   };
   "routes/version.ts": {
     id: "routes/version";
@@ -163,13 +160,9 @@ type RouteFiles = {
     id: "routes/api/project/project";
     page: "/api/projects/:id";
   };
-  "routes/api/datasource/get-all-datasources.ts": {
-    id: "routes/api/datasource/get-all-datasources";
-    page: "/api/datasources";
-  };
   "routes/api/datasource/datasource.ts": {
     id: "routes/api/datasource/datasource";
-    page: "/api/datasources/:id";
+    page: "/api/datasources/:id?";
   };
   "routes/api/notebook/get-all-notebooks.ts": {
     id: "routes/api/notebook/get-all-notebooks";
@@ -263,7 +256,6 @@ type RouteModules = {
   "routes/api/organization/organization": typeof import("./app/routes/api/organization/organization.ts");
   "routes/api/project/get-all-projects": typeof import("./app/routes/api/project/get-all-projects.ts");
   "routes/api/project/project": typeof import("./app/routes/api/project/project.ts");
-  "routes/api/datasource/get-all-datasources": typeof import("./app/routes/api/datasource/get-all-datasources.ts");
   "routes/api/datasource/datasource": typeof import("./app/routes/api/datasource/datasource.ts");
   "routes/api/notebook/get-all-notebooks": typeof import("./app/routes/api/notebook/get-all-notebooks.ts");
   "routes/api/notebook/notebook": typeof import("./app/routes/api/notebook/notebook.ts");

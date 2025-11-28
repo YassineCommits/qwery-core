@@ -20,7 +20,11 @@ export function ProjectLayoutTopBar() {
   const { mutate: switchWorkspaceMode } = useSwitchWorkspaceMode();
 
   const handleSwitchWorkspaceMode = (mode: string) => {
-    switchWorkspaceMode(mode as WorkspaceModeEnum);
+    switchWorkspaceMode(mode as WorkspaceModeEnum, {
+      onSuccess: () => {
+        window.location.reload();
+      },
+    });
   };
   return (
     <PageTopBar>
@@ -28,7 +32,7 @@ export function ProjectLayoutTopBar() {
         <div className="flex items-center space-x-4">
           <AppLogo />
           {workspace.mode === WorkspaceModeEnum.SIMPLE ? null : (
-            <SidebarTrigger />
+            <SidebarTrigger className="lg:hidden" />
           )}
           <WorkspaceModeSwitch
             onChange={handleSwitchWorkspaceMode}

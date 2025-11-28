@@ -42,30 +42,46 @@ export class FactoryAgent {
       this.factoryActor.getSnapshot().value,
     );
 
+    // Get the current input message to track which request this is for
+    const lastMessage = opts.messages[opts.messages.length - 1];
+    const textPart = lastMessage?.parts.find((p) => p.type === 'text');
+    const currentInputMessage =
+      textPart && 'text' in textPart ? (textPart.text as string) : '';
+
     //console.log("Last user text:", JSON.stringify(opts.messages, null, 2));
 
     return await new Promise<Response>((resolve, reject) => {
+      let requestStarted = false;
+
       const subscription = this.factoryActor.subscribe((state) => {
         const ctx = state.context;
         console.log('Factory state in subscribe:', state.value);
 
-        // When the state machine has produced the StreamTextResult, we can return it
-        if (ctx.streamResult) {
-          try {
-            const response = ctx.streamResult.toUIMessageStreamResponse();
-            // Optionally move the machine back to idle
-            //this.factoryActor.send({ type: "STOP" });
+        // Mark that we've started processing (state is running or we have a result)
+        if (state.value === 'running' || ctx.streamResult) {
+          requestStarted = true;
+        }
 
-            subscription.unsubscribe();
-            resolve(response);
-          } catch (err) {
-            subscription.unsubscribe();
-            reject(err);
+        // When the state machine has produced the StreamTextResult, verify it's for the current request
+        if (ctx.streamResult && requestStarted) {
+          // Verify this result is for the current request by checking inputMessage matches
+          const resultInputMessage = ctx.inputMessage;
+          if (resultInputMessage === currentInputMessage) {
+            try {
+              const response = ctx.streamResult.toUIMessageStreamResponse();
+              subscription.unsubscribe();
+              resolve(response);
+            } catch (err) {
+              subscription.unsubscribe();
+              reject(err);
+            }
           }
+          // If inputMessage doesn't match, it's a stale result - wait for the correct one
         }
       });
 
       // Kick off the state transition and LLM call
+      // The state machine will clear any previous streamResult when USER_INPUT is received
       this.factoryActor.send({
         type: 'USER_INPUT',
         messages: opts.messages,

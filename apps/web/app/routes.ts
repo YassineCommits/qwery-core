@@ -20,8 +20,7 @@ const apiRoutes = [
   route('api/organizations/:id', 'routes/api/organization/organization.ts'),
   route('api/projects', 'routes/api/project/get-all-projects.ts'),
   route('api/projects/:id', 'routes/api/project/project.ts'),
-  route('api/datasources', 'routes/api/datasource/get-all-datasources.ts'),
-  route('api/datasources/:id', 'routes/api/datasource/datasource.ts'),
+  route('api/datasources/:id?', 'routes/api/datasource/datasource.ts'),
   route('api/notebooks', 'routes/api/notebook/get-all-notebooks.ts'),
   route('api/notebooks/:id', 'routes/api/notebook/notebook.ts'),
   route(
