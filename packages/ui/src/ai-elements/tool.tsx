@@ -24,7 +24,10 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn('not-prose mb-4 w-full max-w-full rounded-md border', className)}
+    className={cn(
+      'not-prose mb-4 w-full max-w-full rounded-md border',
+      className,
+    )}
     {...props}
   />
 );
@@ -107,11 +110,14 @@ export type ToolInputProps = ComponentProps<'div'> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4 min-w-0', className)} {...props}>
+  <div
+    className={cn('min-w-0 space-y-2 overflow-hidden p-4', className)}
+    {...props}
+  >
     <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
       Parameters
     </h4>
-    <div className="bg-muted/50 rounded-md min-w-0 max-w-full overflow-hidden">
+    <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md">
       <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
     </div>
   </div>
@@ -144,15 +150,15 @@ export const ToolOutput = ({
 
   if (errorText) {
     return (
-      <div className={cn('space-y-2 p-4 min-w-0', className)} {...props}>
+      <div className={cn('min-w-0 space-y-2 p-4', className)} {...props}>
         <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           Error
         </h4>
-        <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4 min-w-0 max-w-full">
+        <div className="bg-destructive/10 border-destructive/20 max-w-full min-w-0 rounded-md border p-4">
           <div className="flex items-start gap-2">
-            <XCircleIcon className="size-4 text-destructive shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <pre className="text-sm text-destructive whitespace-pre-wrap wrap-break-word font-sans m-0">
+            <XCircleIcon className="text-destructive mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <pre className="text-destructive m-0 font-sans text-sm wrap-break-word whitespace-pre-wrap">
                 {errorText}
               </pre>
             </div>
@@ -163,11 +169,11 @@ export const ToolOutput = ({
   }
 
   return (
-    <div className={cn('space-y-2 p-4 min-w-0', className)} {...props}>
+    <div className={cn('min-w-0 space-y-2 p-4', className)} {...props}>
       <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
         Result
       </h4>
-      <div className="bg-muted/50 rounded-md min-w-0 max-w-full overflow-hidden">
+      <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md">
         {Output}
       </div>
     </div>

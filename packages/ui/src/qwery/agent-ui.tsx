@@ -10,8 +10,6 @@ import {
   Message,
   MessageContent,
   MessageResponse,
-  MessageActions,
-  MessageAction,
 } from '../ai-elements/message';
 import {
   PromptInput,
@@ -38,9 +36,16 @@ import {
   PromptInputProvider,
   usePromptInputController,
 } from '../ai-elements/prompt-input';
-import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { CopyIcon, GlobeIcon, RefreshCcwIcon, PencilIcon, CheckIcon, XIcon } from 'lucide-react';
+import {
+  CopyIcon,
+  GlobeIcon,
+  RefreshCcwIcon,
+  PencilIcon,
+  CheckIcon,
+  XIcon,
+} from 'lucide-react';
 import { Button } from '../shadcn/button';
 import { Textarea } from '../shadcn/textarea';
 import {
@@ -75,7 +80,6 @@ const models = [
   },
 ];
 
-
 export interface QweryAgentUIProps {
   transport: ChatTransport<UIMessage>;
   onOpen?: () => void;
@@ -91,7 +95,11 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
-            if (entry.isIntersecting && entry.intersectionRatio > 0.3 && !hasFocusedRef.current) {
+            if (
+              entry.isIntersecting &&
+              entry.intersectionRatio > 0.3 &&
+              !hasFocusedRef.current
+            ) {
               hasFocusedRef.current = true;
               setTimeout(() => {
                 textareaRef.current?.focus();
@@ -117,9 +125,10 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
     webSearch: false,
   });
 
-  const { messages, sendMessage, status, regenerate, stop, setMessages } = useChat({
-    transport: transport,
-  });
+  const { messages, sendMessage, status, regenerate, stop, setMessages } =
+    useChat({
+      transport: transport,
+    });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const regenCountRef = useRef<Map<string, number>>(new Map());
@@ -170,7 +179,6 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
     regenerate();
   }, [messages, regenerate]);
 
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -194,11 +202,28 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
     [messages],
   );
 
+  // Compute regen counts for all messages to avoid ref access during render
+  const [regenCountsMap, setRegenCountsMap] = useState<Map<string, number>>(
+    new Map(),
+  );
+
+  useEffect(() => {
+    const counts = new Map<string, number>();
+    messages.forEach((msg) => {
+      counts.set(msg.id, regenCountRef.current.get(msg.id) ?? 0);
+    });
+    // Use setTimeout to avoid synchronous setState in effect
+    setTimeout(() => setRegenCountsMap(counts), 0);
+  }, [messages]);
+
   return (
     <PromptInputProvider initialInput={state.input}>
-      <div ref={containerRef} className="relative mx-auto flex h-full w-full max-w-4xl flex-col p-6 min-w-0">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
-          <Conversation className="flex-1 min-h-0 min-w-0">
+      <div
+        ref={containerRef}
+        className="relative mx-auto flex h-full w-full max-w-4xl min-w-0 flex-col p-6"
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Conversation className="min-h-0 min-w-0 flex-1">
             <ConversationContent className="min-w-0">
               {messages.length === 0 ? (
                 <ConversationEmptyState
@@ -217,7 +242,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                   );
                   const isLastAssistantMessage =
                     message.id === lastAssistantMessage?.id;
-                  const regenCount = regenCountRef.current.get(message.id) ?? 0;
+                  const regenCount = regenCountsMap.get(message.id) ?? 0;
 
                   const lastTextPartIndex =
                     textParts.length > 0
@@ -226,26 +251,27 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
 
                   return (
                     <div key={message.id}>
-                      {message.role === 'assistant' && sourceParts.length > 0 && (
-                        <Sources>
-                          <SourcesTrigger count={sourceParts.length} />
-                          {sourceParts.map((part, i: number) => {
-                            const sourcePart = part as {
-                              type: 'source-url';
-                              url?: string;
-                            };
-                            return (
-                              <SourcesContent key={`${message.id}-${i}`}>
-                                <Source
-                                  key={`${message.id}-${i}`}
-                                  href={sourcePart.url}
-                                  title={sourcePart.url}
-                                />
-                              </SourcesContent>
-                            );
-                          })}
-                        </Sources>
-                      )}
+                      {message.role === 'assistant' &&
+                        sourceParts.length > 0 && (
+                          <Sources>
+                            <SourcesTrigger count={sourceParts.length} />
+                            {sourceParts.map((part, i: number) => {
+                              const sourcePart = part as {
+                                type: 'source-url';
+                                url?: string;
+                              };
+                              return (
+                                <SourcesContent key={`${message.id}-${i}`}>
+                                  <Source
+                                    key={`${message.id}-${i}`}
+                                    href={sourcePart.url}
+                                    title={sourcePart.url}
+                                  />
+                                </SourcesContent>
+                              );
+                            })}
+                          </Sources>
+                        )}
                       {message.parts.map((part, i: number) => {
                         const isLastTextPart =
                           part.type === 'text' && i === lastTextPartIndex;
@@ -254,10 +280,12 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                           isLastAssistantMessage &&
                           isLastTextPart;
                         const isResponseComplete =
-                          !isStreaming && isLastAssistantMessage && isLastTextPart;
+                          !isStreaming &&
+                          isLastAssistantMessage &&
+                          isLastTextPart;
 
                         switch (part.type) {
-                          case 'text':
+                          case 'text': {
                             const isEditing = editingMessageId === message.id;
                             return (
                               <div
@@ -266,23 +294,31 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                   'flex items-start gap-3',
                                   message.role === 'user' && 'justify-end',
                                   message.role === 'assistant' &&
-                                  'animate-in fade-in slide-in-from-bottom-4 duration-300',
+                                    'animate-in fade-in slide-in-from-bottom-4 duration-300',
                                   message.role === 'user' &&
-                                  'animate-in fade-in slide-in-from-bottom-4 duration-300',
+                                    'animate-in fade-in slide-in-from-bottom-4 duration-300',
                                 )}
                               >
                                 {message.role === 'assistant' && (
-                                  <BotAvatar size={6} className="mt-1 shrink-0" />
+                                  <BotAvatar
+                                    size={6}
+                                    className="mt-1 shrink-0"
+                                  />
                                 )}
-                                <div className="flex flex-col flex-end justify-start gap-2 w-full max-w-[80%] min-w-0">
+                                <div className="flex-end flex w-full max-w-[80%] min-w-0 flex-col justify-start gap-2">
                                   {isEditing && message.role === 'user' ? (
                                     <>
                                       <Textarea
                                         value={editText}
-                                        onChange={(e) => setEditText(e.target.value)}
+                                        onChange={(e) =>
+                                          setEditText(e.target.value)
+                                        }
                                         className="min-h-[60px] resize-none"
                                         onKeyDown={(e) => {
-                                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                          if (
+                                            e.key === 'Enter' &&
+                                            (e.metaKey || e.ctrlKey)
+                                          ) {
                                             e.preventDefault();
                                             handleEditSubmit();
                                           } else if (e.key === 'Escape') {
@@ -292,7 +328,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                         }}
                                         autoFocus
                                       />
-                                      <div className="flex items-center gap-2 justify-end mt-1">
+                                      <div className="mt-1 flex items-center justify-end gap-2">
                                         <Button
                                           variant="ghost"
                                           size="icon"
@@ -315,44 +351,52 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                     </>
                                   ) : (
                                     <>
-                                    {!isStreaming && (
-                                      <Message
-                                        from={message.role}
-                                        className="w-full"
-                                      >
-                                        <MessageContent>
-                                          <div className="inline-flex items-baseline gap-0.5">
-                                            <MessageResponse>{part.text}</MessageResponse>
-                                          </div>
-                                        </MessageContent>
-                                      </Message>
-                                    )}
-                                    {isStreaming && (
-                                      <Message
-                                        from={message.role}
-                                        className="w-full"
-                                      >
-                                        <MessageContent>
-                                          <div className="inline-flex items-baseline gap-0.5">
-                                            <MessageResponse>{part.text}</MessageResponse>
-                                            <span className="inline-block h-4 w-0.5 animate-pulse bg-current" />
-                                          </div>
-                                        </MessageContent>
-                                      </Message>
-                                    )}
+                                      {!isStreaming && (
+                                        <Message
+                                          from={message.role}
+                                          className="w-full"
+                                        >
+                                          <MessageContent>
+                                            <div className="inline-flex items-baseline gap-0.5">
+                                              <MessageResponse>
+                                                {part.text}
+                                              </MessageResponse>
+                                            </div>
+                                          </MessageContent>
+                                        </Message>
+                                      )}
+                                      {isStreaming && (
+                                        <Message
+                                          from={message.role}
+                                          className="w-full"
+                                        >
+                                          <MessageContent>
+                                            <div className="inline-flex items-baseline gap-0.5">
+                                              <MessageResponse>
+                                                {part.text}
+                                              </MessageResponse>
+                                              <span className="inline-block h-4 w-0.5 animate-pulse bg-current" />
+                                            </div>
+                                          </MessageContent>
+                                        </Message>
+                                      )}
                                       {/* Actions below the bubble */}
-                                      {(isResponseComplete || (message.role === 'user' && isLastTextPart)) && (
+                                      {(isResponseComplete ||
+                                        (message.role === 'user' &&
+                                          isLastTextPart)) && (
                                         <div
                                           className={cn(
                                             'mt-1 flex items-center gap-2',
-                                            message.role === 'user' && 'justify-end',
+                                            message.role === 'user' &&
+                                              'justify-end',
                                           )}
                                         >
-                                          {message.role === 'assistant' && regenCount > 0 && (
-                                            <span className="text-muted-foreground text-xs">
-                                              Regenerated {regenCount}x
-                                            </span>
-                                          )}
+                                          {message.role === 'assistant' &&
+                                            regenCount > 0 && (
+                                              <span className="text-muted-foreground text-xs">
+                                                Regenerated {regenCount}x
+                                              </span>
+                                            )}
                                           {message.role === 'assistant' && (
                                             <Button
                                               variant="ghost"
@@ -369,7 +413,10 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                               variant="ghost"
                                               size="icon"
                                               onClick={() =>
-                                                handleEditStart(message.id, part.text)
+                                                handleEditStart(
+                                                  message.id,
+                                                  part.text,
+                                                )
                                               }
                                               className="h-7 w-7"
                                               title="Edit"
@@ -381,7 +428,9 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() =>
-                                              navigator.clipboard.writeText(part.text)
+                                              navigator.clipboard.writeText(
+                                                part.text,
+                                              )
                                             }
                                             className="h-7 w-7"
                                             title="Copy"
@@ -398,6 +447,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                 )}
                               </div>
                             );
+                          }
                           case 'reasoning':
                             return (
                               <Reasoning
@@ -418,7 +468,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                               const toolPart = part as ToolUIPart;
                               const toolName =
                                 'toolName' in toolPart &&
-                                  typeof toolPart.toolName === 'string'
+                                typeof toolPart.toolName === 'string'
                                   ? toolPart.toolName
                                   : toolPart.type.replace('tool-', '');
                               const inProgressStates = new Set([
@@ -433,7 +483,9 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                               return (
                                 <Tool
                                   key={`${message.id}-${i}`}
-                                  defaultOpen={toolPart.state === 'output-error'}
+                                  defaultOpen={
+                                    toolPart.state === 'output-error'
+                                  }
                                 >
                                   <ToolHeader
                                     title={toolName}
@@ -465,9 +517,9 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                 })
               )}
               {status === 'submitted' && (
-                <div className="flex items-start gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="animate-in fade-in slide-in-from-bottom-4 flex items-start gap-3 duration-300">
                   <BotAvatar size={6} className="mt-1 shrink-0" />
-                  <div className="flex flex-col flex-end justify-start gap-2 w-full max-w-[80%] min-w-0">
+                  <div className="flex-end flex w-full max-w-[80%] min-w-0 flex-col justify-start gap-2">
                     <Message from="assistant" className="w-full">
                       <MessageContent>
                         <div className="inline-flex items-baseline gap-0.5">
@@ -528,7 +580,7 @@ function PromptInputInner({
 
   useEffect(() => {
     if (status !== 'streaming' && isAborting) {
-      setIsAborting(false);
+      setTimeout(() => setIsAborting(false), 0);
     }
   }, [status, isAborting]);
 
@@ -561,18 +613,13 @@ function PromptInputInner({
         },
       );
       attachments.clear();
-    } catch (error) {
+    } catch {
       toast.error('Failed to send message. Please try again.');
     }
   };
 
   return (
-    <PromptInput
-      onSubmit={handleSubmit}
-      className="mt-4"
-      globalDrop
-      multiple
-    >
+    <PromptInput onSubmit={handleSubmit} className="mt-4" globalDrop multiple>
       <PromptInputHeader>
         <PromptInputAttachments>
           {(attachment) => <PromptInputAttachment data={attachment} />}
@@ -642,10 +689,7 @@ function PromptInputInner({
             </PromptInputSelectTrigger>
             <PromptInputSelectContent>
               {models.map((model) => (
-                <PromptInputSelectItem
-                  key={model.value}
-                  value={model.value}
-                >
+                <PromptInputSelectItem key={model.value} value={model.value}>
                   {model.name}
                 </PromptInputSelectItem>
               ))}
@@ -656,7 +700,8 @@ function PromptInputInner({
           disabled={
             isAborting ||
             (status !== 'streaming' &&
-              (!state.input.trim() && attachments.files.length === 0))
+              !state.input.trim() &&
+              attachments.files.length === 0)
           }
           status={isAborting ? undefined : status}
           type={status === 'streaming' && !isAborting ? 'button' : 'submit'}

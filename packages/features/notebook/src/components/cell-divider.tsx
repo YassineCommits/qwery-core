@@ -50,11 +50,17 @@ export function CellDivider({ onAddCell, className }: CellDividerProps) {
             <BookText className="h-4 w-4" />
             Code cell
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onAddCell('text')} className="gap-2">
+          <DropdownMenuItem
+            onSelect={() => onAddCell('text')}
+            className="gap-2"
+          >
             <Type className="h-4 w-4" />
             Markdown cell
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onAddCell('prompt')} className="gap-2">
+          <DropdownMenuItem
+            onSelect={() => onAddCell('prompt')}
+            className="gap-2"
+          >
             <Sparkles className="h-4 w-4" />
             Prompt cell
           </DropdownMenuItem>

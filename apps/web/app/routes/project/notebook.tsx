@@ -76,12 +76,10 @@ export default function NotebookPage() {
   // Save notebook mutation
   const saveNotebookMutation = useNotebook(
     notebookRepository,
-    () => {
-    },
+    () => {},
     (error) => {
       console.error(error);
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to save notebook: ${message}`);
     },
   );
@@ -91,17 +89,13 @@ export default function NotebookPage() {
     (deletedNotebook) => {
       toast.success('Notebook deleted');
       const projectSlug = project.data?.slug;
-      if (
-        projectSlug &&
-        deletedNotebook?.slug === normalizedNotebook?.slug
-      ) {
+      if (projectSlug && deletedNotebook?.slug === normalizedNotebook?.slug) {
         navigate(createPath(pathsConfig.app.project, projectSlug));
       }
     },
     (error) => {
       console.error(error);
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to delete notebook: ${message}`);
     },
   );
@@ -210,7 +204,7 @@ export default function NotebookPage() {
     });
   };
 
-  const normalizedNotebook = useMemo<Notebook | undefined>(() => {
+  const normalizedNotebook: Notebook | undefined = (() => {
     if (!notebook.data) {
       return undefined;
     }
@@ -237,7 +231,7 @@ export default function NotebookPage() {
         runMode: cell.runMode || 'default',
       })),
     } as Notebook;
-  }, [notebook.data]);
+  })();
 
   // Track current unsaved state
   const currentNotebookStateRef = useRef<{
@@ -373,11 +367,7 @@ export default function NotebookPage() {
       slug: normalizedNotebook.slug,
       projectId,
     });
-  }, [
-    deleteNotebookMutation,
-    normalizedNotebook,
-    workspace.projectId,
-  ]);
+  }, [deleteNotebookMutation, normalizedNotebook, workspace.projectId]);
 
   useEffect(() => {
     if (!normalizedNotebook?.updatedAt) {
@@ -416,22 +406,21 @@ export default function NotebookPage() {
       {notebook.isLoading && <Skeleton className="h-full w-full" />}
       {notebook.isError && <Navigate to="/404" />}
       {normalizedNotebook && (
-          <NotebookUI
-            notebook={normalizedNotebook}
-            datasources={datasources}
-            onRunQuery={handleRunQuery}
-            onCellsChange={handleCellsChange}
-            onNotebookChange={handleNotebookChange}
-            onRunQueryWithAgent={handleRunQueryWithAgent}
-            cellResults={cellResults}
-            cellErrors={cellErrors}
-            cellLoadingStates={cellLoadingStates}
-            onDeleteNotebook={handleDeleteNotebook}
-            isDeletingNotebook={deleteNotebookMutation.isPending}
-            workspaceMode={workspace.mode}
-          />
+        <NotebookUI
+          notebook={normalizedNotebook}
+          datasources={datasources}
+          onRunQuery={handleRunQuery}
+          onCellsChange={handleCellsChange}
+          onNotebookChange={handleNotebookChange}
+          onRunQueryWithAgent={handleRunQueryWithAgent}
+          cellResults={cellResults}
+          cellErrors={cellErrors}
+          cellLoadingStates={cellLoadingStates}
+          onDeleteNotebook={handleDeleteNotebook}
+          isDeletingNotebook={deleteNotebookMutation.isPending}
+          workspaceMode={workspace.mode}
+        />
       )}
     </div>
   );
 }
-

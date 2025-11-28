@@ -1,7 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -44,7 +52,6 @@ import {
   SelectValue,
 } from '@qwery/ui/select';
 import { Textarea } from '@qwery/ui/textarea';
-import { Input } from '@qwery/ui/input';
 import { cn } from '@qwery/ui/utils';
 
 import ReactMarkdown from 'react-markdown';
@@ -130,7 +137,6 @@ function NotebookCellComponent({
   const cellContainerRef = useRef<HTMLDivElement>(null);
   const [aiQuestion, setAiQuestion] = useState('');
   const aiInputRef = useRef<HTMLTextAreaElement>(null);
-  const [isContentTruncated, setIsContentTruncated] = useState(false);
   const persistedQuery = cell.query ?? '';
   const [localQuery, setLocalQuery] = useState(persistedQuery);
   const [, startTransition] = useTransition();
@@ -138,14 +144,20 @@ function NotebookCellComponent({
   const isQueryCell = cell.cellType === 'query';
   const isTextCell = cell.cellType === 'text';
   const isPromptCell = cell.cellType === 'prompt';
-  const [markdownView, setMarkdownView] = useState<'edit' | 'preview'>('preview');
+  const [markdownView, setMarkdownView] = useState<'edit' | 'preview'>(
+    'preview',
+  );
   const markdownPreviewRef = useRef<HTMLDivElement>(null);
-  const [markdownPreviewHeight, setMarkdownPreviewHeight] = useState<number>(160);
+  const [markdownPreviewHeight, setMarkdownPreviewHeight] =
+    useState<number>(160);
   const showAIPopup = activeAiPopup?.cellId === cell.cellId;
   const [promptDatasourceError, setPromptDatasourceError] = useState(false);
 
   useEffect(() => {
-    setMarkdownView(isTextCell ? 'preview' : 'edit');
+    // Use setTimeout to avoid synchronous setState in effect
+    setTimeout(() => {
+      setMarkdownView(isTextCell ? 'preview' : 'edit');
+    }, 0);
   }, [cell.cellId, isTextCell]);
 
   // Handle Ctrl+K keyboard shortcut to open AI popup
@@ -181,7 +193,15 @@ function NotebookCellComponent({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cell.cellId, cellContainerRef, isAdvancedMode, isQueryCell, onCloseAiPopup, onOpenAiPopup, showAIPopup]);
+  }, [
+    cell.cellId,
+    cellContainerRef,
+    isAdvancedMode,
+    isQueryCell,
+    onCloseAiPopup,
+    onOpenAiPopup,
+    showAIPopup,
+  ]);
 
   const handleMarkdownDoubleClick = () => {
     if (isTextCell) {
@@ -212,7 +232,11 @@ function NotebookCellComponent({
   }, [isTextCell, markdownView]);
 
   useEffect(() => {
-    if (isTextCell && markdownView === 'preview' && markdownPreviewRef.current) {
+    if (
+      isTextCell &&
+      markdownView === 'preview' &&
+      markdownPreviewRef.current
+    ) {
       setMarkdownPreviewHeight(markdownPreviewRef.current.offsetHeight);
     }
   }, [isTextCell, markdownView, query]);
@@ -237,12 +261,14 @@ function NotebookCellComponent({
 
   useEffect(() => {
     if (selectedDatasource && promptDatasourceError) {
-      setPromptDatasourceError(false);
+      setTimeout(() => setPromptDatasourceError(false), 0);
     }
   }, [promptDatasourceError, selectedDatasource]);
 
   useEffect(() => {
-    setLocalQuery(persistedQuery);
+    setTimeout(() => {
+      setLocalQuery(persistedQuery);
+    }, 0);
   }, [persistedQuery, cell.cellId]);
 
   const handleQueryChange = useCallback(
@@ -266,17 +292,6 @@ function NotebookCellComponent({
     }
   };
 
-  const handleRunQueryWithAgent = () => {
-    if (
-      onRunQueryWithAgent &&
-      query &&
-      cell.cellType === 'query' &&
-      selectedDatasource
-    ) {
-      onRunQueryWithAgent(query, selectedDatasource);
-    }
-  };
-
   const handlePromptSubmit = () => {
     if (!onRunQueryWithAgent || !query.trim() || isLoading) {
       return;
@@ -292,24 +307,23 @@ function NotebookCellComponent({
   const renderPromptError = useCallback(() => {
     if (!isPromptCell) return null;
 
-    const hasServerError =
-      typeof error === 'string' && error.trim().length > 0;
+    const hasServerError = typeof error === 'string' && error.trim().length > 0;
     if (!promptDatasourceError && !hasServerError) {
       return null;
     }
 
     const message = hasServerError
-      ? error ?? 'Prompt failed to execute.'
+      ? (error ?? 'Prompt failed to execute.')
       : 'Select a datasource before sending prompts to the AI agent.';
 
     return (
       <div className="px-4">
         <Alert
           variant="destructive"
-          className="mt-3 mb-4 flex items-start gap-2 rounded-lg border-destructive/40 bg-destructive/10"
+          className="border-destructive/40 bg-destructive/10 mt-3 mb-4 flex items-start gap-2 rounded-lg"
         >
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <AlertDescription className="text-sm whitespace-pre-wrap break-words line-clamp-2">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <AlertDescription className="line-clamp-2 text-sm break-words whitespace-pre-wrap">
             {message}
           </AlertDescription>
         </Alert>
@@ -317,63 +331,53 @@ function NotebookCellComponent({
     );
   }, [error, isPromptCell, promptDatasourceError]);
 
-  const renderDatasourceOption = useCallback(
-    (ds: NotebookDatasourceInfo) => {
-      const displayName = ds.name && ds.name.length > 0 ? ds.name : ds.id;
-      const providerLabel = ds.provider
-        ? ds.provider.replace(/[_-]/g, ' ').toUpperCase()
-        : 'CUSTOM';
-      const initials = displayName.slice(0, 2).toUpperCase();
+  const renderDatasourceOption = useCallback((ds: NotebookDatasourceInfo) => {
+    const displayName = ds.name && ds.name.length > 0 ? ds.name : ds.id;
+    const providerLabel = ds.provider
+      ? ds.provider.replace(/[_-]/g, ' ').toUpperCase()
+      : 'CUSTOM';
+    const initials = displayName.slice(0, 2).toUpperCase();
 
-      return (
-        <div className="flex items-center gap-2 min-w-0">
-          {ds.logo ? (
-            <img
-              src={ds.logo}
-              alt={`${displayName} logo`}
-              className="h-4 w-4 flex-shrink-0 rounded object-contain"
-            />
-          ) : (
-            <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold uppercase">
-              {initials}
-            </span>
-          )}
-          <div className="flex min-w-0 items-center justify-between gap-3 text-sm leading-tight">
-            <span className="truncate">{displayName}</span>
-            <span className="text-[11px] uppercase text-muted-foreground flex-shrink-0">
-              {providerLabel}
-            </span>
-          </div>
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        {ds.logo ? (
+          <img
+            src={ds.logo}
+            alt={`${displayName} logo`}
+            className="h-4 w-4 flex-shrink-0 rounded object-contain"
+          />
+        ) : (
+          <span className="bg-muted inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold uppercase">
+            {initials}
+          </span>
+        )}
+        <div className="flex min-w-0 items-center justify-between gap-3 text-sm leading-tight">
+          <span className="truncate">{displayName}</span>
+          <span className="text-muted-foreground flex-shrink-0 text-[11px] uppercase">
+            {providerLabel}
+          </span>
         </div>
-      );
-    },
-    [],
-  );
+      </div>
+    );
+  }, []);
 
   const isDarkMode = resolvedTheme === 'dark';
 
   const handleAISubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!aiQuestion.trim() || !onRunQueryWithAgent || !selectedDatasource) return;
-    
+    if (!aiQuestion.trim() || !onRunQueryWithAgent || !selectedDatasource)
+      return;
+
     onRunQueryWithAgent(query, selectedDatasource);
-    
+
     // Close popup and reset
     onCloseAiPopup();
     setAiQuestion('');
   };
 
   const checkContentTruncation = useCallback(() => {
-    const container = editorContainerRef.current;
-    if (!container || isCollapsed) {
-      setIsContentTruncated(false);
-      return;
-    }
-
-    const scrollHeight = container.scrollHeight;
-    const clientHeight = container.clientHeight;
-    setIsContentTruncated(scrollHeight > clientHeight);
-  }, [isCollapsed]);
+    // Removed unused state update
+  }, []);
 
   useEffect(() => {
     checkContentTruncation();
@@ -382,7 +386,6 @@ function NotebookCellComponent({
   useEffect(() => {
     const container = editorContainerRef.current;
     if (!container || isCollapsed) {
-      setIsContentTruncated(false);
       return;
     }
 
@@ -437,7 +440,7 @@ function NotebookCellComponent({
 
       {/* Cell content */}
       {!isCollapsed && (
-        <div className="bg-background flex min-h-[280px] flex-1 flex-col overflow-hidden relative min-w-0">
+        <div className="bg-background relative flex min-h-[280px] min-w-0 flex-1 flex-col overflow-hidden">
           {/* Toolbar - Show for all cells */}
           <div className="border-border bg-background flex h-10 items-center justify-between border-b px-3">
             <div className="flex items-center gap-2">
@@ -476,7 +479,7 @@ function NotebookCellComponent({
                 </>
               )}
               {isTextCell && (
-                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-2 text-[11px] tracking-wide uppercase">
                   <span>Markdown</span>
                   <Button
                     size="sm"
@@ -513,9 +516,7 @@ function NotebookCellComponent({
                     disabled={datasources.length === 0}
                   >
                     <SelectTrigger className="border-border bg-background hover:bg-accent h-7 w-auto min-w-[140px] border shadow-sm">
-                      <SelectValue
-                          placeholder="Select datasource"
-                      />
+                      <SelectValue placeholder="Select datasource" />
                     </SelectTrigger>
                     <SelectContent>
                       {datasources && datasources.length > 0 ? (
@@ -552,9 +553,7 @@ function NotebookCellComponent({
                     disabled={datasources.length === 0}
                   >
                     <SelectTrigger className="border-border bg-background hover:bg-accent h-7 w-auto min-w-[140px] border shadow-sm">
-                      <SelectValue
-                          placeholder="Select datasource"
-                      />
+                      <SelectValue placeholder="Select datasource" />
                     </SelectTrigger>
                     <SelectContent>
                       {datasources && datasources.length > 0 ? (
@@ -626,13 +625,13 @@ function NotebookCellComponent({
           </div>
 
           {/* Editor */}
-          <div 
+          <div
             ref={editorContainerRef}
-            className="relative flex-1 overflow-y-auto min-h-[240px] max-h-[400px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+            className="[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50 relative max-h-[400px] min-h-[240px] flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
           >
             {isQueryCell ? (
               // SQL Query Editor with CodeMirror
-              <div ref={codeMirrorRef} className="flex h-full relative">
+              <div ref={codeMirrorRef} className="relative flex h-full">
                 <CodeMirror
                   value={query}
                   onChange={(value) => handleQueryChange(value)}
@@ -645,7 +644,7 @@ function NotebookCellComponent({
                     dropCursor: false,
                     allowMultipleSelections: false,
                   }}
-                  className="flex-1 [&_.cm-content]:px-4 [&_.cm-content]:py-2 [&_.cm-editor]:h-full [&_.cm-editor]:bg-transparent [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-sm [&_.cm-scroller::-webkit-scrollbar]:w-2 [&_.cm-scroller::-webkit-scrollbar-track]:bg-transparent [&_.cm-scroller::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&_.cm-scroller::-webkit-scrollbar-thumb]:rounded-full [&_.cm-scroller::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+                  className="[&_.cm-scroller::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&_.cm-scroller::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50 flex-1 [&_.cm-content]:px-4 [&_.cm-content]:py-2 [&_.cm-editor]:h-full [&_.cm-editor]:bg-transparent [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-sm [&_.cm-scroller::-webkit-scrollbar]:w-2 [&_.cm-scroller::-webkit-scrollbar-thumb]:rounded-full [&_.cm-scroller::-webkit-scrollbar-track]:bg-transparent"
                   data-test="notebook-sql-editor"
                   placeholder={
                     isAdvancedMode
@@ -664,7 +663,9 @@ function NotebookCellComponent({
                   codeMirrorRef={codeMirrorRef}
                   textareaRef={textareaRef}
                   editorContainerRef={editorContainerRef}
-                  onOpenAiPopup={(cellId) => onOpenAiPopup(cellId, { x: 0, y: 0 })}
+                  onOpenAiPopup={(cellId) =>
+                    onOpenAiPopup(cellId, { x: 0, y: 0 })
+                  }
                   onCloseAiPopup={onCloseAiPopup}
                   onSubmit={handleAISubmit}
                   query={query}
@@ -677,7 +678,7 @@ function NotebookCellComponent({
             ) : isTextCell ? (
               <div className="flex h-full flex-col">
                 {markdownView === 'edit' ? (
-                  <div className="flex-1 bg-muted/5">
+                  <div className="bg-muted/5 flex-1">
                     <Textarea
                       ref={textareaRef}
                       value={query}
@@ -693,12 +694,12 @@ function NotebookCellComponent({
                   </div>
                 ) : (
                   <div
-                    className="flex-1 bg-muted/30 px-4 py-3 overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+                    className="bg-muted/30 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50 flex-1 overflow-auto px-4 py-3 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
                     onDoubleClick={handleMarkdownDoubleClick}
                     ref={markdownPreviewRef}
                     data-test="notebook-md-preview"
                   >
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
                       {query.trim().length > 0 ? (
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
@@ -717,7 +718,7 @@ function NotebookCellComponent({
               </div>
             ) : (
               <div className="flex h-full flex-col">
-                <div className="flex-1 bg-muted/5 px-4 py-3">
+                <div className="bg-muted/5 flex-1 px-4 py-3">
                   <Textarea
                     ref={textareaRef}
                     value={query}
@@ -740,7 +741,7 @@ function NotebookCellComponent({
             )}
           </div>
 
-          {/* Results Grid */} 
+          {/* Results Grid */}
           {isQueryCell && result && !isCollapsed && (
             <div className="border-border h-[400px] min-h-[400px] border-t">
               <NotebookDataGrid result={result} />

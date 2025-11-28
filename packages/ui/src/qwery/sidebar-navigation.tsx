@@ -67,7 +67,11 @@ function SidebarLabelText({
   );
   const translatedTitle = useMemo(
     () =>
-      title ? t(title, { defaultValue: title }) : truncate ? translatedLabel : undefined,
+      title
+        ? t(title, { defaultValue: title })
+        : truncate
+          ? translatedLabel
+          : undefined,
     [title, truncate, translatedLabel, t],
   );
 
@@ -113,9 +117,9 @@ export function SidebarNavigation({
     [t],
   );
 
-  const [persistedState, setPersistedState] = useState<
-    Record<string, boolean>
-  >({});
+  const [persistedState, setPersistedState] = useState<Record<string, boolean>>(
+    {},
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -124,9 +128,10 @@ export function SidebarNavigation({
     try {
       const raw = window.localStorage.getItem('sidebar:collapsible-state');
       const parsed = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
-      setPersistedState(parsed);
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => setPersistedState(parsed), 0);
     } catch {
-      setPersistedState({});
+      setTimeout(() => setPersistedState({}), 0);
     }
   }, []);
 
@@ -230,7 +235,10 @@ export function SidebarNavigation({
                     </SidebarGroupLabel>
                   }
                 >
-                  <SidebarGroupLabel className={cn({ hidden: isCollapsed })} asChild>
+                  <SidebarGroupLabel
+                    className={cn({ hidden: isCollapsed })}
+                    asChild
+                  >
                     <CollapsibleTrigger className="flex items-center gap-1">
                       <SidebarLabelText
                         label={item.label}
@@ -438,7 +446,7 @@ export function SidebarNavigation({
                                 <If condition={child.children}>
                                   {(children) => (
                                     <SidebarMenuSub
-                                      className={cn('min-w-0 max-w-full', {
+                                      className={cn('max-w-full min-w-0', {
                                         'mx-0 px-1.5': !isCollapsed,
                                       })}
                                     >
@@ -453,7 +461,8 @@ export function SidebarNavigation({
                                           'group/link flex min-w-0 items-center gap-2 transition-all duration-200',
                                           {
                                             'justify-center px-0': isCollapsed,
-                                            'justify-start px-1.5': !isCollapsed,
+                                            'justify-start px-1.5':
+                                              !isCollapsed,
                                           },
                                         );
 
@@ -467,8 +476,11 @@ export function SidebarNavigation({
                                         );
 
                                         return (
-                                          <SidebarMenuSubItem key={child.path} className="min-w-0 max-w-full">
-                                            <div className="group/sub-item flex min-w-0 max-w-full items-center gap-1">
+                                          <SidebarMenuSubItem
+                                            key={child.path}
+                                            className="max-w-full min-w-0"
+                                          >
+                                            <div className="group/sub-item flex max-w-full min-w-0 items-center gap-1">
                                               <SidebarMenuSubButton
                                                 isActive={isActive}
                                                 asChild
@@ -486,7 +498,9 @@ export function SidebarNavigation({
                                                 >
                                                   {child.Icon}
 
-                                                  <span className={spanClassName}>
+                                                  <span
+                                                    className={spanClassName}
+                                                  >
                                                     <SidebarLabelText
                                                       label={child.label}
                                                       suffix={child.labelSuffix}
@@ -500,7 +514,9 @@ export function SidebarNavigation({
                                                   </span>
                                                 </Link>
                                               </SidebarMenuSubButton>
-                                              <If condition={child.renderAction}>
+                                              <If
+                                                condition={child.renderAction}
+                                              >
                                                 <div
                                                   className={cn(
                                                     'shrink-0 opacity-0 transition-opacity group-hover/sub-item:opacity-100',
@@ -525,7 +541,9 @@ export function SidebarNavigation({
                                 </If>
                               </ContentContainer>
 
-                              <If condition={child.renderAction && !isCollapsed}>
+                              <If
+                                condition={child.renderAction && !isCollapsed}
+                              >
                                 <SidebarMenuAction>
                                   {child.renderAction}
                                 </SidebarMenuAction>

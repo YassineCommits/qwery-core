@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { toast } from 'sonner';
@@ -22,7 +22,6 @@ import { useWorkspace } from '~/lib/context/workspace-context';
 import { useGetNotebooksByProjectId } from '~/lib/queries/use-get-notebook';
 import { useDeleteNotebook } from '~/lib/mutations/use-notebook';
 import type { NotebookOutput } from '@qwery/domain/usecases';
-import { Button } from '@qwery/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +46,7 @@ export function ProjectSidebar() {
     notebookRepository,
     workspace.projectId,
   );
-  const notebooksList = notebooks?.data ?? [];
+  const notebooksList = useMemo(() => notebooks?.data ?? [], [notebooks?.data]);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
@@ -56,8 +55,7 @@ export function ProjectSidebar() {
     notebookRepository,
     undefined,
     (error) => {
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to delete notebook: ${message}`);
     },
   );
@@ -100,20 +98,13 @@ export function ProjectSidebar() {
       }
       toast.success('All notebooks deleted');
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to delete notebooks: ${message}`);
     } finally {
       setIsBulkDeleting(false);
       setShowDeleteAllDialog(false);
     }
-  }, [
-    deleteNotebookMutation,
-    notebooksList,
-    workspace.projectId,
-  ]);
-
-  const hasNotebooks = notebooksList.length > 0;
+  }, [deleteNotebookMutation, notebooksList, workspace.projectId]);
 
   const generateNotebookTitle = useCallback(() => {
     const base = 'Untitled notebook';
@@ -171,25 +162,24 @@ export function ProjectSidebar() {
     }
   }, [generateNotebookTitle, navigate, notebooks, workspace.projectId]);
 
-  const notebookGroupAction =
-    workspace.projectId ? (
-      <span
-        className="flex h-full w-full items-center justify-center"
-        onClick={(event) => {
-          event.stopPropagation();
-          if (!isCreatingNotebook && !isBulkDeleting) {
-            handleCreateNotebook();
-          }
-        }}
-        aria-label="Add new notebook"
-      >
-        {isCreatingNotebook ? (
-          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-        ) : (
-          <Plus className="h-4 w-4 shrink-0" />
-        )}
-      </span>
-    ) : undefined;
+  const notebookGroupAction = workspace.projectId ? (
+    <span
+      className="flex h-full w-full items-center justify-center"
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!isCreatingNotebook && !isBulkDeleting) {
+          handleCreateNotebook();
+        }
+      }}
+      aria-label="Add new notebook"
+    >
+      {isCreatingNotebook ? (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+      ) : (
+        <Plus className="h-4 w-4 shrink-0" />
+      )}
+    </span>
+  ) : undefined;
 
   const navigationConfig = createNavigationConfig(
     slug,
@@ -220,7 +210,8 @@ export function ProjectSidebar() {
           <div className="flex flex-col space-y-2 p-4">
             <div
               onClick={() => {
-                const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                const isMac =
+                  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
                 const event = new KeyboardEvent('keydown', {
                   key: 'l',
                   code: 'KeyL',
@@ -236,7 +227,8 @@ export function ProjectSidebar() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                  const isMac =
+                    navigator.platform.toUpperCase().indexOf('MAC') >= 0;
                   const keyboardEvent = new KeyboardEvent('keydown', {
                     key: 'l',
                     code: 'KeyL',
@@ -274,8 +266,8 @@ export function ProjectSidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete all notebooks?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove every notebook in this project.
-              This action cannot be undone.
+              This will permanently remove every notebook in this project. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

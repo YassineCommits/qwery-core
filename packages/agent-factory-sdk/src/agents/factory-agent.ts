@@ -67,14 +67,14 @@ export class FactoryAgent {
           // Verify this result is for the current request by checking inputMessage matches
           const resultInputMessage = ctx.inputMessage;
           if (resultInputMessage === currentInputMessage) {
-          try {
-            const response = ctx.streamResult.toUIMessageStreamResponse();
-            subscription.unsubscribe();
-            resolve(response);
-          } catch (err) {
-            subscription.unsubscribe();
-            reject(err);
-          }
+            try {
+              const response = ctx.streamResult.toUIMessageStreamResponse();
+              subscription.unsubscribe();
+              resolve(response);
+            } catch (err) {
+              subscription.unsubscribe();
+              reject(err);
+            }
           }
           // If inputMessage doesn't match, it's a stale result - wait for the correct one
         }

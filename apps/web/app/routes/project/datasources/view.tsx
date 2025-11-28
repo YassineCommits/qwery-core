@@ -9,14 +9,16 @@ import { toast } from 'sonner';
 
 import { type Datasource } from '@qwery/domain/entities';
 import { FormRenderer } from '@qwery/extensions-sdk';
-import { AlertDialog,
+import {
+  AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle } from '@qwery/ui/alert-dialog';
+  AlertDialogTitle,
+} from '@qwery/ui/alert-dialog';
 import { Button } from '@qwery/ui/button';
 import {
   Card,
@@ -192,7 +194,9 @@ export default function ProjectDatasourceViewPage() {
   };
 
   const invalidateDatasourceQueries = async (projectId?: string | null) => {
-    const invalidations = [queryClient.invalidateQueries({ queryKey: getDatasourcesKey() })];
+    const invalidations = [
+      queryClient.invalidateQueries({ queryKey: getDatasourcesKey() }),
+    ];
     if (projectId) {
       invalidations.push(
         queryClient.invalidateQueries({
@@ -216,7 +220,10 @@ export default function ProjectDatasourceViewPage() {
 
       if (datasource.data.projectId) {
         navigate(
-          createPath(pathsConfig.app.projectDatasources, datasource.data.projectId),
+          createPath(
+            pathsConfig.app.projectDatasources,
+            datasource.data.projectId,
+          ),
           { replace: true },
         );
       } else {
