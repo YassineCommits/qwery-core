@@ -1,8 +1,7 @@
 'use client';
 
 import type { Dispatch, RefObject, SetStateAction } from 'react';
-import { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
 
 import { ArrowUp, AlertCircle } from 'lucide-react';
 
@@ -22,11 +21,7 @@ interface NotebookCellAiPopupProps {
     codeMirrorRef: RefObject<HTMLDivElement | null>;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     editorContainerRef: RefObject<HTMLDivElement | null>;
-    activeAiPopup: { cellId: number; position: { x: number; y: number } } | null;
-    onOpenAiPopup: (
-        cellId: number,
-        position: { x: number; y: number },
-    ) => void;
+    onOpenAiPopup: (cellId: number) => void;
     onCloseAiPopup: () => void;
     onSubmit: (e: React.FormEvent) => void;
     query: string;
@@ -47,7 +42,6 @@ export function NotebookCellAiPopup({
     codeMirrorRef,
     textareaRef,
     editorContainerRef,
-    activeAiPopup,
     onOpenAiPopup,
     onCloseAiPopup,
     onSubmit,
@@ -58,86 +52,8 @@ export function NotebookCellAiPopup({
     enableShortcut = true,
 }: NotebookCellAiPopupProps) {
     const [showDatasourceError, setShowDatasourceError] = useState(false);
+    const [popupPosition, setPopupPosition] = useState<{ top: number; left: number; placement: 'above' | 'below' } | null>(null);
     const shortcutEnabled = enableShortcut && isQueryCell;
-
-    const computePopupPosition = useCallback(() => {
-        if (typeof window === 'undefined') {
-            return null;
-        }
-
-        const container = cellContainerRef.current;
-        if (!container) {
-            return null;
-        }
-
-        const margin = 16;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const popupWidth = Math.max(460, Math.min(640, viewportWidth - margin * 4));
-        const popupHeight = Math.min(300, viewportHeight - margin * 2);
-
-        const selection = window.getSelection();
-        const hasValidRect = (rect: DOMRect) =>
-            rect.width > 0 || rect.height > 0 || (rect.left >= 0 && rect.top >= 0);
-
-        const getAnchorRect = (): DOMRect => {
-            if (selection && selection.rangeCount > 0) {
-                try {
-                    const range = selection.getRangeAt(0);
-                    const rect = range.getBoundingClientRect();
-                    if (hasValidRect(rect)) {
-                        return rect;
-                    }
-                } catch {
-                    // ignore selection errors
-                }
-            }
-
-            if (isQueryCell) {
-                const cmEditor = container.querySelector(
-                    '.cm-editor',
-                ) as HTMLElement | null;
-                if (cmEditor) {
-                    return cmEditor.getBoundingClientRect();
-                }
-            }
-
-            if (textareaRef.current) {
-                return textareaRef.current.getBoundingClientRect();
-            }
-
-            if (editorContainerRef.current) {
-                return editorContainerRef.current.getBoundingClientRect();
-            }
-
-            return container.getBoundingClientRect();
-        };
-
-        let anchorRect = getAnchorRect();
-        const containerRect = container.getBoundingClientRect();
-
-        if (
-            (anchorRect.width === 0 && anchorRect.height === 0) ||
-            (anchorRect.left === 0 && anchorRect.top === 0)
-        ) {
-            anchorRect = containerRect;
-        }
-        const anchorMidY = anchorRect.top + anchorRect.height / 2;
-        const maxTop = viewportHeight - popupHeight - margin;
-        const top = Math.max(
-            margin,
-            Math.min(maxTop, anchorMidY - popupHeight / 2),
-        );
-
-        const maxLeft = viewportWidth - popupWidth - margin;
-        let left = anchorRect.right + margin;
-        if (left > maxLeft) {
-            left = anchorRect.left - popupWidth - margin;
-        }
-        left = Math.max(margin, Math.min(maxLeft, left));
-
-        return { x: left, y: top };
-    }, [cellContainerRef, codeMirrorRef, editorContainerRef, isQueryCell, textareaRef]);
 
     useEffect(() => {
         if (!shortcutEnabled) {
@@ -164,10 +80,7 @@ export function NotebookCellAiPopup({
             if (!isInputFocused) return;
 
             event.preventDefault();
-            const position = computePopupPosition();
-            if (position) {
-                onOpenAiPopup(cellId, position);
-            }
+            onOpenAiPopup(cellId);
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -175,7 +88,6 @@ export function NotebookCellAiPopup({
     }, [
         cellContainerRef,
         cellId,
-        computePopupPosition,
         isQueryCell,
         onOpenAiPopup,
         shortcutEnabled,
@@ -195,31 +107,13 @@ export function NotebookCellAiPopup({
 
         const focusTimeout = setTimeout(() => aiInputRef.current?.focus(), 0);
 
-        const position = computePopupPosition();
-        if (position) {
-            onOpenAiPopup(cellId, position);
-        }
-
-        const handleViewportChange = () => {
-            onCloseAiPopup();
-        };
-
-        window.addEventListener('scroll', handleViewportChange, true);
-        window.addEventListener('resize', handleViewportChange);
-
         return () => {
             clearTimeout(focusTimeout);
-            window.removeEventListener('scroll', handleViewportChange, true);
-            window.removeEventListener('resize', handleViewportChange);
         };
     }, [
         aiInputRef,
-        cellId,
-        computePopupPosition,
         isOpen,
         isQueryCell,
-        onCloseAiPopup,
-        onOpenAiPopup,
         setAiQuestion,
         selectedDatasource,
         showDatasourceError,
@@ -236,72 +130,105 @@ export function NotebookCellAiPopup({
             }
         };
 
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (
-                !target.closest('[data-ai-popup]') &&
-                (!cellContainerRef.current ||
-                    !cellContainerRef.current.contains(target))
-            ) {
-                onCloseAiPopup();
-                setAiQuestion('');
-            }
-        };
-
         window.addEventListener('keydown', handleEscape);
-        document.addEventListener('mousedown', handleClickOutside);
 
         return () => {
             window.removeEventListener('keydown', handleEscape);
-            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [cellContainerRef, isOpen, onCloseAiPopup, setAiQuestion]);
+    }, [isOpen, onCloseAiPopup, setAiQuestion]);
 
-    const popupPosition =
-        isOpen && activeAiPopup?.cellId === cellId
-            ? activeAiPopup.position
-            : undefined;
+    useEffect(() => {
+        if (!isOpen || !isQueryCell || !codeMirrorRef.current || !editorContainerRef.current) {
+            setPopupPosition(null);
+            return;
+        }
 
-    if (typeof document === 'undefined') {
+        const cmEditor = codeMirrorRef.current.querySelector('.cm-editor') as HTMLElement | null;
+        if (!cmEditor) {
+            setPopupPosition({ top: 40, left: 16, placement: 'below' });
+            return;
+        }
+
+        const activeLine = cmEditor.querySelector('.cm-activeLine') as HTMLElement | null;
+        const cursor = cmEditor.querySelector('.cm-cursor') as HTMLElement | null;
+        const lineElement = activeLine || cursor?.closest('.cm-line') as HTMLElement | null;
+        
+        if (!lineElement) {
+            setPopupPosition({ top: 40, left: 16, placement: 'below' });
+            return;
+        }
+
+        const lineRect = lineElement.getBoundingClientRect();
+        const containerRect = codeMirrorRef.current.getBoundingClientRect();
+        const editorContainerRect = editorContainerRef.current.getBoundingClientRect();
+        
+        const popupHeight = 220; // max-h-[220px]
+        const popupTopOffset = 8; // spacing from line
+        
+        const spaceBelow = editorContainerRect.bottom - lineRect.bottom;
+        const spaceAbove = lineRect.top - editorContainerRect.top;
+        
+        const lineTopRelativeToContainer = lineRect.top - editorContainerRect.top;
+        const containerHeight = editorContainerRect.height;
+        const idealCenterPosition = containerHeight / 2;
+        const distanceFromCenter = Math.abs(lineTopRelativeToContainer - idealCenterPosition);
+        
+        const threshold = containerHeight * 0.3;
+        if (lineTopRelativeToContainer < threshold || lineTopRelativeToContainer > containerHeight - threshold) {
+            const scrollContainer = editorContainerRef.current;
+            const currentScrollTop = scrollContainer.scrollTop;
+            const lineOffsetTop = lineRect.top - editorContainerRect.top + currentScrollTop;
+            const targetScrollTop = lineOffsetTop - idealCenterPosition;
+            
+            scrollContainer.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth',
+            });
+        }
+        
+        const hasEnoughSpaceBelow = spaceBelow >= popupHeight + popupTopOffset;
+        const hasEnoughSpaceAbove = spaceAbove >= popupHeight + popupTopOffset;
+        
+        let top: number;
+        let placement: 'above' | 'below';
+        
+        if (hasEnoughSpaceBelow) {
+            top = lineRect.bottom - containerRect.top + popupTopOffset;
+            placement = 'below';
+        } else if (hasEnoughSpaceAbove) {
+            top = lineRect.top - containerRect.top - popupHeight - popupTopOffset;
+            placement = 'above';
+        } else {
+            top = lineRect.bottom - containerRect.top + popupTopOffset;
+            placement = 'below';
+        }
+        
+        setPopupPosition({
+            top: Math.max(8, top),
+            left: 16,
+            placement,
+        });
+    }, [isOpen, isQueryCell, codeMirrorRef, editorContainerRef]);
+
+    if (!isOpen || !isQueryCell || !popupPosition) {
         return null;
     }
 
-    return createPortal(
+    return (
         <div
+            data-ai-popup
             className={cn(
-                'fixed z-10000 pointer-events-none transition-opacity duration-150',
-                isOpen ? 'opacity-100' : 'opacity-0',
+                'absolute z-50 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl flex flex-col max-h-[220px] w-[90%] m-8  overflow-y-auto',
+                isOpen
+                    ? 'animate-in fade-in-0 zoom-in-95'
+                    : 'animate-out fade-out-0 zoom-out-95',
             )}
-            style={
-                popupPosition
-                    ? {
-                        left: `${popupPosition.x}px`,
-                        top: `${popupPosition.y}px`,
-                    }
-                    : { opacity: 0 }
-            }
+            style={{
+                top: `${popupPosition.top}px`,
+                left: `${popupPosition.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
         >
-            <div
-                data-ai-popup
-                className={cn(
-                    'pointer-events-auto bg-background border border-border rounded-2xl shadow-2xl px-5 py-5 min-w-[460px] w-[min(640px,calc(100vw-64px))] max-w-[720px] relative transition-all duration-150',
-                    isOpen
-                        ? 'animate-in fade-in-0 zoom-in-90'
-                        : 'animate-out fade-out-0 zoom-out-90',
-                )}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full transition"
-                    onClick={() => {
-                        onCloseAiPopup();
-                        setAiQuestion('');
-                    }}
-                    aria-label="Close AI prompt"
-                >
-                    ×
-                </button>
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
@@ -313,16 +240,12 @@ export function NotebookCellAiPopup({
                         }
 
                         setShowDatasourceError(false);
-                        onRunQueryWithAgent(query, selectedDatasource);
-
-                        if (!isLoading) {
-                            setAiQuestion('');
-                        }
+                        onRunQueryWithAgent(aiQuestion, selectedDatasource);
                     }}
-                    className="relative w-full pt-4"
+                    className="relative w-full flex flex-col px-4 py-3"
                 >
                     {showDatasourceError && !selectedDatasource && (
-                        <Alert variant="destructive" className="flex items-center gap-2 mb-3">
+                        <Alert variant="destructive" className="flex items-center gap-2 mb-3 shrink-0">
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>
                                 Please select a datasource first before sending an AI query.
@@ -340,26 +263,35 @@ export function NotebookCellAiPopup({
                             }
                         }}
                         placeholder="Ask the AI agent anything about this cell..."
-                        className="w-full min-h-[120px] max-h-[260px] rounded-2xl border border-border bg-background/80 py-3 pl-4 pr-16 text-base shadow-inner focus-visible:ring-2 resize-none [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+                        className="relative w-full min-h-[110px] max-h-[160px] rounded-lg border border-border bg-background/95 text-sm shadow-inner focus-visible:ring-2 resize-none overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
                         autoFocus
                         disabled={isLoading}
                     />
+                    <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground absolute right-6 top-6 z-10 flex h-5 w-5 items-center justify-center rounded transition"
+                        onClick={() => {
+                            onCloseAiPopup();
+                            setAiQuestion('');
+                        }}
+                        aria-label="Close AI prompt"
+                    >
+                        ×
+                    </button>
                     <Button
                         type="submit"
                         size="icon"
-                        className="absolute bottom-4 right-4 h-10 w-10 rounded-full shadow-lg"
+                        className="absolute bottom-6 right-6 h-8 w-8 rounded-full shadow-lg"
                         disabled={!aiQuestion.trim() || isLoading}
                     >
                         {isLoading ? (
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
-                            <ArrowUp className="h-4 w-4" />
+                            <ArrowUp className="h-3 w-3" />
                         )}
                     </Button>
                 </form>
-            </div>
-        </div>,
-        document.body,
+        </div>
     );
 }
 

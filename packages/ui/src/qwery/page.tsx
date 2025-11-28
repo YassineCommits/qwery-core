@@ -47,7 +47,7 @@ function PageWithHeaderSidebar(props: PageProps) {
         {Navigation}
         {/* Main Content */}
         <div className="bg-background relative flex min-w-0 flex-1 flex-col overflow-hidden min-h-0">
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 h-full min-h-0 min-w-0 max-w-full">
             <ResizableContent Content={Children} AgentSidebar={AgentSidebar} />
           </div>
         </div>

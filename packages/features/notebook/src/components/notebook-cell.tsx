@@ -148,6 +148,41 @@ function NotebookCellComponent({
     setMarkdownView(isTextCell ? 'preview' : 'edit');
   }, [cell.cellId, isTextCell]);
 
+  // Handle Ctrl+K keyboard shortcut to open AI popup
+  useEffect(() => {
+    if (!isQueryCell || !isAdvancedMode) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const isModKeyPressed = isMac ? event.metaKey : event.ctrlKey;
+      if (!isModKeyPressed || event.key !== 'k') return;
+
+      const container = cellContainerRef.current;
+      const target = event.target as HTMLElement | null;
+      if (!container || !target || !container.contains(target)) return;
+
+      const isInputFocused =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('.cm-editor') !== null;
+
+      if (!isInputFocused) return;
+
+      event.preventDefault();
+      if (showAIPopup) {
+        onCloseAiPopup();
+      } else {
+        onOpenAiPopup(cell.cellId, { x: 0, y: 0 });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cell.cellId, cellContainerRef, isAdvancedMode, isQueryCell, onCloseAiPopup, onOpenAiPopup, showAIPopup]);
+
   const handleMarkdownDoubleClick = () => {
     if (isTextCell) {
       if (markdownPreviewRef.current) {
@@ -402,7 +437,7 @@ function NotebookCellComponent({
 
       {/* Cell content */}
       {!isCollapsed && (
-        <div className="bg-background flex min-h-[120px] flex-1 flex-col overflow-hidden relative min-w-0">
+        <div className="bg-background flex min-h-[280px] flex-1 flex-col overflow-hidden relative min-w-0">
           {/* Toolbar - Show for all cells */}
           <div className="border-border bg-background flex h-10 items-center justify-between border-b px-3">
             <div className="flex items-center gap-2">
@@ -593,7 +628,7 @@ function NotebookCellComponent({
           {/* Editor */}
           <div 
             ref={editorContainerRef}
-            className="relative flex-1 overflow-y-scroll max-h-[400px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+            className="relative flex-1 overflow-y-auto min-h-[240px] max-h-[400px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
           >
             {isQueryCell ? (
               // SQL Query Editor with CodeMirror
@@ -618,7 +653,26 @@ function NotebookCellComponent({
                       : '-- Enter your SQL query here...'
                   }
                 />
-
+                <NotebookCellAiPopup
+                  cellId={cell.cellId}
+                  isQueryCell={isQueryCell}
+                  isOpen={showAIPopup}
+                  aiQuestion={aiQuestion}
+                  setAiQuestion={setAiQuestion}
+                  aiInputRef={aiInputRef}
+                  cellContainerRef={cellContainerRef}
+                  codeMirrorRef={codeMirrorRef}
+                  textareaRef={textareaRef}
+                  editorContainerRef={editorContainerRef}
+                  onOpenAiPopup={(cellId) => onOpenAiPopup(cellId, { x: 0, y: 0 })}
+                  onCloseAiPopup={onCloseAiPopup}
+                  onSubmit={handleAISubmit}
+                  query={query}
+                  selectedDatasource={selectedDatasource}
+                  onRunQueryWithAgent={onRunQueryWithAgent}
+                  isLoading={isLoading}
+                  enableShortcut={isAdvancedMode}
+                />
               </div>
             ) : isTextCell ? (
               <div className="flex h-full flex-col">
@@ -684,20 +738,6 @@ function NotebookCellComponent({
                 </div>
               </div>
             )}
-            {/* Expand overlay when content is truncated */}
-            {isContentTruncated && !isTextCell && (
-              <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center from-background via-background/80 to-transparent p-2 pointer-events-none">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="pointer-events-auto"
-                  onClick={onFullView}
-                >
-                  <Maximize2 className="mr-2 h-4 w-4" />
-                  Expand to view full content
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Results Grid */} 
@@ -748,29 +788,6 @@ function NotebookCellComponent({
           )}
         </div>
       )}
-
-      {/* AI Inline Popup */}
-      <NotebookCellAiPopup
-        cellId={cell.cellId}
-        isQueryCell={isQueryCell}
-        isOpen={showAIPopup}
-        aiQuestion={aiQuestion}
-        setAiQuestion={setAiQuestion}
-        aiInputRef={aiInputRef}
-        cellContainerRef={cellContainerRef}
-        codeMirrorRef={codeMirrorRef}
-        textareaRef={textareaRef}
-        editorContainerRef={editorContainerRef}
-        activeAiPopup={activeAiPopup}
-        onOpenAiPopup={onOpenAiPopup}
-        onCloseAiPopup={onCloseAiPopup}
-        onSubmit={handleAISubmit}
-        query={query}
-        selectedDatasource={selectedDatasource}
-        onRunQueryWithAgent={onRunQueryWithAgent}
-        isLoading={isLoading}
-        enableShortcut={isAdvancedMode}
-      />
     </div>
   );
 }
