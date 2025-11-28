@@ -24,11 +24,7 @@ import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import type { DatasourceResultSet, Notebook } from '@qwery/domain/entities';
 import { WorkspaceModeEnum } from '@qwery/domain/enums';
 import { Button } from '@qwery/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@qwery/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@qwery/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -300,7 +296,7 @@ function FullViewDialog({
 
   useEffect(() => {
     if (cellId === null) return;
-    
+
     const timer = setTimeout(() => {
       if (isQueryCell && codeMirrorContainerRef.current) {
         const contentElement = codeMirrorContainerRef.current.querySelector(
@@ -313,7 +309,7 @@ function FullViewDialog({
         textareaRef.current.focus();
       }
     }, 100);
-    
+
     return () => clearTimeout(timer);
   }, [cellId, isQueryCell]);
 
@@ -327,7 +323,7 @@ function FullViewDialog({
 
   return (
     <Dialog open={cellId !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] flex flex-col">
+      <DialogContent className="flex max-h-[95vh] max-w-[95vw] flex-col">
         <DialogHeader>
           <DialogTitle>
             {isQueryCell
@@ -337,17 +333,17 @@ function FullViewDialog({
                 : 'Prompt Cell'}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-auto flex flex-col gap-4">
+        <div className="flex flex-1 flex-col gap-4 overflow-auto">
           {/* Editor */}
           <div
             ref={codeMirrorContainerRef}
-            className="flex-1 min-h-[200px] max-h-[50vh] border rounded-md overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50"
+            className="[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50 max-h-[50vh] min-h-[200px] flex-1 overflow-auto rounded-md border [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
           >
             {isQueryCell ? (
               <CodeMirror
                 value={query}
                 onChange={handleQueryChange}
-                        extensions={[sql(), EditorView.lineWrapping]}
+                extensions={[sql(), EditorView.lineWrapping]}
                 theme={isDarkMode ? oneDark : undefined}
                 editable={true}
                 basicSetup={{
@@ -375,7 +371,7 @@ function FullViewDialog({
 
           {/* Results Grid */}
           {isQueryCell && result && (
-            <div className="border rounded-md overflow-hidden">
+            <div className="overflow-hidden rounded-md border">
               <div className="h-[60vh] min-h-[400px]">
                 <NotebookDataGrid result={result} />
               </div>
@@ -441,7 +437,7 @@ function DeleteNotebookButton({
       <PopoverContent className="w-80" align="end">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <h4 className="font-semibold leading-none">Delete notebook?</h4>
+            <h4 className="leading-none font-semibold">Delete notebook?</h4>
             <p className="text-muted-foreground text-sm">
               This action permanently removes the notebook and all of its cells.
               You cannot undo this.
@@ -462,9 +458,7 @@ function DeleteNotebookButton({
               onClick={handleConfirm}
               disabled={isDeleting}
             >
-              {isDeleting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
             </Button>
           </div>
@@ -509,13 +503,9 @@ export function NotebookUI({
     return [];
   });
 
-  const [collapsedCells, setCollapsedCells] = useState<Set<number>>(
-    new Set(),
-  );
-  
-  const [fullViewCellId, setFullViewCellId] = useState<number | null>(
-    null,
-  );
+  const [collapsedCells, setCollapsedCells] = useState<Set<number>>(new Set());
+
+  const [fullViewCellId, setFullViewCellId] = useState<number | null>(null);
 
   const [activeAiPopup, setActiveAiPopup] = useState<{
     cellId: number;
@@ -630,27 +620,30 @@ export function NotebookUI({
     }
   };
 
-  const handleQueryChange = useCallback((cellId: number, query: string) => {
-    setCells((prev) => {
-      const newCells = prev.map((cell) =>
-        cell.cellId === cellId ? { ...cell, query } : cell,
-      );
-      onCellsChange?.(newCells);
-      return newCells;
-    });
-  }, [onCellsChange]);
+  const handleQueryChange = useCallback(
+    (cellId: number, query: string) => {
+      setCells((prev) => {
+        const newCells = prev.map((cell) =>
+          cell.cellId === cellId ? { ...cell, query } : cell,
+        );
+        onCellsChange?.(newCells);
+        return newCells;
+      });
+    },
+    [onCellsChange],
+  );
 
   const handleDatasourceChange = useCallback(
     (cellId: number, datasourceId: string | null) => {
-    setCells((prev) => {
-      const newCells = prev.map((cell) =>
-        cell.cellId === cellId
-          ? { ...cell, datasources: datasourceId ? [datasourceId] : [] }
-          : cell,
-      );
-      onCellsChange?.(newCells);
-      return newCells;
-    });
+      setCells((prev) => {
+        const newCells = prev.map((cell) =>
+          cell.cellId === cellId
+            ? { ...cell, datasources: datasourceId ? [datasourceId] : [] }
+            : cell,
+        );
+        onCellsChange?.(newCells);
+        return newCells;
+      });
     },
     [onCellsChange],
   );
@@ -669,88 +662,103 @@ export function NotebookUI({
     [onRunQueryWithAgent],
   );
 
-  const handleMoveCellUp = useCallback((cellId: number) => {
-    setCells((prev) => {
-      const index = prev.findIndex((c) => c.cellId === cellId);
-      if (index > 0) {
-        const newCells = [...prev];
-        const cell1 = newCells[index - 1];
-        const cell2 = newCells[index];
-        if (cell1 && cell2) {
-          [newCells[index - 1], newCells[index]] = [cell2, cell1];
-          onCellsChange?.(newCells);
-          return newCells;
-        }
-      }
-      return prev;
-    });
-  }, [onCellsChange]);
-
-  const handleMoveCellDown = useCallback((cellId: number) => {
-    setCells((prev) => {
-      const index = prev.findIndex((c) => c.cellId === cellId);
-      if (index < prev.length - 1) {
-        const newCells = [...prev];
-        const cell1 = newCells[index];
-        const cell2 = newCells[index + 1];
-        if (cell1 && cell2) {
-          [newCells[index], newCells[index + 1]] = [cell2, cell1];
-          onCellsChange?.(newCells);
-          return newCells;
-        }
-      }
-      return prev;
-    });
-  }, [onCellsChange]);
-
-  const handleDuplicateCell = useCallback((cellId: number) => {
-    setCells((prev) => {
-      const cell = prev.find((c) => c.cellId === cellId);
-      if (!cell) return prev;
-
-      const maxCellId = Math.max(...prev.map((c) => c.cellId), 0);
-      const newCell: NotebookCellData = {
-        ...cell,
-        cellId: maxCellId + 1,
-      };
-
-      const index = prev.findIndex((c) => c.cellId === cellId);
-      const newCells = [
-        ...prev.slice(0, index + 1),
-        newCell,
-        ...prev.slice(index + 1),
-      ];
-      onCellsChange?.(newCells);
-      return newCells;
-    });
-  }, [onCellsChange]);
-
-  const handleFormatCell = useCallback((cellId: number) => {
-    setCells((prev) => {
-      const cell = prev.find((c) => c.cellId === cellId);
-      if (!cell || !cell.query) return prev;
-
-      // Basic SQL formatting - just trim for now, can be enhanced later
-      const formattedQuery = cell.query.trim();
-      if (formattedQuery === cell.query) return prev;
-
-      const newCells = prev.map((c) =>
-        c.cellId === cellId ? { ...c, query: formattedQuery } : c,
-      );
-      onCellsChange?.(newCells);
-      return newCells;
-    });
-  }, [onCellsChange]);
-
-  const handleDeleteCell = useCallback((cellId: number) => {
-    setTimeout(() => {
+  const handleMoveCellUp = useCallback(
+    (cellId: number) => {
       setCells((prev) => {
-        const newCells = prev.filter((c) => c.cellId !== cellId);
+        const index = prev.findIndex((c) => c.cellId === cellId);
+        if (index > 0) {
+          const newCells = [...prev];
+          const cell1 = newCells[index - 1];
+          const cell2 = newCells[index];
+          if (cell1 && cell2) {
+            [newCells[index - 1], newCells[index]] = [cell2, cell1];
+            onCellsChange?.(newCells);
+            return newCells;
+          }
+        }
+        return prev;
+      });
+    },
+    [onCellsChange],
+  );
+
+  const handleMoveCellDown = useCallback(
+    (cellId: number) => {
+      setCells((prev) => {
+        const index = prev.findIndex((c) => c.cellId === cellId);
+        if (index < prev.length - 1) {
+          const newCells = [...prev];
+          const cell1 = newCells[index];
+          const cell2 = newCells[index + 1];
+          if (cell1 && cell2) {
+            [newCells[index], newCells[index + 1]] = [cell2, cell1];
+            onCellsChange?.(newCells);
+            return newCells;
+          }
+        }
+        return prev;
+      });
+    },
+    [onCellsChange],
+  );
+
+  const handleDuplicateCell = useCallback(
+    (cellId: number) => {
+      setCells((prev) => {
+        const cell = prev.find((c) => c.cellId === cellId);
+        if (!cell) return prev;
+
+        const maxCellId = Math.max(...prev.map((c) => c.cellId), 0);
+        const newCell: NotebookCellData = {
+          ...cell,
+          cellId: maxCellId + 1,
+        };
+
+        const index = prev.findIndex((c) => c.cellId === cellId);
+        const newCells = [
+          ...prev.slice(0, index + 1),
+          newCell,
+          ...prev.slice(index + 1),
+        ];
         onCellsChange?.(newCells);
         return newCells;
       });
-    }, 200);
-  }, [onCellsChange]);
+    },
+    [onCellsChange],
+  );
+
+  const handleFormatCell = useCallback(
+    (cellId: number) => {
+      setCells((prev) => {
+        const cell = prev.find((c) => c.cellId === cellId);
+        if (!cell || !cell.query) return prev;
+
+        // Basic SQL formatting - just trim for now, can be enhanced later
+        const formattedQuery = cell.query.trim();
+        if (formattedQuery === cell.query) return prev;
+
+        const newCells = prev.map((c) =>
+          c.cellId === cellId ? { ...c, query: formattedQuery } : c,
+        );
+        onCellsChange?.(newCells);
+        return newCells;
+      });
+    },
+    [onCellsChange],
+  );
+
+  const handleDeleteCell = useCallback(
+    (cellId: number) => {
+      setTimeout(() => {
+        setCells((prev) => {
+          const newCells = prev.filter((c) => c.cellId !== cellId);
+          onCellsChange?.(newCells);
+          return newCells;
+        });
+      }, 200);
+    },
+    [onCellsChange],
+  );
 
   const handleFullView = useCallback((cellId: number) => {
     setFullViewCellId(cellId);
@@ -832,7 +840,7 @@ export function NotebookUI({
   }, [notebook?.datasources, datasources]);
 
   return (
-    <div className="bg-background flex h-full flex-col overflow-hidden min-h-0">
+    <div className="bg-background flex h-full min-h-0 flex-col overflow-hidden">
       {/* Title / Actions */}
       {shouldRenderHeader && (
         <div
@@ -878,7 +886,7 @@ export function NotebookUI({
       )}
 
       {/* Cells container */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50">
+      <div className="[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:hover:bg-muted-foreground/50 min-h-0 flex-1 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -923,7 +931,7 @@ export function NotebookUI({
                       onFormat={handleFormatCell}
                       onDelete={handleDeleteCell}
                       onFullView={handleFullView}
-                    isAdvancedMode={isAdvancedMode}
+                      isAdvancedMode={isAdvancedMode}
                       activeAiPopup={activeAiPopup}
                       onOpenAiPopup={handleOpenAiPopup}
                       onCloseAiPopup={handleCloseAiPopup}
@@ -937,7 +945,9 @@ export function NotebookUI({
                 );
               })}
               {/* Divider at the end */}
-              <CellDivider onAddCell={(type) => handleAddCell(undefined, type)} />
+              <CellDivider
+                onAddCell={(type) => handleAddCell(undefined, type)}
+              />
             </div>
           </SortableContext>
         </DndContext>
