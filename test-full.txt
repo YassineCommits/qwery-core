@@ -1,6 +1,0 @@
-https://docs.google.com/spreadsheets/d/1yfjcBF4X8waukFdI5u9ctkagFwAn-BRgM5IUCUK1Ay8/edit?gid=0#gid=0
-https://docs.google.com/spreadsheets/d/1sDa--f0yChIisw8IQA6MEC17jLd5dg4XHBWy1F_J07A/edit?gid=0#gid=0
-list all available views
-join the two sheets on user id and show me name, age, city, position, and dept_id for the first 10 users
-exit
-

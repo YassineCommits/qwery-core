@@ -1,9 +1,0 @@
-create a view from this Google Sheet: https://docs.google.com/spreadsheets/d/18wKwHiF8hpIpr2NvZ1Rtz9HGgdf9wlYo3Z_d1kqTtlg/edit?gid=0#gid=0
-create a view from this Google Sheet: https://docs.google.com/spreadsheets/d/1b595zjVY20V1Q76S08ot2ViEL-mlXaxj6Q0FH_x300U/edit?gid=0#gid=0
-create a view from this Google Sheet: https://docs.google.com/spreadsheets/d/1msq-2yVzMKx8ZKdWgsFXJaJ3JLtEEw6DLoNgiN7zvuo/edit?gid=0#gid=0
-list all available views
-get schema for all views
-show me the business context that was built
-join all three sheets and show me the relationships
-exit
-

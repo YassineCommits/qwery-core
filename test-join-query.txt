@@ -1,1 +1,0 @@
-join all three sheets and show me customer name, restaurant name, order date, and total price for the first 10 orders

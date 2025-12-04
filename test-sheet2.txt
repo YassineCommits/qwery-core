@@ -1,2 +1,0 @@
-create a view from this Google Sheet: https://docs.google.com/spreadsheets/d/1sDa--f0yChIisw8IQA6MEC17jLd5dg4XHBWy1F_J07A/edit?gid=0#gid=0
-
