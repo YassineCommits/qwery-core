@@ -41,7 +41,7 @@ async function createProvider(
   switch (providerId) {
     case 'azure': {
       const { createAzureModelProvider } = await import(
-        './azure-model.provider'
+        './models/azure-model.provider'
       );
       return createAzureModelProvider({
         resourceName: requireEnv('AZURE_RESOURCE_NAME', 'Azure'),
@@ -53,27 +53,39 @@ async function createProvider(
     }
     case 'ollama': {
       const { createOllamaModelProvider } = await import(
-        './ollama-model.provider'
+        './models/ollama-model.provider'
       );
       return createOllamaModelProvider({
         baseUrl: getEnv('OLLAMA_BASE_URL'),
         defaultModel: getEnv('OLLAMA_MODEL') ?? modelName,
       });
     }
+    case 'browser': {
+      const { createBuiltInModelProvider } = await import(
+        './models/built-in-model.provider'
+      );
+      return createBuiltInModelProvider({});
+    }
+    case 'transformer-browser':
+    case 'transformer': {
+      const { createTransformerJSModelProvider } = await import(
+        './models/transformerjs-model.provider'
+      );
+      return createTransformerJSModelProvider({
+        defaultModel: getEnv('TRANSFORMER_MODEL') ?? modelName,
+      });
+    }
     case 'webllm': {
       const { createWebLLMModelProvider } = await import(
-        './webllm-model.provider'
+        './models/webllm-model.provider'
       );
       return createWebLLMModelProvider({
         defaultModel: getEnv('WEBLLM_MODEL') ?? modelName,
-        defaultTemperature: getEnv('WEBLLM_TEMPERATURE')
-          ? parseFloat(getEnv('WEBLLM_TEMPERATURE')!)
-          : undefined,
       });
     }
     default:
       throw new Error(
-        `[AgentFactory] Unsupported provider '${providerId}'. Available providers: azure, ollama, webllm.`,
+        `[AgentFactory] Unsupported provider '${providerId}'. Available providers: azure, ollama, browser, transformer-browser, transformer, webllm.`,
       );
   }
 }

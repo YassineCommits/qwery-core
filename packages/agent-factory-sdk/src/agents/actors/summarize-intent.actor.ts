@@ -2,7 +2,7 @@ import { streamText } from 'ai';
 import { Intent } from '../types';
 import { SUMMARIZE_INTENT_PROMPT } from '../prompts/summarize-intent.prompt';
 import { fromPromise } from 'xstate/actors';
-import { resolveModel } from '../../services/agent-factory';
+import { resolveModel } from '../../services/model-resolver';
 
 export const summarizeIntent = async (text: string, intent: Intent) => {
   const result = streamText({

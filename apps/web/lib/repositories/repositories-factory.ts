@@ -17,6 +17,7 @@ export async function createRepositories(): Promise<Repositories> {
       OrganizationRepository,
       ProjectRepository,
       MessageRepository,
+      UsageRepository,
     } = await import('@qwery/repository-sqlite');
 
     const DB_PATH = process.env.VITE_DB_NAME || undefined;
@@ -29,6 +30,7 @@ export async function createRepositories(): Promise<Repositories> {
       notebook: new NotebookRepository(DB_PATH),
       conversation: new ConversationRepository(DB_PATH),
       message: new MessageRepository(DB_PATH),
+      usage: new UsageRepository(DB_PATH),
     };
   }
 
@@ -45,6 +47,7 @@ export async function createRepositories(): Promise<Repositories> {
         OrganizationRepository: APIOrganizationRepository,
         ProjectRepository: APIProjectRepository,
         MessageRepository: APIMessageRepository,
+        UsageRepository: APIUsageRepository,
       },
     ] = await Promise.all([
       import('@qwery/repository-indexed-db'),
@@ -59,6 +62,7 @@ export async function createRepositories(): Promise<Repositories> {
       notebook: new APINotebookRepository(),
       conversation: new APIConversationRepository(),
       message: new APIMessageRepository(),
+      usage: new APIUsageRepository(),
     };
   }
 
@@ -71,6 +75,7 @@ export async function createRepositories(): Promise<Repositories> {
     NotebookRepository: IndexedDBNotebookRepository,
     ConversationRepository: IndexedDBConversationRepository,
     MessageRepository: IndexedDBMessageRepository,
+    UsageRepository: IndexedDBUsageRepository,
   } = await import('@qwery/repository-indexed-db');
 
   return {
@@ -81,5 +86,6 @@ export async function createRepositories(): Promise<Repositories> {
     notebook: new IndexedDBNotebookRepository(),
     conversation: new IndexedDBConversationRepository(),
     message: new IndexedDBMessageRepository(),
+    usage: new IndexedDBUsageRepository(),
   };
 }

@@ -12,26 +12,7 @@ import {
   MessageResponse,
 } from '../ai-elements/message';
 import {
-  PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
-  PromptInputAttachment,
-  PromptInputAttachments,
-  PromptInputBody,
-  PromptInputButton,
-  PromptInputHeader,
   type PromptInputMessage,
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputFooter,
-  PromptInputTools,
   usePromptInputAttachments,
   PromptInputProvider,
   usePromptInputController,
@@ -40,7 +21,6 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import {
   CopyIcon,
-  GlobeIcon,
   RefreshCcwIcon,
   PencilIcon,
   CheckIcon,
@@ -72,22 +52,21 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { BotAvatar } from './bot-avatar';
 import { Sparkles } from 'lucide-react';
-
-const models = [
-  {
-    name: 'azure/gpt-5-mini',
-    value: 'azure/gpt-5-mini',
-  },
-];
+import { QweryPromptInput } from './ai';
+import { QweryContextProps } from './ai/context';
 
 export interface QweryAgentUIProps {
   initialMessages?: UIMessage[];
-  transport: ChatTransport<UIMessage>;
+  transport: (model: string) => ChatTransport<UIMessage>;
+  models: { name: string; value: string }[];
   onOpen?: () => void;
+  usage?: QweryContextProps;
+  emitFinish?: () => void;
 }
 
 export default function QweryAgentUI(props: QweryAgentUIProps) {
-  const { initialMessages, transport, onOpen } = props;
+  const { initialMessages, transport, models, onOpen, usage, emitFinish } =
+    props;
   const containerRef = useRef<HTMLDivElement>(null);
   const hasFocusedRef = useRef(false);
 
@@ -126,10 +105,15 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
     webSearch: false,
   });
 
+  const transportInstance = useMemo(
+    () => transport(state.model),
+    [transport, state.model],
+  );
+
   const { messages, sendMessage, status, regenerate, stop, setMessages } =
     useChat({
       messages: initialMessages,
-      transport: transport,
+      transport: transportInstance,
     });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -218,6 +202,12 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
     setTimeout(() => setRegenCountsMap(counts), 0);
   }, [messages]);
 
+  useEffect(() => {
+    if (status === 'ready') {
+      emitFinish?.();
+    }
+  }, [status, emitFinish]);
+
   return (
     <PromptInputProvider initialInput={state.input}>
       <div
@@ -285,7 +275,6 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                           !isStreaming &&
                           isLastAssistantMessage &&
                           isLastTextPart;
-
                         switch (part.type) {
                           case 'text': {
                             const isEditing = editingMessageId === message.id;
@@ -548,6 +537,8 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
             stop={stop}
             setMessages={setMessages}
             messages={messages}
+            models={models}
+            usage={usage}
           />
         </div>
       </div>
@@ -564,6 +555,8 @@ function PromptInputInner({
   stop,
   setMessages,
   messages,
+  models,
+  usage,
 }: {
   sendMessage: ReturnType<typeof useChat>['sendMessage'];
   state: { input: string; model: string; webSearch: boolean };
@@ -575,6 +568,8 @@ function PromptInputInner({
   stop: ReturnType<typeof useChat>['stop'];
   setMessages: ReturnType<typeof useChat>['setMessages'];
   messages: ReturnType<typeof useChat>['messages'];
+  models: { name: string; value: string }[];
+  usage?: QweryContextProps;
 }) {
   const attachments = usePromptInputAttachments();
   const controller = usePromptInputController();
@@ -620,114 +615,35 @@ function PromptInputInner({
     }
   };
 
+  const handleStop = async () => {
+    setIsAborting(true);
+
+    const lastAssistantMessage = messages
+      .filter((m: UIMessage) => m.role === 'assistant')
+      .at(-1);
+
+    if (lastAssistantMessage) {
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== lastAssistantMessage.id),
+      );
+    }
+    stop();
+  };
+
   return (
-    <PromptInput onSubmit={handleSubmit} className="mt-4" globalDrop multiple>
-      <PromptInputHeader>
-        <PromptInputAttachments>
-          {(attachment) => <PromptInputAttachment data={attachment} />}
-        </PromptInputAttachments>
-      </PromptInputHeader>
-      <PromptInputBody>
-        <PromptInputTextarea
-          ref={textareaRef}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, input: e.target.value }))
-          }
-          value={state.input}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              return;
-            }
-            if (e.key === 'Enter' && e.shiftKey) {
-              return;
-            }
-
-            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-              e.preventDefault();
-              e.stopPropagation();
-
-              if (status === 'streaming' || status === 'submitted') {
-                return;
-              }
-
-              const form = e.currentTarget.form;
-              const submitButton = form?.querySelector(
-                'button[type="submit"]',
-              ) as HTMLButtonElement | null;
-              if (submitButton && !submitButton.disabled) {
-                form?.requestSubmit();
-              }
-            }
-          }}
-        />
-      </PromptInputBody>
-      <PromptInputFooter>
-        <PromptInputTools>
-          <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger />
-            <PromptInputActionMenuContent>
-              <PromptInputActionAddAttachments />
-            </PromptInputActionMenuContent>
-          </PromptInputActionMenu>
-          <PromptInputButton
-            variant={state.webSearch ? 'default' : 'ghost'}
-            onClick={() =>
-              setState((prev) => ({ ...prev, webSearch: !prev.webSearch }))
-            }
-          >
-            <GlobeIcon size={16} />
-            <span>Search</span>
-          </PromptInputButton>
-          <PromptInputSelect
-            onValueChange={(value) => {
-              setState((prev) => ({ ...prev, model: value }));
-            }}
-            value={state.model}
-          >
-            <PromptInputSelectTrigger>
-              <PromptInputSelectValue />
-            </PromptInputSelectTrigger>
-            <PromptInputSelectContent>
-              {models.map((model) => (
-                <PromptInputSelectItem key={model.value} value={model.value}>
-                  {model.name}
-                </PromptInputSelectItem>
-              ))}
-            </PromptInputSelectContent>
-          </PromptInputSelect>
-        </PromptInputTools>
-        <PromptInputSubmit
-          disabled={
-            isAborting ||
-            (status !== 'streaming' &&
-              !state.input.trim() &&
-              attachments.files.length === 0)
-          }
-          status={isAborting ? undefined : status}
-          type={status === 'streaming' && !isAborting ? 'button' : 'submit'}
-          onClick={async (e) => {
-            if (status === 'streaming' && !isAborting) {
-              e.preventDefault();
-              e.stopPropagation();
-
-              setIsAborting(true);
-
-              const lastAssistantMessage = messages
-                .filter((m: UIMessage) => m.role === 'assistant')
-                .at(-1);
-
-              if (lastAssistantMessage) {
-                setMessages((prev) =>
-                  prev.filter((m) => m.id !== lastAssistantMessage.id),
-                );
-              }
-              stop();
-            }
-          }}
-        />
-      </PromptInputFooter>
-    </PromptInput>
+    <QweryPromptInput
+      onSubmit={handleSubmit}
+      input={state.input}
+      setInput={(input) => setState((prev) => ({ ...prev, input }))}
+      model={state.model}
+      setModel={(model) => setState((prev) => ({ ...prev, model }))}
+      models={models}
+      status={isAborting ? undefined : status}
+      textareaRef={textareaRef}
+      onStop={handleStop}
+      stopDisabled={isAborting}
+      attachmentsCount={attachments.files.length}
+      usage={usage}
+    />
   );
 }

@@ -3,25 +3,16 @@ import { z } from 'zod';
 import { fromPromise } from 'xstate/actors';
 import { IntentSchema } from '../types';
 import { DETECT_INTENT_PROMPT } from '../prompts/detect-intent.prompt';
-import { resolveModel } from '../../services/agent-factory';
+import { resolveModel } from '../../services/model-resolver';
 
-export const detectIntent = async (text: string) => {
+export const detectIntent = async (text: string, model: string) => {
   try {
-    // Add timeout to detect hanging calls
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
-        () => reject(new Error('generateObject timeout after 30 seconds')),
-        30000,
-      );
-    });
-
-    const generatePromise = generateObject({
-      model: await resolveModel('azure/gpt-5-mini'),
+    const result = await generateObject({
+      model: await resolveModel(model),
       schema: IntentSchema,
       prompt: DETECT_INTENT_PROMPT(text),
     });
 
-    const result = await Promise.race([generatePromise, timeoutPromise]);
     return result.object;
   } catch (error) {
     console.error(
@@ -41,10 +32,11 @@ export const detectIntentActor = fromPromise(
   }: {
     input: {
       inputMessage: string;
+      model: string;
     };
   }): Promise<z.infer<typeof IntentSchema>> => {
     try {
-      const intent = await detectIntent(input.inputMessage);
+      const intent = await detectIntent(input.inputMessage, input.model);
       return intent;
     } catch (error) {
       console.error('[detectIntentActor] ERROR:', error);

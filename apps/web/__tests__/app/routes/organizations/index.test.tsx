@@ -55,6 +55,7 @@ describe('OrganizationsPage', () => {
         notebook: mockRepository,
         conversation: mockRepository,
         message: mockRepository,
+        usage: mockRepository,
       },
       workspace: mockWorkspace,
     });

@@ -6,6 +6,7 @@ import {
   INotebookRepository,
   IUserRepository,
   IMessageRepository,
+  IUsageRepository,
 } from './index';
 
 export type Repositories = {
@@ -16,4 +17,5 @@ export type Repositories = {
   notebook: INotebookRepository;
   conversation: IConversationRepository;
   message: IMessageRepository;
+  usage: IUsageRepository;
 };

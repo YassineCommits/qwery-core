@@ -16,6 +16,8 @@ export class ConversationOutput {
   @Expose()
   public datasources!: string[];
   @Expose()
+  public seedMessage?: string;
+  @Expose()
   @Type(() => Date)
   public createdAt!: Date;
   @Expose()

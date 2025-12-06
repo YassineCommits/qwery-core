@@ -12,6 +12,7 @@ import { createCachedActor } from './utils/actor-cache';
 
 export const createStateMachine = (
   conversationId: string,
+  model: string,
   repositories: Repositories,
 ) => {
   const defaultSetup = setup({
@@ -40,20 +41,17 @@ export const createStateMachine = (
 
       isReadData: ({ event }) => event.output?.intent === 'read-data',
 
-      // NEW: Check if should retry
       shouldRetry: ({ context }) => {
         const retryCount = context.retryCount || 0;
-        return retryCount < 3; // Max 3 retries
+        return retryCount < 3;
       },
 
-      // NEW: Check if retry limit exceeded
       retryLimitExceeded: ({ context }) => {
         const retryCount = context.retryCount || 0;
         return retryCount >= 3;
       },
     },
     delays: {
-      // NEW: Exponential backoff delays
       retryDelay: ({ context }) => {
         const retryCount = context.retryCount || 0;
         return Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
@@ -64,6 +62,7 @@ export const createStateMachine = (
     /** @xstate-layout N4IgpgJg5mDOIC5QDMCGBjALgewE4E8BaVGAO0wDoAbbVCAYW3LAA9MBiCJsCgS1IBu2ANY8AMgHkAggBEA+vQkA5ACoBRABoqA2gAYAuolAAHbLF6ZeTIyBaIALLoBsFAIwAOAOwBWVwGZvAE5dP3dXbwAaEHxEACZXVwp7QJSnFMD3b1inAF8cqLQsPCISMHJqWgYmTFYOMFxcPApjKlRMZDwAWwpJWQVldS09QyQQU3NLa1G7BFcnDwpdcO80gMD7Tz8omIQ-XXsKQO89wPiw-bC8gowcAmIySl4IKjB2AFUAZTUAJTkASSUAAU3joDDZxhYrKQbDMsttEGEkulPJ40u57LENlcQIVbiUHnxnq8PioJIDhuCzJCpqAZq4MroKE4-LEfO5dO5Yt4QoF4QgVozHE4uX5AgFHCtsbjivcypRcABXUikfhQd5fX4A4GgkYmKmTaHTRA+A6eU5i1w+MUs+x8lmBCiebK+eJOTy6WLiqU3GWlcqK5Wq9gkskU0YQg0wxBzUKLZarIIbLbRByZQ6xQLuj3uQL+J25fI4n13P3ypUq0hQCgQMA1LB-ZjkTjcPiCEQ8ADiahU-1UalUYb1EyhUYQ9iCcZWrmSTk5GycfOF7gosRCHO8ni8flcHu9RRLBIDFarNbrmAbNSbXFIPH4QlEFC7PYB6gHrl1Y31I6NY4nSynM5zqifKZsu7icps9hOPMHh+H4e54rK-rlqq1a1mA9aNhw163m2D5Pr2r46LEH4Rt+tIOH+4TzIBmLASmCCePYfgriEHhLKiHK6IECG+oeKGVmhZ4XnK7D1I0uDNK07RdI+3aEf2OqUsONK2NGzLLv+Kxiommx8scLgYoEs7HCk4QeLxB5yhQR6obACqdJ0qC4LwABeYAiVeLZ3u2FAfG8ACyAVSN8fwAFpqApA5guGX6qXSq7eEy3GhNBYS+Byi7jky9IotOPiopsln4tZtmCfZjnOW5HlYWJDRNC0bQdLg3T+UFIXhZFL6KYOn4qYaFGzEuk7aWsSaLhmFDgbE7JsnMmw8YW0pWchgaCVAuBgLWQY4a2948B8UhiG8ai9WR8XRolyViu4aXmZlDGZIywTCt4UEZAE9LFUhZZrVWG1bZYlZ1RJUlNbJh3HadMVDtSA1qUNCxaQm6x6QxKQsf4rLBGxXhON432ljZAlVptdAyG0qDNjee2+d8ah9DIUgqFIZ1xfDCW6ElTgpbds73e4fIFUkxwcjuughBu7iE-xf02WA5OUyDDXSc13T04zzOszDfVw6OcxI-GOmo8mOxOixcFBBmqL2PSBbXPuJWrceFCwJgZOdEGABiAJ-B8AAScgkhrAVs-1+vzJpRtjWjOxhC4m65iEUHxME8HYqQ2A1vAozLU7mDKXrP62gxhD20Wjs-RUdCMMwbCF5GP5wgxsSYiuzoSr4czgTL1lPC8DfkQjHiZm4LL5vYGLzKE+k84czgijpEqeL3zuqoPF38ryDFZA6brGTmoRmu4oqr79Lunhh55YRvHPRronggb4jopWuXMJItDuIUTZVVhVTkuXcp5AusVw4-jNHvFKuYeahCgq4Rclo3BmjSDNSe04oJn2JnLAG21Ky31HOBRIfgfBc2YjmRwyQQIogoGsE46xxyWkwb-eWitMCoHwT+E+mNOQZm8GET03Eha2yZMgrIGJ0TulcEwkmrt3YK09ng0BRdBroJcAvSeGZyFMUfgxFEDojIblbsyRw25MFu2wMYYwkAOGDVXOiRY7ptwvXWHwyIO8Jz42FNuCWrJPR5DyEAA */
     id: 'factory-agent',
     context: {
+      model: model,
       inputMessage: '',
       conversationId: conversationId,
       response: '',
@@ -121,6 +120,7 @@ export const createStateMachine = (
             target: 'running',
             actions: assign({
               previousMessages: ({ event }) => event.messages,
+              model: ({ context }) => context.model,
               inputMessage: ({ event }) =>
                 event.messages[event.messages.length - 1]?.parts[0]?.text ?? '',
               streamResult: undefined,
@@ -185,7 +185,6 @@ export const createStateMachine = (
                     },
                   ],
                 },
-                // NEW: Timeout
                 after: {
                   30000: {
                     target: 'retrying',
@@ -199,7 +198,6 @@ export const createStateMachine = (
                 },
               },
               retrying: {
-                // NEW: Wait for exponential backoff delay
                 after: {
                   retryDelay: {
                     target: 'attempting',
@@ -216,6 +214,7 @@ export const createStateMachine = (
                 inputMessage: context.inputMessage,
                 intent: context.intent,
                 previousMessages: context.previousMessages,
+                model: context.model,
               }),
               onDone: {
                 target: 'streaming',
@@ -249,6 +248,7 @@ export const createStateMachine = (
               id: 'SALUE',
               input: ({ context }: { context: AgentContext }) => ({
                 inputMessage: context.inputMessage,
+                model: context.model,
               }),
               onDone: {
                 target: 'streaming',
@@ -272,7 +272,7 @@ export const createStateMachine = (
               },
             },
           },
-          readData: {
+          rreadData: {
             type: 'parallel', // NEW: Enable parallel execution
             states: {
               processRequest: {

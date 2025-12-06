@@ -17,6 +17,7 @@ import {
   OrganizationRepository,
   ProjectRepository,
   UserRepository,
+  UsageRepository,
 } from '@qwery/repository-in-memory';
 
 import { FileStateStore } from '../infrastructure/persistence/file-state-store';
@@ -36,6 +37,7 @@ export class CliContainer {
     notebook: new NotebookRepository(),
     conversation: new ConversationRepository(),
     message: new MessageRepository(),
+    usage: new UsageRepository(),
   };
 
   private readonly workspaceModeService = new CliWorkspaceModeService();

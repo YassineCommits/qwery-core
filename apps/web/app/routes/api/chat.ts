@@ -33,6 +33,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     agent = new FactoryAgent({
       conversationSlug: conversationSlug,
       repositories: repositories,
+      model: body.model,
     });
     agents.set(conversationSlug, agent);
     console.log(

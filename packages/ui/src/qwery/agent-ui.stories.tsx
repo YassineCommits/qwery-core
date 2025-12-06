@@ -80,5 +80,10 @@ export default meta;
 type Story = StoryObj<typeof QweryAgentUI>;
 
 export const Default: Story = {
-  render: () => <QweryAgentUI transport={new MockChatTransport()} />,
+  render: () => (
+    <QweryAgentUI
+      transport={() => new MockChatTransport()}
+      models={[{ name: 'Mock Model', value: 'mock-model' }]}
+    />
+  ),
 };

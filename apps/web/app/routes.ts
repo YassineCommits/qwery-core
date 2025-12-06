@@ -29,6 +29,7 @@ const apiRoutes = [
   ),
   route('api/conversations/:id', 'routes/api/conversation/conversation.ts'),
   route('api/messages', 'routes/api/conversation/get-messages.ts'),
+  route('api/usage', 'routes/api/usage/usage.ts'),
 ];
 
 const appRoutes = layout('routes/layout/layout.tsx', [

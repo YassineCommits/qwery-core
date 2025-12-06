@@ -344,6 +344,7 @@ export const IntentSchema = z.object({
 export type Intent = z.infer<typeof IntentSchema>;
 
 export type AgentContext = {
+  model: string;
   conversationId: string;
   inputMessage: string;
   response: string;

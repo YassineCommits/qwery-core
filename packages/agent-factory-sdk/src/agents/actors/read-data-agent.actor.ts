@@ -73,12 +73,13 @@ function getWorkspace(): string | undefined {
 export const readDataAgent = async (
   conversationId: string,
   messages: UIMessage[],
+  model: string,
 ) => {
   // Cache for view list to avoid redundant calls
   let cachedViews: Awaited<ReturnType<typeof loadViewRegistry>> | null = null;
 
   const result = new Agent({
-    model: await resolveModel('azure/gpt-5-mini'),
+    model: await resolveModel(model),
     system: READ_DATA_AGENT_PROMPT,
     tools: {
       testConnection: tool({
@@ -598,6 +599,14 @@ export const readDataAgent = async (
 
   return result.stream({
     messages: convertToModelMessages(await validateUIMessages({ messages })),
+    providerOptions: {
+      openai: {
+        reasoningSummary: 'auto', // 'auto' for condensed or 'detailed' for comprehensive
+        reasoningEffort: 'medium',
+        reasoningDetailedSummary: true,
+        reasoningDetailedSummaryLength: 'long',
+      },
+    },
   });
 };
 
@@ -608,8 +617,13 @@ export const readDataAgentActor = fromPromise(
     input: {
       conversationId: string;
       previousMessages: UIMessage[];
+      model: string;
     };
   }) => {
-    return readDataAgent(input.conversationId, input.previousMessages);
+    return readDataAgent(
+      input.conversationId,
+      input.previousMessages,
+      input.model,
+    );
   },
 );

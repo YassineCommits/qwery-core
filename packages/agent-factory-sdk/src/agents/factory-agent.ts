@@ -3,12 +3,16 @@ import { createActor } from 'xstate';
 import { nanoid } from 'nanoid';
 import { createStateMachine } from './state-machine';
 import { Repositories } from '@qwery/domain/repositories';
-import { MessagePersistenceService } from '../services/message-persistence.service';
 import { ActorRegistry } from './utils/actor-registry';
 import { persistState } from './utils/state-persistence';
+import {
+  UsagePersistenceService,
+  MessagePersistenceService,
+} from '../services';
 
 export interface FactoryAgentOptions {
   conversationSlug: string;
+  model: string;
   repositories: Repositories;
 }
 
@@ -19,15 +23,18 @@ export class FactoryAgent {
   private factoryActor: ReturnType<typeof createActor>;
   private repositories: Repositories;
   private actorRegistry: ActorRegistry; // NEW: Actor registry
+  private model: string;
 
   constructor(opts: FactoryAgentOptions) {
     this.id = nanoid();
     this.conversationSlug = opts.conversationSlug;
     this.repositories = opts.repositories;
     this.actorRegistry = new ActorRegistry(); // NEW
+    this.model = opts.model;
 
     this.lifecycle = createStateMachine(
       this.conversationSlug,
+      this.model,
       this.repositories,
     );
 
@@ -79,6 +86,20 @@ export class FactoryAgent {
       `Message received, factory state [${this.id}]:`,
       this.factoryActor.getSnapshot().value,
     );
+
+    // Wait for the agent to be in idle state before processing messages
+    const currentState = this.factoryActor.getSnapshot().value;
+    if (currentState !== 'idle') {
+      // Wait for the state machine to reach idle
+      await new Promise<void>((resolve) => {
+        const subscription = this.factoryActor.subscribe((state) => {
+          if (state.value === 'idle') {
+            subscription.unsubscribe();
+            resolve();
+          }
+        });
+      });
+    }
 
     // Get the current input message to track which request this is for
     const lastMessage = opts.messages[opts.messages.length - 1];
@@ -224,6 +245,23 @@ export class FactoryAgent {
                       this.factoryActor.send({
                         type: 'FINISH_STREAM',
                       });
+
+                      // Get totalUsage from streamResult (it's a Promise)
+                      const totalUsage = await ctx.streamResult.totalUsage;
+
+                      // Create usage record
+                      const usagePersistenceService =
+                        new UsagePersistenceService(
+                          this.repositories.usage,
+                          this.repositories.conversation,
+                          this.repositories.project,
+                          this.conversationSlug,
+                        );
+                      usagePersistenceService
+                        .persistUsage(totalUsage, ctx.model)
+                        .catch((error) => {
+                          console.error('Failed to persist usage:', error);
+                        });
                     }
 
                     const messagePersistenceService =

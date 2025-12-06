@@ -5,3 +5,4 @@ export * from './project.respository';
 export * from './user.repository';
 export * from './message.repository';
 export * from './conversation.repository';
+export * from './usage.repository';

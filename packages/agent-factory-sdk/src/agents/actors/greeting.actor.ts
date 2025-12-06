@@ -3,9 +3,9 @@ import { fromPromise } from 'xstate/actors';
 import { GREETING_PROMPT } from '../prompts/greeting.prompt';
 import { resolveModel } from '../../services';
 
-export const greeting = async (text: string) =>
+export const greeting = async (text: string, model: string) =>
   streamText({
-    model: await resolveModel('azure/gpt-5-mini'),
+    model: await resolveModel(model),
     prompt: GREETING_PROMPT(text),
   });
 
@@ -15,6 +15,7 @@ export const greetingActor = fromPromise(
   }: {
     input: {
       inputMessage: string;
+      model: string;
     };
-  }) => greeting(input.inputMessage),
+  }) => greeting(input.inputMessage, input.model),
 );

@@ -471,6 +471,7 @@ export class InteractiveRepl {
 
         this.agent = new FactoryAgent({
           conversationSlug: this.conversationId,
+          model: 'azure/gpt-5-mini', // Default model for CLI
           repositories,
         });
       }

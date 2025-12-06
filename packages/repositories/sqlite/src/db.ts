@@ -166,4 +166,36 @@ export function initializeSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
   `);
+
+  // Usage table (time series data)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS usage (
+      id INTEGER PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+      cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+      context_size INTEGER NOT NULL DEFAULT 0,
+      credits_cap INTEGER NOT NULL DEFAULT 0,
+      credits_used INTEGER NOT NULL DEFAULT 0,
+      cpu REAL NOT NULL DEFAULT 0,
+      memory REAL NOT NULL DEFAULT 0,
+      network REAL NOT NULL DEFAULT 0,
+      gpu REAL NOT NULL DEFAULT 0,
+      storage REAL NOT NULL DEFAULT 0,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_usage_conversation_id ON usage(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_id ON usage(id);
+    CREATE INDEX IF NOT EXISTS idx_usage_project_id ON usage(project_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_organization_id ON usage(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage(user_id);
+  `);
 }

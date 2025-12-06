@@ -1,4 +1,4 @@
-import { createOllama } from 'ollama-ai-provider-v2';
+import { ollama } from 'ai-sdk-ollama';
 import { LanguageModel } from 'ai';
 
 type ModelProvider = {
@@ -11,13 +11,8 @@ export type OllamaModelProviderOptions = {
 };
 
 export function createOllamaModelProvider({
-  baseUrl,
   defaultModel,
 }: OllamaModelProviderOptions = {}): ModelProvider {
-  const ollama = createOllama({
-    baseURL: baseUrl,
-  });
-
   return {
     resolveModel: (modelName) => {
       const finalModel = modelName || defaultModel;
@@ -26,7 +21,7 @@ export function createOllamaModelProvider({
           "[AgentFactory] Missing Ollama model. Provide it as 'ollama/<model-name>' or set OLLAMA_MODEL.",
         );
       }
-      return ollama(finalModel);
+      return ollama(finalModel, {});
     },
   };
 }
