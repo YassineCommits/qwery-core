@@ -23,7 +23,10 @@ export interface ViewSheetResult {
 export const viewSheet = async (
   opts: ViewSheetOptions,
 ): Promise<ViewSheetResult> => {
-  const sheetName = opts.sheetName || 'my_sheet';
+  if (!opts.sheetName) {
+    throw new Error('sheetName is required. Use listViews to see available views.');
+  }
+  const sheetName = opts.sheetName;
   const limit = opts.limit || 50;
 
   // First, get the total row count

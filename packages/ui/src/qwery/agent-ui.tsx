@@ -146,8 +146,8 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
   const { messages, sendMessage, status, regenerate, stop, setMessages } =
     useChat({
       messages: initialMessages,
+      experimental_throttle: 100,
       transport: transportInstance,
-      experimental_throttle: 50,
     });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -155,6 +155,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
   const viewSheetRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState<string>('');
+  const [copiedMessagePartId, setCopiedMessagePartId] = useState<string | null>(null);
 
   // Handle edit message
   const handleEditStart = useCallback((messageId: string, text: string) => {
@@ -315,10 +316,6 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                   return (
                     <div
                       key={message.id}
-                      className={cn(
-                        message.role === 'user' &&
-                          'sticky top-0 z-20 bg-background/95 backdrop-blur-sm pb-2 pt-2 -mt-2 -mx-4 px-4 border-b border-border/50',
-                      )}
                     >
                       {message.role === 'assistant' &&
                         sourceParts.length > 0 && (
@@ -476,34 +473,35 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                               <RefreshCcwIcon className="size-3" />
                                             </Button>
                                           )}
-                                          {message.role === 'user' && (
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() =>
-                                                handleEditStart(
-                                                  message.id,
-                                                  part.text,
-                                                )
-                                              }
-                                              className="h-7 w-7"
-                                              title="Edit"
-                                            >
-                                              <PencilIcon className="size-3" />
-                                            </Button>
-                                          )}
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() =>
-                                              navigator.clipboard.writeText(
-                                                part.text,
-                                              )
-                                            }
+                                            onClick={async () => {
+                                              const partId = `${message.id}-${i}`;
+                                              try {
+                                                await navigator.clipboard.writeText(
+                                                  part.text,
+                                                );
+                                                setCopiedMessagePartId(partId);
+                                                setTimeout(() => {
+                                                  setCopiedMessagePartId(null);
+                                                }, 2000);
+                                              } catch (error) {
+                                                console.error('Failed to copy:', error);
+                                              }
+                                            }}
                                             className="h-7 w-7"
-                                            title="Copy"
+                                            title={
+                                              copiedMessagePartId === `${message.id}-${i}`
+                                                ? 'Copied!'
+                                                : 'Copy'
+                                            }
                                           >
-                                            <CopyIcon className="size-3" />
+                                            {copiedMessagePartId === `${message.id}-${i}` ? (
+                                              <CheckIcon className="size-3 text-green-600" />
+                                            ) : (
+                                              <CopyIcon className="size-3" />
+                                            )}
                                           </Button>
                                         </div>
                                       )}
@@ -552,9 +550,8 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                               const isSelectChartType =
                                 toolPart.type === 'tool-selectChartType';
                               const isRunQuery = toolPart.type === 'tool-runQuery';
-                              const isGetSchema = toolPart.type === 'tool-getSchema';
-                              const isListAvailableSheets =
-                                toolPart.type === 'tool-listAvailableSheets';
+                              const isGetSchema = toolPart.type === 'tool-getTableSchema';
+                              const isListViews = toolPart.type === 'tool-listViews';
                               const isViewSheet = toolPart.type === 'tool-viewSheet';
 
                               // Check if viewSheet is already in progress or completed in this message
@@ -676,9 +673,9 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                 }
                               }
 
-                              // Parse available sheets if it's listAvailableSheets tool
-                              let availableSheetsData: AvailableSheetsData | null = null;
-                              if (isListAvailableSheets && toolPart.output) {
+                              // Parse views if it's listViews tool
+                              let viewsData: { views: Array<{ viewName: string }>; message: string } | null = null;
+                              if (isListViews && toolPart.output) {
                                 let parsedOutput: unknown = toolPart.output;
                                 if (typeof toolPart.output === 'string') {
                                   try {
@@ -691,10 +688,13 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                   parsedOutput &&
                                   typeof parsedOutput === 'object' &&
                                   !Array.isArray(parsedOutput) &&
-                                  'sheets' in parsedOutput &&
-                                  Array.isArray(parsedOutput.sheets)
+                                  'views' in parsedOutput &&
+                                  Array.isArray(parsedOutput.views)
                                 ) {
-                                  availableSheetsData = parsedOutput as AvailableSheetsData;
+                                  viewsData = parsedOutput as {
+                                    views: Array<{ viewName: string }>;
+                                    message: string;
+                                  };
                                 }
                               }
 
@@ -739,7 +739,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                     {toolPart.input != null &&
                                     !isRunQuery &&
                                     !isGetSchema &&
-                                    !isListAvailableSheets &&
+                                    !isListViews &&
                                     !isViewSheet ? (
                                       <ToolInput input={toolPart.input} />
                                     ) : null}
@@ -782,14 +782,20 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                           result={sqlResult}
                                         />
                                       </div>
-                                    ) : isListAvailableSheets && availableSheetsData ? (
+                                    ) : isListViews && viewsData ? (
                                       <div className="min-w-0 space-y-2 p-4">
                                         <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                                           Available Sheets
                                         </h4>
                                         <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md p-4">
                                           <AvailableSheetsVisualizer
-                                            data={availableSheetsData}
+                                            data={{
+                                              sheets: viewsData.views.map((v) => ({
+                                                name: v.viewName,
+                                                type: 'view' as const,
+                                              })),
+                                              message: viewsData.message,
+                                            }}
                                             isRequestInProgress={
                                               status === 'streaming' ||
                                               status === 'submitted' ||
@@ -843,7 +849,7 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                                 : undefined
                                             }
                                             availableSheets={
-                                              availableSheetsData?.sheets.map((s) => s.name)
+                                              viewsData?.views.map((v) => v.viewName)
                                             }
                                             onRetry={(sheetName: string) => {
                                               sendMessage({

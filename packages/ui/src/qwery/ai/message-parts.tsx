@@ -43,7 +43,14 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '../../ai-elements/sources';
-import { CopyIcon, RefreshCcwIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  CopyIcon,
+  RefreshCcwIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  CheckIcon,
+} from 'lucide-react';
 import { ToolUIPart } from 'ai';
 
 export type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'error';
@@ -145,6 +152,20 @@ export function TextPart({
   isLastMessage,
   onRegenerate,
 }: TextPartProps) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(part.text);
+      setIsCopied(true);
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
   return (
     <Message key={`${messageId}-${index}`} from={messageRole}>
       <MessageContent>
@@ -158,10 +179,14 @@ export function TextPart({
             </MessageAction>
           )}
           <MessageAction
-            onClick={() => navigator.clipboard.writeText(part.text)}
-            label="Copy"
+            onClick={handleCopy}
+            label={isCopied ? 'Copied!' : 'Copy'}
           >
-            <CopyIcon className="size-3" />
+            {isCopied ? (
+              <CheckIcon className="size-3 text-green-600" />
+            ) : (
+              <CopyIcon className="size-3" />
+            )}
           </MessageAction>
         </MessageActions>
       )}
@@ -450,51 +475,73 @@ function AvailableSheetsOutput({
   output: ToolUIPart['output'];
   errorText: ToolUIPart['errorText'];
 }) {
+  const parsedOutput = useMemo(() => {
+    if (!output) return null;
+    if (typeof output === 'string') {
+      try {
+        return JSON.parse(output);
+      } catch {
+        return null;
+      }
+    }
+    return output;
+  }, [output]);
+
+  // Memoize adapted data to prevent creating new object on every render
+  const adaptedData = useMemo(() => {
+    if (!parsedOutput) return null;
+
+    // Check if output matches listViews structure (views array)
+    if (
+      parsedOutput &&
+      typeof parsedOutput === 'object' &&
+      !Array.isArray(parsedOutput) &&
+      'views' in parsedOutput &&
+      Array.isArray(parsedOutput.views)
+    ) {
+      const viewsData = parsedOutput as {
+        views: Array<{
+          viewName: string;
+          displayName?: string;
+        }>;
+        message: string;
+      };
+      return {
+        sheets: viewsData.views.map((view) => ({
+          name: view.viewName,
+          type: 'view' as const,
+        })),
+        message: viewsData.message,
+      } as AvailableSheetsData;
+    }
+
+    // Check if output matches available sheets structure (backward compatibility)
+    if (
+      parsedOutput &&
+      typeof parsedOutput === 'object' &&
+      !Array.isArray(parsedOutput) &&
+      'sheets' in parsedOutput &&
+      Array.isArray(parsedOutput.sheets)
+    ) {
+      return parsedOutput as AvailableSheetsData;
+    }
+
+    return null;
+  }, [parsedOutput]);
+
   if (errorText) {
     return <ToolOutput output={output} errorText={errorText} />;
   }
 
-  if (!output) {
+  if (!output || !adaptedData) {
     return <ToolOutput output={output} errorText={errorText} />;
   }
 
-  // Parse output - it might be a string (JSON) or an object
-  let parsedOutput: unknown = output;
-  if (typeof output === 'string') {
-    try {
-      parsedOutput = JSON.parse(output);
-    } catch {
-      return <ToolOutput output={output} errorText={errorText} />;
-    }
-  }
-
-  // Check if output matches available sheets structure
-  if (
-    parsedOutput &&
-    typeof parsedOutput === 'object' &&
-    !Array.isArray(parsedOutput) &&
-    'sheets' in parsedOutput &&
-    Array.isArray(parsedOutput.sheets)
-  ) {
-    try {
-      const data = parsedOutput as AvailableSheetsData;
-      return (
-        <div className="min-w-0 space-y-2 p-4">
-          <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Available Sheets
-          </h4>
-          <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md p-4">
-            <AvailableSheetsVisualizer data={data} />
-          </div>
-        </div>
-      );
-    } catch (error) {
-      console.error('[AvailableSheetsOutput] Error:', error);
-      return <ToolOutput output={output} errorText={errorText} />;
-    }
-  }
-
-  return <ToolOutput output={output} errorText={errorText} />;
+  return (
+    <div className="min-w-0 p-4">
+      <AvailableSheetsVisualizer data={adaptedData} />
+    </div>
+  );
 }
 
 function ViewSheetOutput({

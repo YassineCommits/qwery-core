@@ -5,6 +5,7 @@ import {
   getAxesLabelsPrecisionGuidelines,
 } from '../config/supported-charts';
 import { getChartColors } from '../config/chart-colors';
+import type { BusinessContext } from '../../tools/types/business-context.types';
 
 export const GENERATE_CHART_CONFIG_PROMPT = (
   chartType: ChartType,
@@ -13,6 +14,7 @@ export const GENERATE_CHART_CONFIG_PROMPT = (
     columns: string[];
   },
   sqlQuery: string,
+  businessContext?: BusinessContext | null,
 ) => {
   const chartDef = getChartDefinition(chartType);
   if (!chartDef) {
@@ -59,7 +61,19 @@ ${getChartGenerationPrompt(chartType)}
   - Use hex colors like "#8884d8" or rgb colors like "rgb(136, 132, 216)"
   - Provide an array of 3-5 colors for variety
 - labels: Map column names to human-readable labels (REQUIRED - see precision guidelines below)
+  ${businessContext ? `- Use business context vocabulary to improve labels:
+  * Domain: ${businessContext.domain.domain}
+  * Vocabulary: Use business terms from context to create meaningful labels
+  * Example: If column is "user_id" and vocabulary maps "user" to "Customer", use "Customer" in labels` : ''}
 - Include chart-specific keys: ${chartDef.requirements.requiredKeys.join(', ')}
+${businessContext ? `
+**Business Context:**
+- Domain: ${businessContext.domain.domain}
+- Key entities: ${Array.from(businessContext.entities.values())
+  .map((e) => e.name)
+  .join(', ')}
+- Use vocabulary mappings to translate technical column names to business-friendly labels
+- Use domain understanding to create meaningful chart titles` : ''}
 
 ${getAxesLabelsPrecisionGuidelines()}
 

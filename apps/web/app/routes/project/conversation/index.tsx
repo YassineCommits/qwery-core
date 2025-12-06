@@ -17,17 +17,22 @@ function formatRelativeTime(date: Date): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
   if (diffDays === 0) {
-    return 'Today';
+    return `Today at ${timeStr}`;
   }
   if (diffDays === 1) {
-    return 'Yesterday';
+    return `Yesterday at ${timeStr}`;
   }
   
   const day = date.getDate();
   const month = date.toLocaleDateString('en-US', { month: 'long' });
   const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${day} ${month} ${year} at ${timeStr}`;
 }
 
 export default function ConversationIndexPage() {

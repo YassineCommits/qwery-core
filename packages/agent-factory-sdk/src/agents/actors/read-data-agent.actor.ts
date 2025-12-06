@@ -38,6 +38,7 @@ import { extractSchema } from '../../tools/extract-schema';
 import {
   registerSheetView,
   loadViewRegistry,
+  updateViewUsage,
   generateSemanticViewName,
   validateTableExists,
   createViewFromTable,
@@ -45,9 +46,11 @@ import {
   cleanupOrphanedTempTables,
   withRetry,
   formatViewCreationError,
+  renameView,
   type RegistryContext,
 } from '../../tools/view-registry';
 import { generateSheetName } from '../../services/generate-sheet-name.service';
+import { loadBusinessContext } from '../../tools/utils/business-context.storage';
 
 // Lazy workspace resolution - only resolve when actually needed, not at module load time
 // This prevents side effects when the module is imported in browser/SSR contexts
@@ -500,6 +503,7 @@ export const readDataAgent = async (
 
           // Handle single or multiple links
           const links = Array.isArray(sharedLink) ? sharedLink : [sharedLink];
+
           const results: Array<{
             success: boolean;
             viewName?: string;
@@ -510,6 +514,7 @@ export const readDataAgent = async (
 
           // Process sequentially to avoid race conditions
           for (const link of links) {
+
             try {
               const result = await withRetry(
                 async () => {
@@ -727,184 +732,9 @@ export const readDataAgent = async (
           };
         },
       }),
-      runQuery: tool({
-        description:
-          'Run a SQL query against the DuckDB instance (views from file-based datasources or attached database tables). Query views by name (e.g., "customers") or attached tables by full path (e.g., ds_x.public.users). DuckDB enables federated queries across PostgreSQL, MySQL, Google Sheets, and other datasources.',
-        inputSchema: z.object({
-          query: z.string(),
-        }),
-        execute: async ({ query }) => {
-          const workspace = getWorkspace();
-          if (!workspace) {
-            throw new Error('WORKSPACE environment variable is not set');
-          }
-          const { join } = await import('node:path');
-          const dbPath = join(workspace, conversationId, 'database.db');
-
-          const result = await runQuery({
-            dbPath,
-            query,
-          });
-
-          return {
-            result: result,
-          };
-        },
-      }),
-      listAvailableSheets: tool({
-        description:
-          'List all available views and tables in the database. Use this when the user asks which sheets are available, or when you need to remind the user which data sources are available.',
-        inputSchema: z.object({}),
-        execute: async () => {
-          const workspace = getWorkspace();
-          if (!workspace) {
-            throw new Error('WORKSPACE environment variable is not set');
-          }
-          const { join } = await import('node:path');
-          const dbPath = join(workspace, conversationId, 'database.db');
-
-          const result = await listAvailableSheets({ dbPath });
-          return {
-            sheets: result.sheets,
-            message: result.message,
-          };
-        },
-      }),
-      viewSheet: tool({
-        description:
-          'View/display the contents of a view/table. This is a convenient way to quickly see what data is in a view without writing a SQL query. Shows the first 50 rows by default.',
-        inputSchema: z.object({
-          sheetName: z
-            .string()
-            .optional()
-            .describe('Name of the view/table to view (defaults to first available)'),
-          limit: z
-            .number()
-            .optional()
-            .describe('Maximum number of rows to display (defaults to 50)'),
-        }),
-        execute: async ({ sheetName, limit }) => {
-          const workspace = getWorkspace();
-          if (!workspace) {
-            throw new Error('WORKSPACE environment variable is not set');
-          }
-          const { join } = await import('node:path');
-          const dbPath = join(workspace, conversationId, 'database.db');
-
-          const result = await viewSheet({
-            dbPath,
-            sheetName,
-            limit,
-          });
-          return {
-            sheetName: result.sheetName,
-            totalRows: result.totalRows,
-            displayedRows: result.displayedRows,
-            columns: result.columns,
-            rows: result.rows,
-            message: result.message,
-          };
-        },
-      }),
-      selectChartType: tool({
-        description:
-          'Select the best chart type (bar, line, or pie) for visualizing the query results. This should be called before generateChart.',
-        inputSchema: z.object({
-          queryResults: z.object({
-            rows: z.array(z.record(z.unknown())),
-            columns: z.array(z.string()),
-          }),
-          sqlQuery: z.string(),
-          userInput: z.string(),
-        }),
-        execute: async ({ queryResults, sqlQuery, userInput }) => {
-          const selection = await selectChartType(
-            queryResults,
-            sqlQuery,
-            userInput,
-          );
-          return selection;
-        },
-      }),
-      generateChart: tool({
-        description:
-          'Generate chart configuration JSON for the selected chart type. Call selectChartType first to determine the chart type.',
-        inputSchema: z.object({
-          chartType: z.enum(['bar', 'line', 'pie']),
-          queryResults: z.object({
-            rows: z.array(z.record(z.unknown())),
-            columns: z.array(z.string()),
-          }),
-          sqlQuery: z.string(),
-          userInput: z.string(),
-        }),
-        execute: async ({ chartType, queryResults, sqlQuery, userInput }) => {
-          const chartConfig = await generateChart({
-            queryResults,
-            sqlQuery,
-            userInput,
-            chartType, // Pass the pre-selected chart type
-          });
-          return chartConfig;
-        },
-      }),
-      renameSheet: tool({
-        description:
-          'Rename a sheet/view to a more meaningful name. Use this when you want to give a sheet a better name based on its content, schema, or user context.',
-        inputSchema: z.object({
-          oldSheetName: z
-            .string()
-            .describe('Current name of the sheet/view to rename'),
-          newSheetName: z
-            .string()
-            .describe(
-              'New meaningful name for the sheet (use lowercase, numbers, underscores only)',
-            ),
-        }),
-        execute: async ({ oldSheetName, newSheetName }) => {
-          const workspace = getWorkspace();
-          if (!workspace) {
-            throw new Error('WORKSPACE environment variable is not set');
-          }
-          const { join } = await import('node:path');
-          const dbPath = join(workspace, conversationId, 'database.db');
-
-          const result = await renameSheet({
-            dbPath,
-            oldSheetName,
-            newSheetName,
-          });
-          return result;
-        },
-      }),
-      deleteSheet: tool({
-        description:
-          'Delete one or more sheets/views from the database. This permanently removes the views and all their data. Supports batch deletion of multiple sheets. Only use this when the user explicitly requests to delete sheet(s).',
-        inputSchema: z.object({
-          sheetNames: z
-            .array(z.string())
-            .describe(
-              'Array of sheet/view names to delete. Can delete one or more sheets at once. Use listAvailableSheets to see available sheets.',
-            ),
-        }),
-        execute: async ({ sheetNames }) => {
-          const workspace = getWorkspace();
-          if (!workspace) {
-            throw new Error('WORKSPACE environment variable is not set');
-          }
-          const { join } = await import('node:path');
-          const dbPath = join(workspace, conversationId, 'database.db');
-
-          const result = await deleteSheet({
-            dbPath,
-            sheetNames,
-          });
-          return result;
-        },
-      }),
-    },
-    stopWhen: stepCountIs(20),
-  });
+      },
+      stopWhen: stepCountIs(20), // Stop after 20 steps maximum
+    });
 
   return result.stream({
     messages: convertToModelMessages(await validateUIMessages({ messages })),

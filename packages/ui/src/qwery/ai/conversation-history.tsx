@@ -56,6 +56,29 @@ function formatRelativeTime(date: Date): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  if (diffDays === 0) {
+    return `Today at ${timeStr}`;
+  }
+  if (diffDays === 1) {
+    return `Yesterday at ${timeStr}`;
+  }
+
+  const day = date.getDate();
+  const month = date.toLocaleDateString('en-US', { month: 'long' });
+  const year = date.getFullYear();
+  return `${day} ${month} ${year} at ${timeStr}`;
+}
+
+function formatRelativeDate(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
   if (diffDays === 0) {
     return 'Today';
   }
@@ -75,7 +98,7 @@ function groupConversationsByTime(
   const groups: Record<string, Conversation[]> = {};
 
   conversations.forEach((conversation) => {
-    const group = formatRelativeTime(conversation.createdAt);
+    const group = formatRelativeDate(conversation.createdAt);
     if (!groups[group]) {
       groups[group] = [];
     }
@@ -466,7 +489,7 @@ export function ConversationHistory({
                             </div>
                           ) : (
                             <>
-                              <div className="flex min-w-0 flex-1 items-center">
+                              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                 <span
                                   className={cn(
                                     'truncate text-sm font-medium transition-all duration-300',
@@ -476,6 +499,9 @@ export function ConversationHistory({
                                   )}
                                 >
                                   {conversation.title}
+                                </span>
+                                <span className="text-muted-foreground text-xs truncate">
+                                  {formatRelativeTime(conversation.createdAt)}
                                 </span>
                               </div>
                               {!isEditMode && (

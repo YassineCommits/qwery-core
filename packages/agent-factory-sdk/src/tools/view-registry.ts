@@ -769,3 +769,34 @@ export const updateViewUsage = async (
   target.updatedAt = target.lastUsedAt;
   await saveViewRegistry(context, registry);
 };
+
+/**
+ * Get view record by view name
+ */
+export const getViewByName = async (
+  context: RegistryContext,
+  viewName: string,
+): Promise<ViewRecord | null> => {
+  const registry = await loadViewRegistry(context);
+  return registry.find((record) => record.viewName === viewName) || null;
+};
+
+/**
+ * Delete view from registry
+ */
+export const deleteViewFromRegistry = async (
+  context: RegistryContext,
+  viewName: string,
+): Promise<boolean> => {
+  const registry = await loadViewRegistry(context);
+  const initialLength = registry.length;
+  const filtered = registry.filter((record) => record.viewName !== viewName);
+  
+  if (filtered.length === initialLength) {
+    // View not found in registry
+    return false;
+  }
+  
+  await saveViewRegistry(context, filtered);
+  return true;
+};
