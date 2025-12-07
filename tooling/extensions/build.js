@@ -89,13 +89,12 @@ async function main() {
                   target: 'es2020',
                   outfile: dest,
                   external: [
-                    // Externalize workspace packages - they should be available in the app
-                    // The SDK will be available at runtime via the app's module system
-                    '@qwery/extensions-sdk',
-                    '@qwery/domain',
+                    // Externalize UI packages - they're not needed in drivers
                     '@qwery/ui',
                     'react',
                     'react-dom',
+                    // Bundle @qwery/extensions-sdk and @qwery/domain into the driver
+                    // so it's self-contained and can be loaded from /public
                   ],
                   // Mark all node: imports as external - they're Node.js built-ins
                   // esbuild will handle this automatically for browser platform
@@ -106,10 +105,15 @@ async function main() {
                     'node:path': 'data:text/javascript,export default {}',
                     'node:url': 'data:text/javascript,export default {}',
                   },
+                  loader: {
+                    // Handle WASM and data files as binary
+                    '.wasm': 'file',
+                    '.data': 'file',
+                  },
                   banner: {
                     js: `
 // This file is bundled for browser use
-// External dependencies (@qwery/extensions-sdk, react, etc.) must be available at runtime
+// All dependencies including @qwery/extensions-sdk and @qwery/domain are bundled
 `,
                   },
                   resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
@@ -120,6 +124,52 @@ async function main() {
                   nodePaths: [nodeModulesPath],
                   packages: 'bundle', // Bundle npm packages, but externalize workspace ones
                 });
+                
+                // Copy PGlite WASM and data files if they exist
+                // These are needed at runtime and can't be bundled
+                if (pkg.name === '@qwery/extension-pglite') {
+                  // Root node_modules (pnpm workspace root)
+                  const rootNodeModules = path.resolve(
+                    here,
+                    '..',
+                    '..',
+                    'node_modules',
+                  );
+                  
+                  // Try multiple possible paths for pnpm workspace structure
+                  const pnpmPaths = await findPGliteInPnpm(rootNodeModules);
+                  const possiblePaths = [
+                    path.join(rootNodeModules, '@electric-sql', 'pglite', 'dist'),
+                    ...pnpmPaths,
+                  ];
+                  
+                  const pgliteFiles = ['pglite.wasm', 'pglite.data'];
+                  let copied = false;
+                  for (const pgliteDistPath of possiblePaths) {
+                    const dataPath = path.join(pgliteDistPath, 'pglite.data');
+                    if (await fileExists(dataPath)) {
+                      for (const file of pgliteFiles) {
+                        const sourceFile = path.join(pgliteDistPath, file);
+                        if (await fileExists(sourceFile)) {
+                          const destFile = path.join(driverOutDir, file);
+                          await fs.copyFile(sourceFile, destFile);
+                          console.log(
+                            `[extensions-build] Copied ${file} for ${driver.id} from ${pgliteDistPath}`,
+                          );
+                          copied = true;
+                        }
+                      }
+                      break; // Found and copied, no need to try other paths
+                    }
+                  }
+                  if (!copied) {
+                    console.warn(
+                      `[extensions-build] Could not find PGlite files for ${driver.id}. Tried paths:`,
+                      possiblePaths,
+                    );
+                  }
+                }
+                
                 console.log(
                   `[extensions-build] Bundled browser driver ${driver.id} to ${dest}`,
                 );
@@ -187,6 +237,49 @@ async function main() {
   const registryPath = path.join(publicRoot, 'registry.json');
   await fs.writeFile(registryPath, JSON.stringify(registry, null, 2));
   console.log(`[extensions-build] Registry written to ${registryPath}`);
+}
+
+async function findPGliteInPnpm(nodeModulesPath) {
+  const paths = [];
+  try {
+    const pnpmPath = path.join(nodeModulesPath, '.pnpm');
+    let stat;
+    try {
+      stat = await fs.stat(pnpmPath);
+    } catch {
+      return paths;
+    }
+    if (!stat.isDirectory()) {
+      return paths;
+    }
+    const entries = await fs.readdir(pnpmPath);
+    for (const entry of entries) {
+      if (entry.startsWith('@electric-sql+pglite@')) {
+        const pglitePath = path.join(
+          pnpmPath,
+          entry,
+          'node_modules',
+          '@electric-sql',
+          'pglite',
+          'dist',
+        );
+        try {
+          const distStat = await fs.stat(pglitePath);
+          if (distStat.isDirectory()) {
+            const dataPath = path.join(pglitePath, 'pglite.data');
+            if (await fileExists(dataPath)) {
+              paths.push(pglitePath);
+            }
+          }
+        } catch {
+          // Skip this path
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore errors
+  }
+  return paths;
 }
 
 async function safeReaddir(target) {

@@ -21,25 +21,28 @@ export function getDatasourceKey(id: string) {
 export function useGetDatasourcesByProjectId(
   repository: IDatasourceRepository,
   projectId: string,
+  options?: { enabled?: boolean },
 ) {
   const useCase = new GetDatasourcesByProjectIdService(repository);
   return useQuery({
     queryKey: getDatasourcesByProjectIdKey(projectId),
     queryFn: () => useCase.execute(projectId),
     staleTime: 30 * 1000,
-    enabled: !!projectId,
+    enabled: options?.enabled !== undefined ? options.enabled : !!projectId,
   });
 }
 
 export function useGetDatasourceBySlug(
   repository: IDatasourceRepository,
   slug: string,
+  options?: { enabled?: boolean },
 ) {
   const useCase = new GetDatasourceBySlugService(repository);
   return useQuery({
     queryKey: getDatasourceKey(slug),
     queryFn: () => useCase.execute(slug),
     staleTime: 30 * 1000,
-    enabled: !!slug,
+    enabled:
+      options?.enabled !== undefined ? options.enabled && !!slug : !!slug,
   });
 }

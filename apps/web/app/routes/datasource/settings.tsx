@@ -8,7 +8,7 @@ import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { type Datasource } from '@qwery/domain/entities';
-import { FormRenderer } from '@qwery/extensions-sdk';
+import { FormRenderer } from '@qwery/ui/form-renderer';
 import {
   AlertDialog,
   AlertDialogAction,

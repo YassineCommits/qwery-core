@@ -14,11 +14,8 @@ import { toast } from 'sonner';
 
 import { Datasource, DatasourceKind } from '@qwery/domain/entities';
 import { GetProjectBySlugService } from '@qwery/domain/services';
-import {
-  FormRenderer,
-  getDiscoveredDatasource,
-  getExtension,
-} from '@qwery/extensions-sdk';
+import { getDiscoveredDatasource, getExtension } from '@qwery/extensions-sdk';
+import { FormRenderer } from '@qwery/ui/form-renderer';
 import { Button } from '@qwery/ui/button';
 import {
   Card,

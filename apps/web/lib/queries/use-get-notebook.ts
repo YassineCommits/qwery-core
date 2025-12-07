@@ -22,23 +22,32 @@ export function getNotebooksByProjectIdKey(projectId: string) {
 export function useGetNotebooksByProjectId(
   repository: INotebookRepository,
   projectId: string | undefined,
+  options?: { enabled?: boolean },
 ) {
   const useCase = new GetNotebooksByProjectIdService(repository);
   return useQuery({
     queryKey: getNotebooksByProjectIdKey(projectId || ''),
     queryFn: () => useCase.execute(projectId || ''),
     staleTime: 30 * 1000,
-    enabled: !!projectId,
+    enabled:
+      options?.enabled !== undefined
+        ? options.enabled && !!projectId
+        : !!projectId,
   });
 }
 
-export function useGetNotebook(repository: INotebookRepository, slug: string) {
+export function useGetNotebook(
+  repository: INotebookRepository,
+  slug: string,
+  options?: { enabled?: boolean },
+) {
   const useCase = new GetNotebookBySlugService(repository);
   return useQuery({
     queryKey: getNotebookKey(slug),
     queryFn: () => useCase.execute(slug),
     staleTime: 30 * 1000,
-    enabled: !!slug,
+    enabled:
+      options?.enabled !== undefined ? options.enabled && !!slug : !!slug,
   });
 }
 

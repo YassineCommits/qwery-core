@@ -52,21 +52,26 @@ export function ProjectBreadcrumb() {
   // Fetch data
   const organizations = useGetOrganizations(repositories.organization);
   const projects = useGetProjects(repositories.project);
+  // Only fetch datasources when on a datasource route
   const datasources = useGetDatasourcesByProjectId(
     repositories.datasource,
     workspace.projectId || '',
+    { enabled: isDatasourceRoute },
   );
   const notebooks = useGetNotebooksByProjectId(
     repositories.notebook,
     workspace.projectId,
+    { enabled: isNotebookRoute },
   );
   const currentDatasource = useGetDatasourceBySlug(
     repositories.datasource,
     objectSlug || '',
+    { enabled: isDatasourceRoute },
   );
   const currentNotebook = useGetNotebook(
     repositories.notebook,
     objectSlug || '',
+    { enabled: isNotebookRoute },
   );
 
   // Fetch extension metadata for datasource icons

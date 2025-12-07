@@ -1,5 +1,3 @@
-'use server';
-
 import type { ActionFunctionArgs } from 'react-router';
 import {
   type UIMessage,

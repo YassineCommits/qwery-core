@@ -1,6 +1,6 @@
 # Qwery Extensions SDK v0
 
-Minimal contracts to register datasources and drivers, collect metadata, and run queries. Schemas come from `@domain/entities/datasource-meta` (`DatasourceMetadataZodSchema`).
+Minimal contracts to register datasources and drivers, collect metadata, and run queries. Schemas come from `@qwery/extensions-sdk` (`DatasourceMetadataZodSchema`).
 
 ## Core Types
 - `ExtensionContext` with `subscriptions: Disposable[]`.
@@ -63,7 +63,7 @@ export function makeDriver(context: DriverContext): IDataSourceDriver {
 ```
 
 ## Metadata expectations
-- SDK re-exports `DatasourceMetadataZodSchema` (and related types) under `@qwery/extensions-sdk/metadata`; extensions should import from there only.
+- SDK re-exports `DatasourceMetadataZodSchema` (and related types) under `@qwery/extensions-sdk`; extensions should import from there only.
 - Use `DatasourceMetadataZodSchema` to validate your result; schemas are `.passthrough()`, so vendor extras are fine.
 - Preserve RLS flags/policies in table metadata.
 - You can add engine-specific fields without mutating core types.
@@ -73,6 +73,11 @@ export function makeDriver(context: DriverContext): IDataSourceDriver {
 - Multiple drivers can back one datasource; the host picks the execution policy.
 - Secrets passed in `config` are already resolved from secure storage.
 
+## Icons and other media files
+- To be integrated under media directory
+- Reference icons under package.json
+
 ## Concrete sample
-- `packages/extension/examples/csv-local/` shows a local CSV datasource/driver with tests that validate connection, metadata, and query flow against a fixture CSV.
+- `packages/extensions/postgresql/` Server side (nodejs) extension.
+- `packages/extensions/pglite/` Browser side (embedded) extension.
 
