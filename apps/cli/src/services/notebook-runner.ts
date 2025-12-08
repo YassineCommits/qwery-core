@@ -15,6 +15,7 @@ import {
 } from '@qwery/repository-in-memory';
 import { nanoid } from 'nanoid';
 import { v4 as uuidv4 } from 'uuid';
+import type { TelemetryManager } from '@qwery/telemetry-opentelemetry';
 
 // Map to store agents by datasource ID
 const agents = new Map<string, FactoryAgent>();
@@ -32,6 +33,8 @@ export interface RunCellResult {
 }
 
 export class NotebookRunner {
+  constructor(private readonly telemetry?: TelemetryManager) {}
+
   public async testConnection(datasource: Datasource): Promise<void> {
     const driver = await createDriverForDatasource(datasource);
     try {
@@ -104,6 +107,7 @@ export class NotebookRunner {
           conversationSlug,
           model: getDefaultModel(),
           repositories: repositories as FactoryAgentOptions['repositories'],
+          telemetry: this.telemetry,
         });
         agents.set(options.datasource.id, agent);
       }
