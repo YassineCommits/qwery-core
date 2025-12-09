@@ -1,6 +1,6 @@
 /**
  * Agent Event Schemas and Constants
- * 
+ *
  * Defines event types and their expected attributes for Agent telemetry
  */
 
@@ -31,7 +31,7 @@ export const AGENT_EVENTS = {
   CONTEXT_ERROR: 'agent.context.error',
 } as const;
 
-export type AgentEventName = typeof AGENT_EVENTS[keyof typeof AGENT_EVENTS];
+export type AgentEventName = (typeof AGENT_EVENTS)[keyof typeof AGENT_EVENTS];
 
 /**
  * Agent Event Attribute Schemas
@@ -55,7 +55,12 @@ export interface AgentMessageAttributes {
 
 export interface AgentActorAttributes {
   'agent.actor.id': string;
-  'agent.actor.type': 'detectIntent' | 'summarizeIntent' | 'greeting' | 'readData' | 'loadContext';
+  'agent.actor.type':
+    | 'detectIntent'
+    | 'summarizeIntent'
+    | 'greeting'
+    | 'readData'
+    | 'loadContext';
   'agent.actor.input'?: string; // JSON stringified
   'agent.actor.output'?: string; // JSON stringified
   'agent.actor.duration_ms'?: string;
@@ -103,4 +108,3 @@ export type AgentEventAttributes = AgentConversationAttributes &
   AgentContextAttributes &
   AgentErrorAttributes &
   Record<string, string | number | boolean | undefined>;
-

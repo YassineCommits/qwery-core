@@ -1,9 +1,12 @@
-// Main exports for @qwery/telemetry-opentelemetry
+// Main exports for @qwery/telemetry/opentelemetry
 
 // Core services
 export { TelemetryManager } from './telemetry-manager';
 export { ClientTelemetryService } from './client.telemetry.service';
-export { NullTelemetryService, createNullTelemetryService } from './null-telemetry-service';
+export {
+  NullTelemetryService,
+  createNullTelemetryService,
+} from './null-telemetry-service';
 
 // Telemetry utilities (generic, works for CLI, web, desktop)
 export {
@@ -65,4 +68,3 @@ export {
   type AgentContextAttributes,
   type AgentErrorAttributes,
 } from './events/agent.events';
-

@@ -12,8 +12,8 @@ import {
   DuckDBQueryEngine,
 } from '../services';
 import { createQueryEngine, AbstractQueryEngine } from '@qwery/domain/ports';
-import type { TelemetryManager } from '@qwery/telemetry-opentelemetry';
-import { AGENT_EVENTS } from '@qwery/telemetry-opentelemetry/events/agent.events';
+import type { TelemetryManager } from '@qwery/telemetry/opentelemetry';
+import { AGENT_EVENTS } from '@qwery/telemetry/opentelemetry/events/agent.events';
 import { context, trace, type SpanContext } from '@opentelemetry/api';
 
 export interface FactoryAgentOptions {

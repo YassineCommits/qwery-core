@@ -1,6 +1,6 @@
 /**
  * CLI Event Schemas and Constants
- * 
+ *
  * Defines event types and their expected attributes for CLI telemetry
  */
 
@@ -39,7 +39,7 @@ export const CLI_EVENTS = {
   QUERY_EXECUTED: 'cli.query.executed',
 } as const;
 
-export type CliEventName = typeof CLI_EVENTS[keyof typeof CLI_EVENTS];
+export type CliEventName = (typeof CLI_EVENTS)[keyof typeof CLI_EVENTS];
 
 /**
  * CLI Event Attribute Schemas
@@ -122,4 +122,3 @@ export type CliEventAttributes = CliCommandAttributes &
   CliDatasourceAttributes &
   CliProjectAttributes &
   Record<string, string | number | boolean | undefined>;
-

@@ -1,6 +1,6 @@
 /**
  * Desktop Event Schemas and Constants
- * 
+ *
  * Defines event types and their expected attributes for desktop application telemetry
  */
 
@@ -44,7 +44,8 @@ export const DESKTOP_EVENTS = {
   ERROR_MAIN: 'desktop.error.main',
 } as const;
 
-export type DesktopEventName = typeof DESKTOP_EVENTS[keyof typeof DESKTOP_EVENTS];
+export type DesktopEventName =
+  (typeof DESKTOP_EVENTS)[keyof typeof DESKTOP_EVENTS];
 
 /**
  * Desktop Event Attribute Schemas
@@ -108,4 +109,3 @@ export type DesktopEventAttributes = DesktopWindowAttributes &
   DesktopErrorAttributes &
   DesktopWorkspaceAttributes &
   Record<string, string | number | boolean | undefined>;
-

@@ -1,6 +1,6 @@
 /**
  * Web Event Schemas and Constants
- * 
+ *
  * Defines event types and their expected attributes for web application telemetry
  */
 
@@ -38,7 +38,7 @@ export const WEB_EVENTS = {
   ERROR_RENDER: 'web.error.render',
 } as const;
 
-export type WebEventName = typeof WEB_EVENTS[keyof typeof WEB_EVENTS];
+export type WebEventName = (typeof WEB_EVENTS)[keyof typeof WEB_EVENTS];
 
 /**
  * Web Event Attribute Schemas
@@ -105,4 +105,3 @@ export type WebEventAttributes = WebPageAttributes &
   WebErrorAttributes &
   WebWorkspaceAttributes &
   Record<string, string | number | boolean | undefined>;
-

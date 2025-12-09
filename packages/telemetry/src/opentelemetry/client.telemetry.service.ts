@@ -1,4 +1,4 @@
-// apps/telemetry/src/client.telemetry.service.ts
+// packages/telemetry/src/opentelemetry/client.telemetry.service.ts
 
 import type { TelemetryManager } from './telemetry-manager';
 import type { Span } from '@opentelemetry/api';
@@ -6,13 +6,13 @@ import type { Span } from '@opentelemetry/api';
 export type TelemetryEvent = {
   name: string;
   timestamp?: number;
-  attributes?: Record<string, any>;
+  attributes?: Record<string, unknown>;
   sessionId?: string;
 };
 
 /**
  * Client Telemetry Service
- * 
+ *
  * Provides simple APIs for CLI, web, and desktop applications.
  * Integrates with TelemetryManager for underlying OpenTelemetry logic.
  * Handles workspace context enrichment automatically.
@@ -52,12 +52,12 @@ export class ClientTelemetryService {
    */
   trackCommand(
     command: string,
-    args?: Record<string, any>,
+    args?: Record<string, unknown>,
     success?: boolean,
     durationMs?: number,
   ): void {
     if (this.telemetry) {
-      const attributes: Record<string, any> = {
+      const attributes: Record<string, unknown> = {
         'client.command': command,
       };
       if (args) {
@@ -83,7 +83,7 @@ export class ClientTelemetryService {
   /**
    * Track a generic event
    */
-  trackEvent(event: string, properties?: Record<string, any>): void {
+  trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (this.telemetry) {
       this.telemetry.captureEvent({
         name: event,
@@ -147,7 +147,7 @@ export class ClientTelemetryService {
   /**
    * Start a span (delegates to telemetry manager)
    */
-  startSpan(name: string, attributes?: Record<string, any>): Span {
+  startSpan(name: string, attributes?: Record<string, unknown>): Span {
     if (this.telemetry) {
       return this.telemetry.startSpan(name, attributes);
     }

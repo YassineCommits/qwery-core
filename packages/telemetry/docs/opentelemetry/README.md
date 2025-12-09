@@ -4,10 +4,10 @@ This package provides OpenTelemetry-based telemetry for **CLI, Web, Desktop, and
 
 ## 📚 Documentation
 
-- **[docs/IMPLEMENTATION.md](./docs/IMPLEMENTATION.md)** - Comprehensive implementation guide
-- **[docs/EXAMPLES.md](./docs/EXAMPLES.md)** - Usage examples for all apps
-- **[docs/STRUCTURE.md](./docs/STRUCTURE.md)** - Package structure guide
-- **[docs/NO_TELEMETRY.md](./docs/NO_TELEMETRY.md)** - How to disable telemetry
+- **[docs/opentelemetry/IMPLEMENTATION.md](./IMPLEMENTATION.md)** - Comprehensive implementation guide
+- **[docs/opentelemetry/EXAMPLES.md](./EXAMPLES.md)** - Usage examples for all apps
+- **[docs/opentelemetry/STRUCTURE.md](./STRUCTURE.md)** - Package structure guide
+- **[docs/opentelemetry/NO_TELEMETRY.md](./NO_TELEMETRY.md)** - How to disable telemetry
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ await withCommandSpan(
 ### Web/Desktop (React)
 
 ```typescript
-import { TelemetryProvider, useTelemetry } from '@qwery/telemetry-opentelemetry';
+import { TelemetryProvider, useTelemetry } from '@qwery/telemetry/opentelemetry';
 
 function App() {
   return (
@@ -61,7 +61,7 @@ const agent = new FactoryAgent({
 
 ## Location
 
-All telemetry code is in `/apps/telemetry` and is reusable across:
+All telemetry code is in `/packages/telemetry/src/opentelemetry` and is reusable across:
 - **CLI** (`apps/cli`)
 - **Web** (`apps/web`)
 - **Desktop** (`apps/desktop`)
@@ -71,26 +71,26 @@ All telemetry code is in `/apps/telemetry` and is reusable across:
 
 ### Core Components
 
-1. **TelemetryManager** (`src/telemetry-manager.ts`)
+1. **TelemetryManager** (`src/opentelemetry/telemetry-manager.ts`)
    - Main OpenTelemetry SDK manager
    - Handles spans, metrics, and events
    - Supports ConsoleSpanExporter (default) and OTLP exporters
    - Session management
    - Automatic attribute serialization
 
-2. **Telemetry Utilities** (`src/telemetry-utils.ts`)
+2. **Telemetry Utilities** (`src/opentelemetry/telemetry-utils.ts`)
    - Generic utilities for all app types
    - `withActionSpan()` - Wraps actions with telemetry
    - `recordQueryMetrics()` - Records query execution metrics
    - `recordTokenUsage()` - Records AI token usage
 
-3. **Event Schemas** (`src/events/`)
+3. **Event Schemas** (`src/opentelemetry/events/`)
    - `cli.events.ts` - CLI event constants
    - `web.events.ts` - Web event constants
    - `desktop.events.ts` - Desktop event constants
    - `agent.events.ts` - Agent event constants
 
-4. **React Context** (`src/telemetry.context.tsx`)
+4. **React Context** (`src/opentelemetry/telemetry.context.tsx`)
    - `TelemetryProvider` - React context provider
    - `useTelemetry()` - React hook
 
@@ -107,7 +107,7 @@ All telemetry code is in `/apps/telemetry` and is reusable across:
 
 ### ⚠️ Known Limitations
 
-**XState Context Propagation:** Due to XState's async actor invocation, perfect span nesting may not be achieved. Spans are still created with correct attributes and can be correlated via `agent.conversation.id`. See [IMPLEMENTATION.md](./docs/IMPLEMENTATION.md) for details.
+**XState Context Propagation:** Due to XState's async actor invocation, perfect span nesting may not be achieved. Spans are still created with correct attributes and can be correlated via `agent.conversation.id`. See [IMPLEMENTATION.md](./IMPLEMENTATION.md) for details.
 
 ## Metrics
 
@@ -146,12 +146,12 @@ OTEL_LOG_LEVEL=info
 
 ```typescript
 // Main exports
-export { TelemetryManager } from './telemetry-manager';
-export { ClientTelemetryService } from './client.telemetry.service';
-export { NullTelemetryService } from './null-telemetry-service';
+export { TelemetryManager } from '@qwery/telemetry/opentelemetry';
+export { ClientTelemetryService } from '@qwery/telemetry/opentelemetry';
+export { NullTelemetryService } from '@qwery/telemetry/opentelemetry';
 
 // React context
-export { TelemetryProvider, useTelemetry, withTelemetryContext } from './telemetry.context';
+export { TelemetryProvider, useTelemetry, withTelemetryContext } from '@qwery/telemetry/opentelemetry';
 
 // Utilities
 export {
@@ -162,40 +162,40 @@ export {
   recordTokenUsage,
   type ActionContext,
   type WorkspaceContext,
-} from './telemetry-utils';
+} from '@qwery/telemetry/opentelemetry';
 
 // Event constants
-export { CLI_EVENTS } from './events/cli.events';
-export { WEB_EVENTS } from './events/web.events';
-export { DESKTOP_EVENTS } from './events/desktop.events';
-export { AGENT_EVENTS } from './events/agent.events';
+export { CLI_EVENTS } from '@qwery/telemetry/opentelemetry/events/cli.events';
+export { WEB_EVENTS } from '@qwery/telemetry/opentelemetry/events/web.events';
+export { DESKTOP_EVENTS } from '@qwery/telemetry/opentelemetry/events/desktop.events';
+export { AGENT_EVENTS } from '@qwery/telemetry/opentelemetry/events/agent.events';
 ```
 
 ## File Structure
 
 ```
-apps/telemetry/
+packages/telemetry/
 ├── src/
-│   ├── telemetry-manager.ts      # Main OpenTelemetry manager
-│   ├── telemetry-utils.ts         # Generic utilities
-│   ├── telemetry.context.tsx      # React context
-│   ├── client.telemetry.service.ts
-│   ├── null-telemetry-service.ts
-│   ├── index.ts                   # Package exports
-│   ├── events/
-│   │   ├── cli.events.ts
-│   │   ├── web.events.ts
-│   │   ├── desktop.events.ts
-│   │   └── agent.events.ts
-│   └── hooks/
-│       └── types.ts
+│   ├── opentelemetry/
+│   │   ├── telemetry-manager.ts      # Main OpenTelemetry manager
+│   │   ├── telemetry-utils.ts         # Generic utilities
+│   │   ├── telemetry.context.tsx      # React context
+│   │   ├── client.telemetry.service.ts
+│   │   ├── null-telemetry-service.ts
+│   │   ├── index.ts                   # Package exports
+│   │   ├── events/
+│   │   │   ├── cli.events.ts
+│   │   │   ├── web.events.ts
+│   │   │   ├── desktop.events.ts
+│   │   │   └── agent.events.ts
+│   │   └── hooks/
+│   │       └── types.ts
 ├── docs/
-│   ├── IMPLEMENTATION.md          # Implementation guide
-│   ├── EXAMPLES.md                # Usage examples
-│   ├── STRUCTURE.md               # Package structure
-│   └── NO_TELEMETRY.md           # Disable telemetry guide
-├── .env.example
-├── README.md                      # This file
+│   └── opentelemetry/
+│       ├── IMPLEMENTATION.md          # Implementation guide
+│       ├── EXAMPLES.md                # Usage examples
+│       ├── STRUCTURE.md               # Package structure
+│       └── NO_TELEMETRY.md           # Disable telemetry guide
 └── package.json
 ```
 
@@ -207,3 +207,5 @@ apps/telemetry/
 2. **Desktop Integration** - Use `TelemetryProvider` in desktop app
 3. **Metrics Dashboard** - Set up Grafana/Prometheus dashboards
 4. **Span Links** - Explore using span links for XState actors (future enhancement)
+
+

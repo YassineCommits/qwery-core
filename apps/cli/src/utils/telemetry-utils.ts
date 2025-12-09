@@ -1,11 +1,11 @@
 /**
  * CLI-specific telemetry utilities
- * These wrap the generic utilities from @qwery/telemetry-opentelemetry
+ * These wrap the generic utilities from @qwery/telemetry/opentelemetry
  * with CLI-specific context extraction
  */
 
 import type { CliContainer } from '../container/cli-container';
-import type { TelemetryManager } from '@qwery/telemetry-opentelemetry';
+import type { TelemetryManager } from '@qwery/telemetry/opentelemetry';
 import type { Span } from '@opentelemetry/api';
 import {
   withActionSpan,
@@ -13,8 +13,8 @@ import {
   recordTokenUsage as recordTokenUsageGeneric,
   type ActionContext,
   type WorkspaceContext,
-} from '@qwery/telemetry-opentelemetry';
-import { CLI_EVENTS } from '@qwery/telemetry-opentelemetry/events/cli.events';
+} from '@qwery/telemetry/opentelemetry';
+import { CLI_EVENTS } from '@qwery/telemetry/opentelemetry/events/cli.events';
 
 // Re-export CLI_EVENTS for convenience
 export { CLI_EVENTS };

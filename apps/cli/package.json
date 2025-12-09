@@ -41,7 +41,7 @@
     "@qwery/extensions-loader": "workspace:*",
     "@qwery/extensions-sdk": "workspace:*",
     "@qwery/repository-in-memory": "workspace:*",
-    "@qwery/telemetry-opentelemetry": "workspace:*",
+    "@qwery/telemetry": "workspace:*",
     "ai": "^5.0.93",
     "commander": "^13.1.0",
     "dotenv": "^16.6.1",

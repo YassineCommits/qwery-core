@@ -4,10 +4,7 @@
     "skipLibCheck": true,
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo.json",
     "baseUrl": ".",
-    "paths": {
-      "@qwery/telemetry-opentelemetry": ["../../apps/telemetry/src"],
-      "@qwery/telemetry-opentelemetry/*": ["../../apps/telemetry/src/*"]
-    }
+    "paths": {}
   },
   "include": ["*.ts", "*.tsx", "src"],
   "exclude": ["node_modules"]

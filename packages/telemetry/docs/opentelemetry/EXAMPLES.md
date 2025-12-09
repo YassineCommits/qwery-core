@@ -388,8 +388,8 @@ doGenerate: async (options) => {
 ### React Component with Telemetry
 
 ```typescript
-import { TelemetryProvider, useTelemetry, WEB_EVENTS } from '@qwery/telemetry-opentelemetry';
-import { withActionSpan } from '@qwery/telemetry-opentelemetry/telemetry-utils';
+import { TelemetryProvider, useTelemetry, WEB_EVENTS } from '@qwery/telemetry/opentelemetry';
+import { withActionSpan } from '@qwery/telemetry/opentelemetry';
 
 function App() {
   const telemetry = new TelemetryManager('qwery-web', sessionId);
@@ -451,9 +451,9 @@ function MyComponent() {
 ### Electron App with Telemetry
 
 ```typescript
-import { TelemetryManager } from '@qwery/telemetry-opentelemetry';
-import { withActionSpan } from '@qwery/telemetry-opentelemetry/telemetry-utils';
-import { DESKTOP_EVENTS } from '@qwery/telemetry-opentelemetry/events/desktop.events';
+import { TelemetryManager } from '@qwery/telemetry/opentelemetry';
+import { withActionSpan } from '@qwery/telemetry/opentelemetry';
+import { DESKTOP_EVENTS } from '@qwery/telemetry/opentelemetry/events/desktop.events';
 
 const telemetry = new TelemetryManager('qwery-desktop', sessionId);
 await telemetry.init();

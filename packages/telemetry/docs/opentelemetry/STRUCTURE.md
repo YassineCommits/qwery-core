@@ -5,30 +5,30 @@ This document explains the structure of the telemetry package and where to add f
 ## Directory Structure
 
 ```
-apps/telemetry/
+packages/telemetry/
 ├── src/
-│   ├── telemetry-manager.ts          # Core OpenTelemetry SDK manager
-│   ├── telemetry-utils.ts             # Generic utilities (CLI/web/desktop)
-│   ├── telemetry.context.tsx          # React context for web/desktop
-│   ├── client.telemetry.service.ts    # Client-side telemetry service
-│   ├── null-telemetry-service.ts      # No-op service for testing/opt-out
-│   ├── index.ts                       # Main package exports
-│   ├── events/
-│   │   ├── cli.events.ts              # CLI event schemas/types
-│   │   ├── web.events.ts              # Web event schemas/types
-│   │   ├── desktop.events.ts          # Desktop event schemas/types
-│   │   └── agent.events.ts           # Agent event schemas/types
-│   └── hooks/
-│       └── types.ts                   # React hook type definitions
+│   ├── opentelemetry/
+│   │   ├── telemetry-manager.ts          # Core OpenTelemetry SDK manager
+│   │   ├── telemetry-utils.ts             # Generic utilities (CLI/web/desktop)
+│   │   ├── telemetry.context.tsx          # React context for web/desktop
+│   │   ├── client.telemetry.service.ts    # Client-side telemetry service
+│   │   ├── null-telemetry-service.ts      # No-op service for testing/opt-out
+│   │   ├── index.ts                       # OpenTelemetry API exports
+│   │   ├── events/
+│   │   │   ├── cli.events.ts              # CLI event schemas/types
+│   │   │   ├── web.events.ts              # Web event schemas/types
+│   │   │   ├── desktop.events.ts          # Desktop event schemas/types
+│   │   │   └── agent.events.ts           # Agent event schemas/types
+│   │   └── hooks/
+│   │       └── types.ts                   # React hook type definitions
+│   └── ...                                # PostHog telemetry files
 ├── docs/
-│   ├── STRUCTURE.md                   # This file
-│   ├── IMPLEMENTATION.md              # Comprehensive implementation guide
-│   ├── EXAMPLES.md                    # Usage examples for all apps
-│   └── NO_TELEMETRY.md               # How to disable telemetry
-├── TELEMETRY.md                       # Overview & concepts
-├── README.md                          # Package documentation
-├── .env.example                       # Environment variables example
-└── package.json                       # Package configuration
+│   └── opentelemetry/
+│       ├── STRUCTURE.md                   # This file
+│       ├── IMPLEMENTATION.md              # Comprehensive implementation guide
+│       ├── EXAMPLES.md                    # Usage examples for all apps
+│       └── NO_TELEMETRY.md               # How to disable telemetry
+└── package.json                           # Package configuration
 ```
 
 ## Where to Add Functionality

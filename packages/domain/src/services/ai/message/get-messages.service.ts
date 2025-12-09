@@ -12,9 +12,7 @@ import {
 } from '../../../usecases';
 import { DomainException } from '../../../exceptions/domain-exception';
 
-export class GetMessagesByConversationIdService
-  implements GetMessagesByConversationIdUseCase
-{
+export class GetMessagesByConversationIdService implements GetMessagesByConversationIdUseCase {
   constructor(private readonly messageRepository: IMessageRepository) {}
 
   public async execute(input: {
@@ -32,9 +30,7 @@ export class GetMessagesByConversationIdService
   }
 }
 
-export class GetMessagesByConversationSlugService
-  implements GetMessagesByConversationSlugUseCase
-{
+export class GetMessagesByConversationSlugService implements GetMessagesByConversationSlugUseCase {
   constructor(
     private readonly messageRepository: IMessageRepository,
     private readonly conversationRepository: IConversationRepository,

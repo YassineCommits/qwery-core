@@ -21,7 +21,7 @@ export interface ActionContext {
   actionName: string;
   actionGroup: string;
   actionType: string;
-  args?: Record<string, any>;
+  args?: Record<string, unknown>;
   workspace?: WorkspaceContext;
   appType: 'cli' | 'web' | 'desktop';
   mode?: string; // e.g., 'interactive', 'command', 'browser', 'electron'
@@ -33,7 +33,7 @@ export interface ActionContext {
  */
 export function createActionAttributes(
   context: ActionContext,
-  additionalAttributes?: Record<string, any>,
+  additionalAttributes?: Record<string, unknown>,
 ): Record<string, string | number | boolean> {
   const attributes: Record<string, string | number | boolean> = {
     [`${context.appType}.action.name`]: context.actionName,
@@ -47,18 +47,23 @@ export function createActionAttributes(
   }
 
   if (context.workspace?.userId) {
-    attributes[`${context.appType}.workspace.user_id`] = context.workspace.userId;
+    attributes[`${context.appType}.workspace.user_id`] =
+      context.workspace.userId;
   }
   if (context.workspace?.organizationId) {
-    attributes[`${context.appType}.workspace.organization_id`] = context.workspace.organizationId;
+    attributes[`${context.appType}.workspace.organization_id`] =
+      context.workspace.organizationId;
   }
   if (context.workspace?.projectId) {
-    attributes[`${context.appType}.workspace.project_id`] = context.workspace.projectId;
+    attributes[`${context.appType}.workspace.project_id`] =
+      context.workspace.projectId;
   }
 
   if (context.args) {
     try {
-      attributes[`${context.appType}.action.args`] = JSON.stringify(context.args);
+      attributes[`${context.appType}.action.args`] = JSON.stringify(
+        context.args,
+      );
     } catch {
       attributes[`${context.appType}.action.args`] = String(context.args);
     }
@@ -104,7 +109,7 @@ export function parseActionName(actionName: string): {
 /**
  * Generic wrapper for instrumenting actions with telemetry
  * Works for CLI commands, web actions, and desktop operations
- * 
+ *
  * @example
  * ```typescript
  * await withActionSpan(
@@ -306,4 +311,3 @@ export function recordTokenUsage(
 
   telemetry.recordTokenUsage(promptTokens, completionTokens, attributes);
 }
-

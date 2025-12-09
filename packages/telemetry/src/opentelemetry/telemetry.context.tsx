@@ -1,13 +1,19 @@
 /**
  * Telemetry Context for React Applications
- * 
+ *
  * Provides React context wrapper for web/desktop apps.
  * Automatically injects workspace/session attributes into events and spans.
  */
 
 'use client';
 
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { TelemetryManager } from './telemetry-manager';
 import type { WorkspaceContext } from './telemetry-utils';
 
@@ -27,7 +33,7 @@ export interface TelemetryProviderProps {
 
 /**
  * Telemetry Provider Component
- * 
+ *
  * Wraps the application and provides telemetry context to all children.
  * Automatically enriches events and spans with workspace context.
  */
@@ -62,19 +68,19 @@ export function TelemetryProvider({
 
 /**
  * Hook to access telemetry context
- * 
+ *
  * @example
  * ```tsx
  * function MyComponent() {
  *   const { telemetry, workspace } = useTelemetry();
- *   
+ *
  *   const handleClick = () => {
  *     telemetry.captureEvent({
  *       name: 'ui.button.click',
  *       attributes: { button: 'submit' },
  *     });
  *   };
- *   
+ *
  *   return <button onClick={handleClick}>Submit</button>;
  * }
  * ```
@@ -89,7 +95,7 @@ export function useTelemetry(): TelemetryContextValue {
 
 /**
  * Higher-Order Component to inject telemetry context
- * 
+ *
  * @example
  * ```tsx
  * const MyComponentWithTelemetry = withTelemetryContext(MyComponent);
@@ -103,4 +109,3 @@ export function withTelemetryContext<P extends object>(
     return <Component {...props} telemetry={telemetry} />;
   };
 }
-

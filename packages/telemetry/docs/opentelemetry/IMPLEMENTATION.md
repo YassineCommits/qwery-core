@@ -20,7 +20,7 @@ This document provides a comprehensive guide to the OpenTelemetry-based telemetr
 
 ### Core Components
 
-**Location:** `/apps/telemetry/*`
+**Location:** `/packages/telemetry/src/opentelemetry/*`
 
 1. **TelemetryManager** (`src/telemetry-manager.ts`)
    - Main OpenTelemetry SDK manager
@@ -234,7 +234,7 @@ Token usage is captured:
 ### React Context Usage
 
 ```typescript
-import { TelemetryProvider, useTelemetry, WEB_EVENTS } from '@qwery/telemetry-opentelemetry';
+import { TelemetryProvider, useTelemetry, WEB_EVENTS } from '@qwery/telemetry/opentelemetry';
 
 function App() {
   return (
@@ -259,7 +259,7 @@ function MyComponent() {
 ### Generic Action Wrapper
 
 ```typescript
-import { withActionSpan } from '@qwery/telemetry-opentelemetry/telemetry-utils';
+import { withActionSpan } from '@qwery/telemetry/opentelemetry';
 
 await withActionSpan(
   telemetry,

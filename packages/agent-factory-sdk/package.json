@@ -32,7 +32,7 @@
     "@qwery/domain": "workspace:*",
     "@qwery/extensions-loader": "workspace:*",
     "@qwery/extensions-sdk": "workspace:*",
-    "@qwery/telemetry-opentelemetry": "workspace:*",
+    "@qwery/telemetry": "workspace:*",
     "ai": "^5.0.93",
     "ai-sdk-ollama": "^1.0.2",
     "i": "^0.3.7",

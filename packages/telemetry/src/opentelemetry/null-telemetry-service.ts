@@ -1,12 +1,11 @@
 /**
  * Null Telemetry Service
- * 
+ *
  * No-op implementation of telemetry service for testing or opt-out scenarios.
  * All methods exist but perform no operations.
  */
 
 import type { Span } from '@opentelemetry/api';
-import type { TelemetryManager } from './telemetry-manager';
 
 export class NullTelemetryService {
   private sessionId: string = 'null-session';
@@ -35,7 +34,7 @@ export class NullTelemetryService {
   /**
    * Start span (returns a no-op span)
    */
-  startSpan(_name: string, _attributes?: Record<string, any>): Span {
+  startSpan(_name: string, _attributes?: Record<string, unknown>): Span {
     // Return a minimal span-like object that does nothing
     return {
       setAttribute: () => {},
@@ -68,7 +67,7 @@ export class NullTelemetryService {
    */
   captureEvent(_options: {
     name: string;
-    attributes?: Record<string, any>;
+    attributes?: Record<string, unknown>;
   }): void {
     // No-op
   }
@@ -76,28 +75,37 @@ export class NullTelemetryService {
   /**
    * Record command duration (no-op)
    */
-  recordCommandDuration(_durationMs: number, _attributes?: Record<string, string | number | boolean>): void {
+  recordCommandDuration(
+    _durationMs: number,
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
   /**
    * Record command count (no-op)
    */
-  recordCommandCount(_attributes?: Record<string, string | number | boolean>): void {
+  recordCommandCount(
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
   /**
    * Record command error (no-op)
    */
-  recordCommandError(_attributes?: Record<string, string | number | boolean>): void {
+  recordCommandError(
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
   /**
    * Record command success (no-op)
    */
-  recordCommandSuccess(_attributes?: Record<string, string | number | boolean>): void {
+  recordCommandSuccess(
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
@@ -115,21 +123,29 @@ export class NullTelemetryService {
   /**
    * Record query duration (no-op)
    */
-  recordQueryDuration(_durationMs: number, _attributes?: Record<string, string | number | boolean>): void {
+  recordQueryDuration(
+    _durationMs: number,
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
   /**
    * Record query count (no-op)
    */
-  recordQueryCount(_attributes?: Record<string, string | number | boolean>): void {
+  recordQueryCount(
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
   /**
    * Record query rows returned (no-op)
    */
-  recordQueryRowsReturned(_rowCount: number, _attributes?: Record<string, string | number | boolean>): void {
+  recordQueryRowsReturned(
+    _rowCount: number,
+    _attributes?: Record<string, string | number | boolean>,
+  ): void {
     // No-op
   }
 
@@ -149,4 +165,3 @@ export class NullTelemetryService {
 export function createNullTelemetryService(): NullTelemetryService {
   return new NullTelemetryService();
 }
-
