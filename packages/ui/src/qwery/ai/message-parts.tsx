@@ -38,6 +38,9 @@ import {
 import { useState } from 'react';
 import { CopyIcon, RefreshCcwIcon, CheckIcon } from 'lucide-react';
 import { ToolUIPart } from 'ai';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { agentMarkdownComponents } from './markdown-components';
 import { ToolErrorVisualizer } from './tool-error-visualizer';
 
 import { ChartRenderer, type ChartConfig } from './charts/chart-renderer';
@@ -158,7 +161,14 @@ export function TextPart({
   return (
     <Message key={`${messageId}-${index}`} from={messageRole}>
       <MessageContent>
-        <MessageResponse>{part.text}</MessageResponse>
+        <div className="prose prose-sm dark:prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={agentMarkdownComponents}
+          >
+            {part.text}
+          </ReactMarkdown>
+        </div>
       </MessageContent>
       {messageRole === 'assistant' && isLastMessage && (
         <MessageActions>
@@ -203,7 +213,16 @@ export function ReasoningPart({
       isStreaming={isStreaming}
     >
       <ReasoningTrigger />
-      <ReasoningContent>{part.text}</ReasoningContent>
+      <ReasoningContent>
+        <div className="prose prose-sm dark:prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={agentMarkdownComponents}
+          >
+            {part.text}
+          </ReactMarkdown>
+        </div>
+      </ReasoningContent>
     </Reasoning>
   );
 }

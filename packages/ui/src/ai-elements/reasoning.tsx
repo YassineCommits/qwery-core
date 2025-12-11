@@ -9,7 +9,7 @@ import {
 import { cn } from '../lib/utils';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
-import { createContext, memo, useContext, useEffect, useState } from 'react';
+import React, { createContext, memo, useContext, useEffect, useState } from 'react';
 import { Streamdown } from 'streamdown';
 import { Shimmer } from './shimmer';
 
@@ -155,7 +155,7 @@ export const ReasoningTrigger = memo(
 export type ReasoningContentProps = ComponentProps<
   typeof CollapsibleContent
 > & {
-  children: string;
+  children: React.ReactNode;
 };
 
 export const ReasoningContent = memo(
@@ -168,7 +168,11 @@ export const ReasoningContent = memo(
       )}
       {...props}
     >
-      <Streamdown {...props}>{children}</Streamdown>
+      {typeof children === 'string' ? (
+        <Streamdown {...props}>{children}</Streamdown>
+      ) : (
+        children
+      )}
     </CollapsibleContent>
   ),
 );
