@@ -1,13 +1,18 @@
 import * as React from 'react';
+import { forwardRef } from 'react';
 
 import { cn } from '../lib/utils/cn';
-import { ResizableContent } from './resizable-content';
+import { ResizableContent, type ResizableContentRef } from './resizable-content';
+
+// Re-export for external use
+export type { ResizableContentRef };
 
 type PageProps = React.PropsWithChildren<{
   contentContainerClassName?: string;
   className?: string;
   sticky?: boolean;
   agentSidebarOpen?: boolean;
+  agentSidebarRef?: React.Ref<ResizableContentRef>;
 }>;
 
 export function Page(props: PageProps) {
@@ -50,6 +55,7 @@ function PageWithHeaderSidebar(props: PageProps) {
         <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="h-full min-h-0 max-w-full min-w-0 flex-1">
             <ResizableContent 
+              ref={props.agentSidebarRef}
               Content={Children} 
               AgentSidebar={AgentSidebar}
               open={props.agentSidebarOpen}

@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from '../shadcn/resizable';
-import { cn } from '../lib/utils';
 
 interface ResizableContentProps {
   Content: React.ReactElement | null;
@@ -12,23 +11,65 @@ interface ResizableContentProps {
   open?: boolean;
 }
 
-export function ResizableContent(props: ResizableContentProps) {
-  const { Content, AgentSidebar, open: controlledOpen } = props;
-  const [isOpen, setIsOpen] = useState(controlledOpen ?? false);
+export interface ResizableContentRef {
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+}
 
-  // Sync with controlled prop
+export const ResizableContent = forwardRef<ResizableContentRef, ResizableContentProps>(
+  function ResizableContent(props, ref) {
+    const { Content, AgentSidebar, open: initialOpen = false } = props;
+    const [isOpen, setIsOpen] = useState(initialOpen);
+
+    // Expose imperative handle for external control
+    useImperativeHandle(ref, () => ({
+      open: () => setIsOpen(true),
+      close: () => setIsOpen(false),
+      toggle: () => setIsOpen((prev) => !prev),
+    }));
+
   useEffect(() => {
-    if (controlledOpen !== undefined && controlledOpen !== isOpen) {
-      setIsOpen(controlledOpen);
-    }
-  }, [controlledOpen, isOpen]);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isModKeyPressed = isMac ? event.metaKey : event.ctrlKey;
 
-  // Always render panels but control their size for smooth animations
+      if (isModKeyPressed && event.key === 'l') {
+        const target = event.target as HTMLElement;
+        const isInputFocused =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable;
+
+        if (!isInputFocused) {
+          event.preventDefault();
+          setIsOpen((prev) => !prev);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    // When open prop is true, always open (even if user had closed it)
+    // This allows notebook prompts to force-open the sidebar
+    if (initialOpen === true) {
+      setIsOpen(true);
+    } else if (initialOpen === false) {
+      // Only close if explicitly set to false (not just undefined)
+      setIsOpen(false);
+    }
+    // If initialOpen is undefined, maintain current state (user-controlled)
+  }, [initialOpen]);
+
   const sidebarSize = isOpen ? 50 : 0;
   const contentSize = isOpen ? 50 : 100;
 
   return (
     <ResizablePanelGroup
+      key={isOpen ? 'open' : 'closed'}
       direction="horizontal"
       className="h-full w-full overflow-hidden"
     >
@@ -41,36 +82,21 @@ export function ResizableContent(props: ResizableContentProps) {
           {Content}
         </div>
       </ResizablePanel>
-      <ResizableHandle
-        withHandle
-        className={cn(
-          'transition-opacity duration-300 ease-in-out',
-          !isOpen && 'opacity-0 pointer-events-none',
-        )}
-      />
-      <ResizablePanel
-        defaultSize={sidebarSize}
-        minSize={0}
-        maxSize={80}
-        collapsible
-        collapsed={!isOpen}
-        className={cn(
-          'flex h-full min-h-0 min-w-0 flex-col overflow-hidden',
-          'bg-sidebar border-l border-border',
-        )}
-        style={{
-          minWidth: isOpen ? '400px' : '0px',
-        }}
-      >
-        <div
-          className={cn(
-            'h-full min-h-0 w-full max-w-full min-w-0 overflow-hidden transition-opacity duration-300 ease-in-out',
-            !isOpen && 'opacity-0 pointer-events-none',
-          )}
+      {isOpen && <ResizableHandle withHandle />}
+      {isOpen && (
+        <ResizablePanel
+          defaultSize={sidebarSize}
+          minSize={10}
+          maxSize={80}
+          className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+          style={{ minWidth: '400px' }}
         >
-          {AgentSidebar}
-        </div>
-      </ResizablePanel>
+          <div className="h-full min-h-0 w-full max-w-full min-w-0 overflow-hidden">
+            {AgentSidebar}
+          </div>
+        </ResizablePanel>
+      )}
     </ResizablePanelGroup>
   );
-}
+  },
+);
