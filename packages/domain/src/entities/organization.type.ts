@@ -13,9 +13,10 @@ export const OrganizationSchema = z.object({
   id: z.string().uuid().describe('The id of the organization'),
   name: z.string().describe('The name of the organization'),
   slug: z.string().min(1).describe('The slug of the organization'),
-  is_owner: z
-    .boolean()
-    .describe('Whether the user is the owner of the organization'),
+  userId: z
+    .string()
+    .uuid()
+    .describe('The id of the user who is the owner of the organization'),
 
   // timestamps
   createdAt: z
@@ -50,7 +51,7 @@ export class OrganizationEntity extends Entity<
   @Expose()
   public slug!: string;
   @Expose()
-  public is_owner!: boolean;
+  public userId!: string;
   @Expose()
   @Type(() => Date)
   public createdAt!: Date;
@@ -71,7 +72,7 @@ export class OrganizationEntity extends Entity<
       id,
       name: newOrganization.name,
       slug,
-      is_owner: newOrganization.is_owner,
+      userId: newOrganization.userId,
       createdAt: now,
       updatedAt: now,
       createdBy: newOrganization.createdBy,
@@ -92,8 +93,8 @@ export class OrganizationEntity extends Entity<
     const updatedOrganization: Organization = {
       ...organization,
       ...(organizationDTO.name && { name: organizationDTO.name }),
-      ...(organizationDTO.is_owner !== undefined && {
-        is_owner: organizationDTO.is_owner,
+      ...(organizationDTO.userId !== undefined && {
+        userId: organizationDTO.userId,
       }),
       ...(organizationDTO.updatedBy && {
         updatedBy: organizationDTO.updatedBy,

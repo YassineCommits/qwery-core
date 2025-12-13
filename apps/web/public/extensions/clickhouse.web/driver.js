@@ -8576,7 +8576,7 @@ var OrganizationSchema = external_exports.object({
   id: external_exports.string().uuid().describe("The id of the organization"),
   name: external_exports.string().describe("The name of the organization"),
   slug: external_exports.string().min(1).describe("The slug of the organization"),
-  is_owner: external_exports.boolean().describe("Whether the user is the owner of the organization"),
+  userId: external_exports.string().uuid().describe("The id of the user who is the owner of the organization"),
   // timestamps
   createdAt: external_exports.date().describe("The date and time the organization was created"),
   updatedAt: external_exports.date().describe("The date and time the organization was last updated"),
@@ -8591,7 +8591,7 @@ var OrganizationEntity = class extends Entity {
       id,
       name: newOrganization.name,
       slug,
-      is_owner: newOrganization.is_owner,
+      userId: newOrganization.userId,
       createdAt: now,
       updatedAt: now,
       createdBy: newOrganization.createdBy,
@@ -8607,8 +8607,8 @@ var OrganizationEntity = class extends Entity {
     const updatedOrganization = {
       ...organization,
       ...organizationDTO.name && { name: organizationDTO.name },
-      ...organizationDTO.is_owner !== void 0 && {
-        is_owner: organizationDTO.is_owner
+      ...organizationDTO.userId !== void 0 && {
+        userId: organizationDTO.userId
       },
       ...organizationDTO.updatedBy && {
         updatedBy: organizationDTO.updatedBy
@@ -8632,7 +8632,7 @@ __decorateClass([
 ], OrganizationEntity.prototype, "slug", 2);
 __decorateClass([
   Expose()
-], OrganizationEntity.prototype, "is_owner", 2);
+], OrganizationEntity.prototype, "userId", 2);
 __decorateClass([
   Expose(),
   Type(() => Date)

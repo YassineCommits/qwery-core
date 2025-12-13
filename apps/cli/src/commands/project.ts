@@ -49,7 +49,11 @@ export function registerProjectCommands(
     .option('-f, --format <format>', 'Output format: table (default) or json')
     .action(async (options: ProjectListOptions) => {
       const useCases = container.getUseCases();
-      const projects = await useCases.getProjects.execute();
+      const projects = await useCases.getProjects.execute(
+        options.organizationId ??
+          container.getWorkspace()?.organizationId ??
+          '',
+      );
 
       const filtered = options.organizationId
         ? projects.filter(

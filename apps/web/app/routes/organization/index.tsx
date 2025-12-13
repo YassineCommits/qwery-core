@@ -13,9 +13,12 @@ export default function OrganizationPage() {
   const slug = params.slug as string;
   const { repositories } = useWorkspace();
 
-  const organizations = useGetOrganization(repositories.organization, slug);
-  const projects = useGetProjects(repositories.project);
-  const isLoading = organizations.isLoading || projects.isLoading;
+  const organization = useGetOrganization(repositories.organization, slug);
+  const projects = useGetProjects(
+    repositories.project,
+    organization.data?.id ?? '',
+  );
+  const isLoading = organization.isLoading || projects.isLoading;
 
   if (isLoading) {
     return (
@@ -29,7 +32,7 @@ export default function OrganizationPage() {
     );
   }
 
-  if (!organizations.data) {
+  if (!organization.data) {
     return (
       <div className="p-2 lg:p-4">
         <div className="flex flex-col items-center justify-center py-16 text-center">

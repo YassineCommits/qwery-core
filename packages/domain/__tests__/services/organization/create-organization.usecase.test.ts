@@ -48,14 +48,14 @@ describe('CreateOrganizationService', () => {
 
     const result = await service.execute({
       name: 'Test Organization',
-      is_owner: true,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdBy: 'user-id',
     });
 
     expect(result).toBeDefined();
     expect(result.id).toBeDefined();
     expect(result.name).toBe('Test Organization');
-    expect(result.is_owner).toBe(true);
+    expect(result.userId).toBe('6ba7b810-9dad-11d1-80b4-00c04fd430c8');
     expect(result.slug).toBeDefined();
     expect(result.createdAt).toBeInstanceOf(Date);
     expect(result.updatedAt).toBeInstanceOf(Date);
@@ -67,13 +67,13 @@ describe('CreateOrganizationService', () => {
 
     const result1 = await service.execute({
       name: 'Organization 1',
-      is_owner: true,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdBy: 'user-id',
     });
 
     const result2 = await service.execute({
       name: 'Organization 2',
-      is_owner: false,
+      userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
       createdBy: 'user-id',
     });
 

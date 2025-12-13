@@ -100,6 +100,11 @@ class MockProjectRepository implements IProjectRepository {
     return Array.from(this.projects.values());
   }
 
+  async findAllByOrganizationId(orgId: string) {
+    const projects = Array.from(this.projects.values());
+    return projects.filter((project) => project.org_id === orgId);
+  }
+
   async findById(id: string) {
     return this.projects.get(id) ?? null;
   }
@@ -254,7 +259,7 @@ describe('InitWorkspaceService', () => {
       expect(result.organization).toBeDefined();
       expect(result.organization?.name).toBe('Default Organization');
       expect(result.organization?.slug).toBeDefined(); // slug is auto-generated now
-      expect(result.organization?.is_owner).toBe(true);
+      expect(result.organization?.userId).toBeDefined();
     });
 
     it('should use existing organization when organizationId provided', async () => {
@@ -262,7 +267,7 @@ describe('InitWorkspaceService', () => {
         id: orgId,
         name: 'Test Org',
         slug: 'test-org',
-        is_owner: true,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -287,7 +292,7 @@ describe('InitWorkspaceService', () => {
         id: '550e8400-e29b-41d4-a716-446655440001',
         name: 'First Org',
         slug: 'first-org',
-        is_owner: true,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -298,7 +303,7 @@ describe('InitWorkspaceService', () => {
         id: '550e8400-e29b-41d4-a716-446655440002',
         name: 'Second Org',
         slug: 'second-org',
-        is_owner: false,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -332,7 +337,7 @@ describe('InitWorkspaceService', () => {
         id: orgId,
         name: 'Test Org',
         slug: 'test-org',
-        is_owner: true,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -439,7 +444,7 @@ describe('InitWorkspaceService', () => {
         id: orgId,
         name: 'Test Org',
         slug: 'test-org',
-        is_owner: true,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -565,7 +570,7 @@ describe('InitWorkspaceService', () => {
         id: orgId,
         name: 'Test Org',
         slug: 'test-org',
-        is_owner: true,
+        userId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: userId,
@@ -667,7 +672,7 @@ describe('InitWorkspaceService', () => {
       const orgUseCase = new CreateOrganizationService(organizationRepository);
       const newOrg = await orgUseCase.execute({
         name: 'Test Org',
-        is_owner: true,
+        userId: userId,
         createdBy: userId,
       });
 

@@ -542,7 +542,12 @@ export class InteractiveCommandRouter {
       case 'list': {
         const options = this.parseOptions(rest);
         const useCases = this.container.getUseCases();
-        const projects = await useCases.getProjects.execute();
+        const projects = await useCases.getProjects.execute(
+          options['organization-id'] ??
+            options['o'] ??
+            this.container.getWorkspace()?.organizationId ??
+            '',
+        );
 
         const filtered =
           (options['organization-id'] ?? options['o'])

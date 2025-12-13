@@ -6,7 +6,7 @@ node_modules
 
 qwery.db
 
-/workspace
+/workspace/
 
 /.vercel
 /.vercel/*

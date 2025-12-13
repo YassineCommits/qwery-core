@@ -36,7 +36,7 @@ describe('OrganizationRepository', () => {
       id,
       name: 'Test Organization',
       slug: repository.shortenId(id),
-      is_owner: true,
+      userId: overrides?.userId || '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date('2024-01-01T00:00:00Z'),
       updatedAt: new Date('2024-01-01T00:00:00Z'),
       createdBy: 'test-user',
@@ -150,7 +150,7 @@ describe('OrganizationRepository', () => {
       const updated = {
         ...organization,
         name: 'Updated Name',
-        is_owner: false,
+        userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
         updatedAt: new Date('2024-01-02T00:00:00Z'),
         updatedBy: 'updated-user',
       };
@@ -158,7 +158,7 @@ describe('OrganizationRepository', () => {
       const result = await repository.update(updated);
 
       expect(result.name).toBe('Updated Name');
-      expect(result.is_owner).toBe(false);
+      expect(result.userId).toBe('7c9e6679-7425-40de-944b-e07fc1f90ae7');
       expect(result.slug).toBe(repository.shortenId(organization.id));
     });
 

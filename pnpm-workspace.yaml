@@ -19,4 +19,5 @@ catalog:
   'typescript': '^5.9.3'
   'msw': '^2.12.4'
   'uuid': '^11.0.3'
+  'date-fns': '^4.1.0'
 

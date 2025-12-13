@@ -6,7 +6,7 @@ import {
   GetNotebooksByProjectIdService,
   GetOrganizationService,
   GetOrganizationsService,
-  GetProjectsService,
+  GetProjectsByOrganizationIdService,
   InitWorkspaceService,
 } from '@qwery/domain/services';
 import {
@@ -51,7 +51,9 @@ export class CliContainer {
       this.repositories.project,
       this.repositories.notebook,
     ),
-    getProjects: new GetProjectsService(this.repositories.project),
+    getProjects: new GetProjectsByOrganizationIdService(
+      this.repositories.project,
+    ),
     createProject: new CreateProjectService(this.repositories.project),
     deleteProject: new DeleteProjectService(this.repositories.project),
     getDatasourcesByProjectId: new GetDatasourcesByProjectIdService(

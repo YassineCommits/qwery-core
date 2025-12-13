@@ -51,7 +51,10 @@ export function ProjectBreadcrumb() {
 
   // Fetch data
   const organizations = useGetOrganizations(repositories.organization);
-  const projects = useGetProjects(repositories.project);
+  const projects = useGetProjects(
+    repositories.project,
+    workspace.organizationId || '',
+  );
   // Only fetch datasources when on a datasource route
   const datasources = useGetDatasourcesByProjectId(
     repositories.datasource,

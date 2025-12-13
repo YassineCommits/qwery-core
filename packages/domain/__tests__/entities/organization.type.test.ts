@@ -7,7 +7,7 @@ describe('OrganizationEntity', () => {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'Test Organization',
     slug: 'test-org',
-    is_owner: true,
+    userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     createdBy: 'user-id',
@@ -18,14 +18,14 @@ describe('OrganizationEntity', () => {
     it('should create a new organization entity', () => {
       const entity = OrganizationEntity.create({
         name: 'New Organization',
-        is_owner: false,
+        userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
         createdBy: 'user-id',
       });
 
       expect(entity.id).toBeDefined();
       expect(entity.name).toBe('New Organization');
       expect(entity.slug).toBeDefined();
-      expect(entity.is_owner).toBe(false);
+      expect(entity.userId).toBe('6ba7b810-9dad-11d1-80b4-00c04fd430c8');
     });
   });
 
@@ -38,20 +38,20 @@ describe('OrganizationEntity', () => {
       });
 
       expect(updated.name).toBe('Updated Name');
-      expect(updated.is_owner).toBe(organization.is_owner);
+      expect(updated.userId).toBe(organization.userId);
       expect(updated.updatedAt.getTime()).toBeGreaterThan(
         organization.updatedAt.getTime(),
       );
     });
 
-    it('should update is_owner field', () => {
+    it('should update userId field', () => {
       const organization = createTestOrganization();
       const updated = OrganizationEntity.update(organization, {
         id: organization.id,
-        is_owner: false,
+        userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
       });
 
-      expect(updated.is_owner).toBe(false);
+      expect(updated.userId).toBe('7c9e6679-7425-40de-944b-e07fc1f90ae7');
       expect(updated.name).toBe(organization.name);
     });
 
@@ -70,12 +70,12 @@ describe('OrganizationEntity', () => {
       const updated = OrganizationEntity.update(organization, {
         id: organization.id,
         name: 'New Name',
-        is_owner: false,
+        userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
         updatedBy: 'new-user',
       });
 
       expect(updated.name).toBe('New Name');
-      expect(updated.is_owner).toBe(false);
+      expect(updated.userId).toBe('7c9e6679-7425-40de-944b-e07fc1f90ae7');
       expect(updated.updatedBy).toBe('new-user');
     });
 
@@ -91,16 +91,16 @@ describe('OrganizationEntity', () => {
       expect(updated.createdAt).toEqual(organization.createdAt);
     });
 
-    it('should handle is_owner being set to false when it was true', () => {
+    it('should handle userId being updated', () => {
       const organization = createTestOrganization();
-      expect(organization.is_owner).toBe(true);
+      expect(organization.userId).toBe('6ba7b810-9dad-11d1-80b4-00c04fd430c8');
 
       const updated = OrganizationEntity.update(organization, {
         id: organization.id,
-        is_owner: false,
+        userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
       });
 
-      expect(updated.is_owner).toBe(false);
+      expect(updated.userId).toBe('7c9e6679-7425-40de-944b-e07fc1f90ae7');
     });
   });
 });

@@ -24,6 +24,9 @@ catalogs:
     '@vitest/coverage-istanbul':
       specifier: ^4.0.7
       version: 4.0.9
+    date-fns:
+      specifier: ^4.1.0
+      version: 4.1.0
     msw:
       specifier: ^2.12.4
       version: 2.12.4
@@ -399,7 +402,7 @@ importers:
         specifier: ^11.7.0
         version: 11.10.0
       date-fns:
-        specifier: ^4.1.0
+        specifier: 'catalog:'
         version: 4.1.0
       isbot:
         specifier: ^5.1.31
@@ -1797,7 +1800,7 @@ importers:
         specifier: ^0.7.1
         version: 0.7.1
       date-fns:
-        specifier: ^4.1.0
+        specifier: 'catalog:'
         version: 4.1.0
       eslint:
         specifier: ^9.39.0

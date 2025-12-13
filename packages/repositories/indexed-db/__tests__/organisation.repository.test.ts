@@ -36,7 +36,7 @@ describe('OrganizationRepository', () => {
       id,
       name: 'Test Organization',
       slug: repository.shortenId(id),
-      is_owner: true,
+      userId: 'user-id',
       createdAt: new Date('2024-01-01T00:00:00Z'),
       updatedAt: new Date('2024-01-01T00:00:00Z'),
       createdBy: 'test-user',
@@ -151,7 +151,7 @@ describe('OrganizationRepository', () => {
       const updated = {
         ...organization,
         name: 'Updated Name',
-        is_owner: false,
+        userId: 'user-id',
         billing_email: 'new@test.com',
         updatedAt: new Date('2024-01-02T00:00:00Z'),
         updatedBy: 'updated-user',
@@ -161,7 +161,7 @@ describe('OrganizationRepository', () => {
 
       expect(result.name).toBe('Updated Name');
       expect(result.slug).toBe(repository.shortenId(organization.id));
-      expect(result.is_owner).toBe(false);
+      expect(result.userId).toBe('user-id');
       expect(result.updatedAt).toEqual(new Date('2024-01-02T00:00:00Z'));
       expect(result.updatedBy).toBe('updated-user');
     });
@@ -280,7 +280,7 @@ describe('OrganizationRepository', () => {
       it('should preserve all organization fields correctly', async () => {
         const organization = createTestOrganization({
           name: 'Complex Organization',
-          is_owner: false,
+          userId: 'user-id',
         });
 
         await repository.create(organization);
@@ -288,20 +288,20 @@ describe('OrganizationRepository', () => {
 
         expect(found.name).toBe(organization.name);
         expect(found.slug).toBe(repository.shortenId(organization.id));
-        expect(found.is_owner).toBe(organization.is_owner);
+        expect(found.userId).toBe(organization.userId);
 
         expect(found.createdBy).toBe(organization.createdBy);
         expect(found.updatedBy).toBe(organization.updatedBy);
       });
 
-      it('should handle is_owner boolean field correctly', async () => {
+      it('should handle userId field correctly', async () => {
         const org1 = createTestOrganization({
           id: '9e1f789b-9647-62fg-b66d-g29he3h12cg9',
-          is_owner: true,
+          userId: 'user-id',
         });
         const org2 = createTestOrganization({
           id: 'af2g890c-a758-73gh-c77e-h3aif4i23dh0',
-          is_owner: false,
+          userId: 'user-id',
         });
 
         await repository.create(org1);
@@ -310,8 +310,8 @@ describe('OrganizationRepository', () => {
         const found1 = await repository.findById(org1.id);
         const found2 = await repository.findById(org2.id);
 
-        expect(found1.is_owner).toBe(true);
-        expect(found2.is_owner).toBe(false);
+        expect(found1.userId).toBe('user-id');
+        expect(found2.userId).toBe('user-id');
       });
     });
   });

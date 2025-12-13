@@ -32,7 +32,7 @@ export class OrganizationRepository extends IOrganizationRepository {
       ...organization,
       created_at: organization.createdAt.toISOString(),
       updated_at: organization.updatedAt.toISOString(),
-      is_owner: organization.is_owner ? 1 : 0,
+      user_id: organization.userId,
       created_by: organization.createdBy,
       updated_by: organization.updatedBy,
     };
@@ -43,7 +43,7 @@ export class OrganizationRepository extends IOrganizationRepository {
       id: row.id as string,
       slug: row.slug as string,
       name: row.name as string,
-      is_owner: Boolean(row.is_owner),
+      userId: row.user_id as string,
       createdAt: new Date(row.created_at as string),
       updatedAt: new Date(row.updated_at as string),
       createdBy: row.created_by as string,
@@ -94,7 +94,7 @@ export class OrganizationRepository extends IOrganizationRepository {
 
     const serialized = this.serialize(entityWithSlug);
     const stmt = this.db.prepare(`
-      INSERT INTO organizations (id, slug, name, is_owner, created_at, updated_at, created_by, updated_by)
+      INSERT INTO organizations (id, slug, name, user_id, created_at, updated_at, created_by, updated_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
@@ -103,7 +103,7 @@ export class OrganizationRepository extends IOrganizationRepository {
         serialized.id,
         serialized.slug,
         serialized.name,
-        serialized.is_owner,
+        serialized.user_id,
         serialized.created_at,
         serialized.updated_at,
         serialized.created_by,
@@ -140,14 +140,14 @@ export class OrganizationRepository extends IOrganizationRepository {
     const serialized = this.serialize(entityWithSlug);
     const stmt = this.db.prepare(`
       UPDATE organizations 
-      SET slug = ?, name = ?, is_owner = ?, updated_at = ?, updated_by = ?
+      SET slug = ?, name = ?, user_id = ?, updated_at = ?, updated_by = ?
       WHERE id = ?
     `);
 
     const result = stmt.run(
       serialized.slug,
       serialized.name,
-      serialized.is_owner,
+      serialized.user_id,
       serialized.updated_at,
       serialized.updated_by,
       serialized.id,

@@ -46,7 +46,7 @@ export function initializeSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       slug TEXT NOT NULL,
       name TEXT NOT NULL,
-      is_owner INTEGER NOT NULL DEFAULT 0,
+      user_id TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       created_by TEXT NOT NULL,

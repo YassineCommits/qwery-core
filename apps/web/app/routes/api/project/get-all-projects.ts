@@ -1,8 +1,8 @@
-import type { ActionFunctionArgs } from 'react-router';
+import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { DomainException } from '@qwery/domain/exceptions';
 import {
   CreateProjectService,
-  GetProjectsService,
+  GetProjectsByOrganizationIdService,
 } from '@qwery/domain/services';
 import { createRepositories } from '~/lib/repositories/repositories-factory';
 
@@ -28,13 +28,25 @@ function handleDomainException(error: unknown): Response {
   return Response.json({ error: errorMessage }, { status: 500 });
 }
 
-export async function loader() {
+export async function loader({
+  request,
+}: LoaderFunctionArgs<{ orgId: string }>) {
   const repositories = await createRepositories();
   const repository = repositories.project;
 
+  const url = new URL(request.url);
+  const orgId = url.searchParams.get('orgId');
+
+  if (!orgId) {
+    return Response.json(
+      { error: 'Organization ID is required' },
+      { status: 400 },
+    );
+  }
+
   try {
-    const useCase = new GetProjectsService(repository);
-    const projects = await useCase.execute();
+    const useCase = new GetProjectsByOrganizationIdService(repository);
+    const projects = await useCase.execute(orgId);
     return Response.json(projects);
   } catch (error) {
     console.error('Error in get-all-projects loader:', error);

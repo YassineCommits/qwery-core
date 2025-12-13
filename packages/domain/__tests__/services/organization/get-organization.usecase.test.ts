@@ -54,7 +54,7 @@ describe('GetOrganizationService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Test Organization',
       slug: 'test-organization',
-      is_owner: true,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: 'user-id',
@@ -69,7 +69,7 @@ describe('GetOrganizationService', () => {
     expect(result.id).toBe(organization.id);
     expect(result.name).toBe(organization.name);
     expect(result.slug).toBe(organization.slug);
-    expect(result.is_owner).toBe(organization.is_owner);
+    expect(result.userId).toBe(organization.userId);
   });
 
   it('should throw DomainException when organization not found', async () => {
@@ -92,7 +92,7 @@ describe('GetOrganizationService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Test Organization',
       slug: 'test-organization',
-      is_owner: false,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-02'),
       createdBy: 'user1',
@@ -106,7 +106,7 @@ describe('GetOrganizationService', () => {
     expect(result.id).toBe(organization.id);
     expect(result.name).toBe(organization.name);
     expect(result.slug).toBe(organization.slug);
-    expect(result.is_owner).toBe(organization.is_owner);
+    expect(result.userId).toBe(organization.userId);
     expect(result.createdAt).toEqual(organization.createdAt);
     expect(result.updatedAt).toEqual(organization.updatedAt);
     expect(result.createdBy).toBe(organization.createdBy);
@@ -123,7 +123,7 @@ describe('GetOrganizationBySlugService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Test Organization',
       slug: 'test-organization',
-      is_owner: true,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: 'user-id',
@@ -138,7 +138,7 @@ describe('GetOrganizationBySlugService', () => {
     expect(result.id).toBe(organization.id);
     expect(result.name).toBe(organization.name);
     expect(result.slug).toBe(organization.slug);
-    expect(result.is_owner).toBe(organization.is_owner);
+    expect(result.userId).toBe(organization.userId);
   });
 
   it('should throw DomainException when organization not found by slug', async () => {
@@ -161,7 +161,7 @@ describe('GetOrganizationBySlugService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Test Organization',
       slug: 'test-organization',
-      is_owner: false,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-02'),
       createdBy: 'user1',
@@ -175,7 +175,7 @@ describe('GetOrganizationBySlugService', () => {
     expect(result.id).toBe(organization.id);
     expect(result.name).toBe(organization.name);
     expect(result.slug).toBe(organization.slug);
-    expect(result.is_owner).toBe(organization.is_owner);
+    expect(result.userId).toBe(organization.userId);
     expect(result.createdAt).toEqual(organization.createdAt);
     expect(result.updatedAt).toEqual(organization.updatedAt);
     expect(result.createdBy).toBe(organization.createdBy);
@@ -190,7 +190,7 @@ describe('GetOrganizationBySlugService', () => {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'First Organization',
       slug: 'first-organization',
-      is_owner: true,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: 'user-id',
@@ -201,7 +201,7 @@ describe('GetOrganizationBySlugService', () => {
       id: '550e8400-e29b-41d4-a716-446655440001',
       name: 'Second Organization',
       slug: 'second-organization',
-      is_owner: false,
+      userId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: 'user-id',
@@ -216,6 +216,6 @@ describe('GetOrganizationBySlugService', () => {
     expect(result.id).toBe(organization2.id);
     expect(result.name).toBe(organization2.name);
     expect(result.slug).toBe(organization2.slug);
-    expect(result.is_owner).toBe(organization2.is_owner);
+    expect(result.userId).toBe(organization2.userId);
   });
 });

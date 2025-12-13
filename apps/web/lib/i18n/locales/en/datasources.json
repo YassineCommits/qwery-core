@@ -3,6 +3,7 @@
     "new_pageTitle": "Connect to {{name}}",
     "new_pageSubtitle": "Select a data source to connect to.",
     "nameLabel": "Datasource Name",
+    "list_title": "Datasources",
     "editNameAriaLabel": "Edit name",
     "testConnection": "Test Connection",
     "testing": "Testing...",
@@ -17,5 +18,10 @@
     "connectionTestFailed": "Connection test failed",
     "connectionTestError": "Failed to test connection",
     "saveSuccess": "Connection configuration saved successfully",
-    "saveFailed": "Failed to save connection configuration"
+    "saveFailed": "Failed to save connection configuration",
+    "card": {
+        "created": "Created",
+        "createdBy": "Created by",
+        "view": "View"
+    }
 }

@@ -9,6 +9,11 @@ export class ProjectRepository extends IProjectRepository {
     return result || [];
   }
 
+  async findAllByOrganizationId(orgId: string): Promise<Project[]> {
+    const result = await apiGet<Project[]>(`/projects?orgId=${orgId}`, false);
+    return result || [];
+  }
+
   async findById(id: string): Promise<Project | null> {
     return apiGet<Project>(`/projects/${id}`, true);
   }

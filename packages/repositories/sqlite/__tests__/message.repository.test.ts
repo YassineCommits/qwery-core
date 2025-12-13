@@ -40,7 +40,7 @@ describe('MessageRepository', () => {
       id: testOrgId,
       name: 'Test Organization',
       slug: 'test-org',
-      is_owner: false,
+      userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
       createdAt: new Date('2024-01-01T00:00:00Z'),
       updatedAt: new Date('2024-01-01T00:00:00Z'),
       createdBy: 'test-user',

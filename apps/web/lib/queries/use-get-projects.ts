@@ -4,15 +4,20 @@ import { IProjectRepository } from '@qwery/domain/repositories';
 import {
   GetProjectBySlugService,
   GetProjectService,
-  GetProjectsService,
+  GetProjectsByOrganizationIdService,
 } from '@qwery/domain/services';
 
-export function useGetProjects(repository: IProjectRepository) {
-  const useCase = new GetProjectsService(repository);
+export function getProjectsByOrganizationIdKey(orgId: string) {
+  return ['projects', orgId];
+}
+
+export function useGetProjects(repository: IProjectRepository, orgId: string) {
+  const useCase = new GetProjectsByOrganizationIdService(repository);
   return useQuery({
-    queryKey: ['projects'],
-    queryFn: () => useCase.execute(),
+    queryKey: getProjectsByOrganizationIdKey(orgId),
+    queryFn: () => useCase.execute(orgId),
     staleTime: 30 * 1000,
+    enabled: !!orgId,
   });
 }
 

@@ -73,6 +73,13 @@ export class ProjectRepository extends IProjectRepository {
     return row ? this.deserialize(row) : null;
   }
 
+  async findAllByOrganizationId(orgId: string): Promise<Project[]> {
+    await this.init();
+    const stmt = this.db.prepare('SELECT * FROM projects WHERE org_id = ?');
+    const rows = stmt.all(orgId) as Record<string, unknown>[];
+    return rows.map((row) => this.deserialize(row));
+  }
+
   async create(entity: Project): Promise<Project> {
     await this.init();
 

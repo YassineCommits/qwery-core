@@ -42,7 +42,7 @@ async function createDefaultOrganization(
   const useCase = new CreateOrganizationService(organizationRepository);
   const organization = await useCase.execute({
     name: 'Default Organization',
-    is_owner: true,
+    userId: userId,
     createdBy: userId,
   });
   return organization;
@@ -130,7 +130,9 @@ export class InitWorkspaceService implements InitWorkspaceUseCase {
     }
 
     if (!project && this.projectRepository && organization) {
-      const projects = await this.projectRepository.findAll();
+      const projects = await this.projectRepository.findAllByOrganizationId(
+        organization.id,
+      );
       if (projects.length > 0) {
         project = projects[0];
       } else {

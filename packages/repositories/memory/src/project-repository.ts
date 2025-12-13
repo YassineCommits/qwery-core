@@ -26,6 +26,11 @@ export class ProjectRepository extends IProjectRepository {
     return projects.find((project) => project.slug === slug) ?? null;
   }
 
+  async findAllByOrganizationId(orgId: string): Promise<Project[]> {
+    const projects = Array.from(this.projects.values());
+    return projects.filter((project) => project.org_id === orgId);
+  }
+
   async create(entity: Project): Promise<Project> {
     this.projects.set(entity.id, entity);
     return entity;

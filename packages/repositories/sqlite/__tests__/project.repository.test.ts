@@ -116,6 +116,67 @@ describe('ProjectRepository', () => {
     });
   });
 
+  describe('findAllByOrganizationId', () => {
+    it('should return empty array when no projects exist for organization', async () => {
+      const orgId = '8d0f678a-8536-51ef-a55c-f18gd2g01bf8';
+      const result = await repository.findAllByOrganizationId(orgId);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return only projects for the specified organization', async () => {
+      const orgId1 = '8d0f678a-8536-51ef-a55c-f18gd2g01bf8';
+      const orgId2 = '9e1f789b-9647-62fg-b66d-g29he3h12cg9';
+
+      const project1 = createTestProject({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        org_id: orgId1,
+        name: 'Project 1',
+      });
+      const project2 = createTestProject({
+        id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        org_id: orgId1,
+        name: 'Project 2',
+      });
+      const project3 = createTestProject({
+        id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+        org_id: orgId2,
+        name: 'Other Org Project',
+      });
+
+      await repository.create(project1);
+      await repository.create(project2);
+      await repository.create(project3);
+
+      const result = await repository.findAllByOrganizationId(orgId1);
+
+      expect(result).toHaveLength(2);
+      expect(result.find((p) => p.id === project1.id)).toBeDefined();
+      expect(result.find((p) => p.id === project2.id)).toBeDefined();
+      expect(result.find((p) => p.id === project3.id)).toBeUndefined();
+    });
+
+    it('should return empty array for non-existent organization', async () => {
+      const project = createTestProject();
+      await repository.create(project);
+
+      const result = await repository.findAllByOrganizationId(
+        'non-existent-org-id',
+      );
+      expect(result).toEqual([]);
+    });
+
+    it('should preserve date objects in results', async () => {
+      const project = createTestProject();
+      await repository.create(project);
+
+      const result = await repository.findAllByOrganizationId(project.org_id);
+
+      expect(result[0]?.createdAt).toBeInstanceOf(Date);
+      expect(result[0]?.updatedAt).toBeInstanceOf(Date);
+    });
+  });
+
   describe('findAll', () => {
     it('should return empty array when no projects exist', async () => {
       const result = await repository.findAll();

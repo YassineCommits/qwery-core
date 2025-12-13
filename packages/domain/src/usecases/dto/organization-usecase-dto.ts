@@ -10,7 +10,7 @@ export class OrganizationOutput {
   @Expose()
   public slug!: string;
   @Expose()
-  public is_owner!: boolean;
+  public userId!: string;
   @Expose()
   @Type(() => Date)
   public createdAt!: Date;
@@ -29,13 +29,13 @@ export class OrganizationOutput {
 
 export type CreateOrganizationInput = {
   name: string;
-  is_owner: boolean;
+  userId: string;
   createdBy: string;
 };
 
 export type UpdateOrganizationInput = {
   id: string;
   name?: string;
-  is_owner?: boolean;
+  userId?: string;
   updatedBy?: string;
 };

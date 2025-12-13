@@ -151,6 +151,37 @@ export class ProjectRepository extends IProjectRepository {
     });
   }
 
+  async findAllByOrganizationId(orgId: string): Promise<Project[]> {
+    await this.init();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const transaction = this.db.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const index = store.index('org_id');
+      const request = index.getAll(orgId);
+
+      request.onerror = () => {
+        reject(
+          new Error(
+            `Failed to fetch projects by organization: ${request.error?.message}`,
+          ),
+        );
+      };
+
+      request.onsuccess = () => {
+        const results = (request.result as Record<string, unknown>[]).map(
+          (item) => this.deserialize(item),
+        );
+        resolve(results);
+      };
+    });
+  }
+
   async create(entity: Project): Promise<Project> {
     await this.init();
 

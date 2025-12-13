@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Link } from 'react-router';
 
@@ -7,23 +7,16 @@ import {
   ChevronRightIcon,
   MagnifyingGlassIcon,
 } from '@radix-ui/react-icons';
-import { Database } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
 
 import type { Datasource } from '@qwery/domain/entities';
 import { getAllExtensionMetadata } from '@qwery/extensions-sdk';
 import { Button } from '@qwery/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@qwery/ui/card';
 import { Input } from '@qwery/ui/input';
 import { Kbd, KbdGroup } from '@qwery/ui/kbd';
 import { Trans } from '@qwery/ui/trans';
+import { DatasourceCard } from '@qwery/ui/qwery/datasource';
 import { cn } from '@qwery/ui/utils';
 
 import { createDatasourceViewPath } from '~/config/project.navigation.config';
@@ -43,7 +36,6 @@ export function ListDatasources({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [shouldAnimate, setShouldAnimate] = useState(false);
-  const [failedLogos, setFailedLogos] = useState<Set<string>>(new Set());
 
   // Fetch all plugin metadata to get logos
   const { data: pluginMetadata = [] } = useQuery({
@@ -103,62 +95,50 @@ export function ListDatasources({
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const handleLogoError = useCallback((datasourceId: string) => {
-    setFailedLogos((prev) => new Set(prev).add(datasourceId));
-  }, []);
-
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <CardTitle>
-              <Trans
-                i18nKey="datasources:list_title"
-                defaults="Saved Datasources"
-              />
-            </CardTitle>
-            <CardDescription>
-              <Trans
-                i18nKey="datasources:list_subtitle"
-                defaults="Manage your connected datasources"
-              />
-            </CardDescription>
-          </div>
-          <div className="relative w-64">
-            <MagnifyingGlassIcon className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <Input
-              ref={searchInputRef}
-              type="search"
-              placeholder="Search..."
-              className={cn(
-                'pr-20 pl-9 transition-all',
-                shouldAnimate &&
-                  'ring-primary animate-pulse ring-2 ring-offset-2',
-              )}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <div className="absolute top-1/2 right-3 -translate-y-1/2">
-              <KbdGroup>
-                <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>
-                <Kbd>F</Kbd>
-              </KbdGroup>
-            </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-3xl font-bold">
+          <Trans
+            i18nKey="datasources:list_title"
+            defaults="Saved Datasources"
+          />
+        </h1>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative max-w-md flex-1">
+          <MagnifyingGlassIcon className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+          <Input
+            ref={searchInputRef}
+            type="search"
+            placeholder="Search datasources..."
+            className={cn(
+              'pr-20 pl-9 transition-all',
+              shouldAnimate &&
+                'ring-primary animate-pulse ring-2 ring-offset-2',
+            )}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <div className="absolute top-1/2 right-3 -translate-y-1/2">
+            <KbdGroup>
+              <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>
+              <Kbd>F</Kbd>
+            </KbdGroup>
           </div>
         </div>
-      </CardHeader>
-      <div className="border-b px-4 pb-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="text-muted-foreground text-sm">
+        {filteredDatasources.length > 0 && (
+          <div className="text-muted-foreground text-sm whitespace-nowrap">
             <span className="font-medium">{filteredDatasources.length}</span>
             {' / '}
             <span>{datasources.length}</span>
             {' datasources'}
           </div>
-        </div>
+        )}
       </div>
-      <CardContent className="p-3">
+
+      <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
         {filteredDatasources.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-foreground mb-2 text-base font-medium">
@@ -177,65 +157,37 @@ export function ListDatasources({
                 const logo = datasource.datasource_provider
                   ? pluginLogoMap.get(datasource.datasource_provider)
                   : undefined;
-                const hasFailed = failedLogos.has(datasource.id);
-                const showLogo = logo && !hasFailed;
 
                 return (
-                  <Card
+                  <DatasourceCard
                     key={datasource.id}
-                    className="hover:bg-accent/50 transition-colors"
-                  >
-                    <CardHeader>
-                      <div className="flex items-center gap-3">
-                        {showLogo ? (
-                          <img
-                            src={logo}
-                            alt={datasource.name}
-                            className="h-10 w-10 shrink-0 rounded object-contain"
-                            onError={() => handleLogoError(datasource.id)}
+                    id={datasource.id}
+                    name={datasource.name}
+                    createdAt={datasource.createdAt}
+                    createdBy={datasource.createdBy}
+                    logo={logo}
+                    provider={datasource.datasource_provider}
+                    viewButton={
+                      <Link
+                        to={createDatasourceViewPath(datasource.slug)}
+                        className="flex w-full items-center justify-center gap-2 px-3 py-2"
+                      >
+                        <span className="text-foreground group-hover/btn:text-foreground text-xs font-medium transition-colors">
+                          <Trans
+                            i18nKey="datasources:card.view"
+                            defaults="View"
                           />
-                        ) : (
-                          <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded">
-                            <Database className="text-muted-foreground h-5 w-5" />
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="truncate text-base">
-                            {datasource.name}
-                          </CardTitle>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-muted-foreground flex flex-col gap-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span>Created</span>
-                          <span>{format(datasource.createdAt, 'PP')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Updated</span>
-                          <span>{format(datasource.updatedAt, 'PP')}</span>
-                        </div>
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          asChild
-                        >
-                          <Link to={createDatasourceViewPath(datasource.slug)}>
-                            View
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        </span>
+                        <ArrowRight className="text-muted-foreground group-hover/btn:text-foreground h-3.5 w-3.5 transition-all group-hover/btn:translate-x-1" />
+                      </Link>
+                    }
+                    data-test={`datasource-card-${datasource.id}`}
+                  />
                 );
               })}
             </div>
             {totalPages > 1 && (
-              <div className="mt-3 flex items-center justify-between border-t pt-2">
+              <div className="mt-6 flex items-center justify-between pt-4">
                 <div className="text-muted-foreground text-sm">
                   Showing {startIndex + 1} to{' '}
                   {Math.min(endIndex, filteredDatasources.length)} of{' '}
@@ -309,7 +261,7 @@ export function ListDatasources({
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -92,6 +92,86 @@ describe('ProjectRepository', () => {
     });
   });
 
+  describe('findAllByOrganizationId', () => {
+    it('should return empty array when no projects exist for organization', async () => {
+      const projects = await repository.findAllByOrganizationId(orgId);
+      expect(projects).toEqual([]);
+    });
+
+    it('should return only projects for the specified organization', async () => {
+      const otherOrgId = '8d0f678a-8536-51ef-a55c-f18gd2g01bf8';
+      const project1: Project = {
+        id: validUuid1,
+        org_id: orgId,
+        name: 'Project 1',
+        slug: 'project-1',
+        description: 'First project',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'user1',
+        updatedBy: 'user1',
+      };
+
+      const project2: Project = {
+        id: validUuid2,
+        org_id: orgId,
+        name: 'Project 2',
+        slug: 'project-2',
+        description: 'Second project',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'user1',
+        updatedBy: 'user1',
+      };
+
+      const project3: Project = {
+        id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+        org_id: otherOrgId,
+        name: 'Other Org Project',
+        slug: 'other-org-project',
+        description: 'Project from other org',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'user1',
+        updatedBy: 'user1',
+      };
+
+      await repository.create(project1);
+      await repository.create(project2);
+      await repository.create(project3);
+
+      const projects = await repository.findAllByOrganizationId(orgId);
+      expect(projects).toHaveLength(2);
+      expect(projects).toContainEqual(project1);
+      expect(projects).toContainEqual(project2);
+      expect(projects).not.toContainEqual(project3);
+    });
+
+    it('should return empty array for non-existent organization', async () => {
+      const project: Project = {
+        id: validUuid1,
+        org_id: orgId,
+        name: 'Test Project',
+        slug: 'test-project',
+        description: 'A test project',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'user1',
+        updatedBy: 'user1',
+      };
+
+      await repository.create(project);
+      const projects = await repository.findAllByOrganizationId(
+        'non-existent-org-id',
+      );
+      expect(projects).toEqual([]);
+    });
+  });
+
   describe('findAll', () => {
     it('should return empty array when no projects exist', async () => {
       const projects = await repository.findAll();
