@@ -8,6 +8,7 @@ import {
 } from '../shadcn/collapsible';
 import { cn } from '../lib/utils';
 import type { ToolUIPart } from 'ai';
+import { getUserFriendlyToolName } from '../qwery/ai/utils/tool-name';
 import {
   BarChart3Icon,
   CheckCircleIcon,
@@ -48,31 +49,6 @@ export type ToolHeaderProps = {
   className?: string;
 };
 
-const getUserFriendlyToolName = (type: string): string => {
-  const nameMap: Record<string, string> = {
-    'tool-testConnection': 'Test Connection',
-    'tool-runQuery': 'Run Query',
-    'tool-getTableSchema': 'Get Table Schema',
-    'tool-generateChart': 'Generate Chart',
-    'tool-selectChartType': 'Select Chart Type',
-    'tool-deleteSheet': 'Delete Sheet',
-    'tool-readLinkData': 'Read Link Data',
-    'tool-api_call': 'API Call',
-  };
-
-  if (nameMap[type]) {
-    return nameMap[type] as string;
-  }
-
-  // Convert camelCase or kebab-case to Title Case
-  return type
-    .replace('tool-', '')
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/-/g, ' ')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-};
 
 const getStatusConfig = (status: ToolUIPart['state']) => {
   const configs: Record<

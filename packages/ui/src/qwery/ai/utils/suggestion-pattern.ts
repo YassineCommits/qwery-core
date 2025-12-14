@@ -6,7 +6,8 @@ export interface SuggestionPattern {
 }
 
 export function detectSuggestionPattern(text: string): SuggestionPattern | null {
-  const match = text.match(/\{\{suggestion:\s*([^}]+)\}\}/);
+  const pattern = /\{\{suggestion:\s*((?:(?!\}\}).)+)\}\}/;
+  const match = text.match(pattern);
   if (!match || match.index === undefined || !match[1]) return null;
   
   return {
@@ -27,7 +28,8 @@ export function extractSuggestionText(text: string): string | null {
 }
 
 export function validateSuggestionElement(element: Element, text: string): boolean {
-  const patternMatch = text.match(/\{\{suggestion:\s*([^}]+)\}\}/);
+  const pattern = /\{\{suggestion:\s*((?:(?!\}\}).)+)\}\}/;
+  const patternMatch = text.match(pattern);
   if (!patternMatch || patternMatch.index === undefined) return false;
 
   const beforePattern = text.substring(0, patternMatch.index).trim();

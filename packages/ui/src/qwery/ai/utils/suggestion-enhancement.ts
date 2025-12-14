@@ -30,13 +30,13 @@ export function cleanSuggestionPatterns(container: HTMLElement): void {
         node = walker.nextNode();
     }
 
-    textNodes.forEach((textNode) => {
-        const text = textNode.textContent || '';
-        if (text.includes('{{suggestion:')) {
-            const cleaned = text.replace(/\{\{suggestion:\s*([^}]+)\}\}/g, '$1');
-            textNode.textContent = cleaned;
-        }
-    });
+  textNodes.forEach((textNode) => {
+    const text = textNode.textContent || '';
+    if (text.includes('{{suggestion:')) {
+      const cleaned = text.replace(/\{\{suggestion:\s*((?:(?!\}\}).)+)\}\}/g, '$1');
+      textNode.textContent = cleaned;
+    }
+  });
 }
 
 export interface SuggestionButtonHandlers {

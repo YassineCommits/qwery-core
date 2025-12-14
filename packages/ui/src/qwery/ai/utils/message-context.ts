@@ -1,10 +1,12 @@
 import type { UIMessage, ToolUIPart } from 'ai';
 import { parseMessageWithContext } from '../user-message-bubble';
+import { getUserFriendlyToolName } from './tool-name';
 
 const CONTEXT_MARKER = '__QWERY_CONTEXT__';
 const CONTEXT_END_MARKER = '__QWERY_CONTEXT_END__';
 
-export function cleanContextMarkers(text: string): string {
+export function cleanContextMarkers(text: string, options?: { removeWorkflowGuidance?: boolean }): string {
+  const { removeWorkflowGuidance = false } = options ?? {};
   let cleaned = text;
   let previousCleaned = '';
   while (cleaned !== previousCleaned) {
@@ -21,6 +23,9 @@ export function cleanContextMarkers(text: string): string {
   }
   cleaned = cleaned.replace(/__QWERY_SUGGESTION_GUIDANCE__/g, '');
   cleaned = cleaned.replace(/__QWERY_SUGGESTION_GUIDANCE_END__/g, '');
+  if (removeWorkflowGuidance) {
+    cleaned = cleaned.replace(/\[SUGGESTION WORKFLOW GUIDANCE\][\s\S]*?(?=\n\n|$)/g, '');
+  }
   return cleaned;
 }
 
@@ -45,21 +50,31 @@ export function formatToolCalls(parts: UIMessage['parts']): string {
     if (part.type === 'text' && 'text' in part && part.text.trim()) {
       textParts.push(part.text.trim());
     } else if (part.type.startsWith('tool-')) {
-      const toolName = part.type.replace('tool-', '');
-      const formattedName = toolName
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/_/g, ' ')
-        .replace(/^./, (str) => str.toUpperCase())
-        .replace(/\s+/g, ' ')
-        .trim();
-      
       const toolPart = part as ToolUIPart;
+      
+      let toolName: string = 'Tool';
+      
+      if ('toolName' in toolPart && typeof toolPart.toolName === 'string' && toolPart.toolName.trim()) {
+        const rawName = toolPart.toolName.trim();
+        const formatted = rawName.startsWith('tool-') 
+          ? getUserFriendlyToolName(rawName)
+          : getUserFriendlyToolName(`tool-${rawName}`);
+        if (formatted && formatted.trim()) {
+          toolName = formatted;
+        }
+      } else if (part.type && typeof part.type === 'string') {
+        const formatted = getUserFriendlyToolName(part.type);
+        if (formatted && formatted.trim()) {
+          toolName = formatted;
+        }
+      }
+      
       const status = toolPart.state ? getToolStatusLabel(toolPart.state) : null;
       
       if (status) {
-        toolCalls.push(`**${formattedName}** called (${status})`);
+        toolCalls.push(`**${toolName}** called (${status})`);
       } else {
-        toolCalls.push(`**${formattedName}** called`);
+        toolCalls.push(`**${toolName}** called`);
       }
     }
   }
@@ -115,7 +130,7 @@ export function getContextMessages(
   if (currentMessage?.role === 'assistant') {
     const formatted = formatToolCalls(currentMessage.parts);
     if (formatted.trim()) {
-      lastAssistantResponse = cleanContextMarkers(formatted);
+      lastAssistantResponse = formatted;
     }
   }
 

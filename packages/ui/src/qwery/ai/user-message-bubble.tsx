@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import { agentMarkdownComponents } from './markdown-components';
 import { scrollToElementBySelector } from './scroll-utils';
 import { DatasourceBadges, type DatasourceItem } from './datasource-badge';
+import { cleanContextMarkers } from './utils/message-context';
 
 export interface UserMessageBubbleProps {
   text: string;
@@ -39,32 +40,10 @@ export function parseMessageWithContext(
     return { text: messageText };
   }
 
-  // Helper to remove all context markers and suggestion guidance markers from a string
   const removeAllContextMarkers = (str: string): string => {
-    let cleaned = str;
-    let previousCleaned = '';
-    while (cleaned !== previousCleaned) {
-      previousCleaned = cleaned;
-      // Remove context markers
-      cleaned = cleaned.replace(
-        new RegExp(
-          contextMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-          '.*?' +
-          contextEndMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-          'gs',
-        ),
-        '',
-      );
-    }
-    // Remove suggestion guidance markers
-    cleaned = cleaned.replace(/__QWERY_SUGGESTION_GUIDANCE__/g, '');
-    cleaned = cleaned.replace(/__QWERY_SUGGESTION_GUIDANCE_END__/g, '');
-    // Remove suggestion workflow guidance text block
-    cleaned = cleaned.replace(/\[SUGGESTION WORKFLOW GUIDANCE\][\s\S]*?(?=\n\n|$)/g, '');
-    return cleaned;
+    return cleanContextMarkers(str, { removeWorkflowGuidance: true });
   };
 
-  // Find the outermost (last) context marker pair
   const lastStartIndex = messageText.lastIndexOf(contextMarker);
   if (lastStartIndex === -1) {
     return { text: removeAllContextMarkers(messageText).trim() || messageText };

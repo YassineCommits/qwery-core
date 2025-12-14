@@ -48,6 +48,7 @@ import remarkGfm from 'remark-gfm';
 import { agentMarkdownComponents, HeadingContext } from './markdown-components';
 import { ToolErrorVisualizer } from './tool-error-visualizer';
 import type { useChat } from '@ai-sdk/react';
+import { getUserFriendlyToolName } from './utils/tool-name';
 
 import { ChartRenderer, type ChartConfig } from './charts/chart-renderer';
 import {
@@ -310,55 +311,14 @@ export function ToolPart({
   onPasteToNotebook,
   notebookContext,
 }: ToolPartProps) {
-  // Determine dynamic tool name for listTables based on returned data
-  let toolName = part.type.replace('tool-', '');
-  if (part.type === 'tool-listTables' && part.output) {
-    let parsedOutput: {
-      sheets?: Array<{
-        name: string;
-        type: 'view' | 'table' | 'attached_table';
-      }>;
-    } | null = null;
-
-    if (typeof part.output === 'string') {
-      try {
-        parsedOutput = JSON.parse(part.output);
-      } catch {
-        // Not JSON
-      }
-    } else if (typeof part.output === 'object') {
-      parsedOutput = part.output as {
-        sheets?: Array<{
-          name: string;
-          type: 'view' | 'table' | 'attached_table';
-        }>;
-      };
-    }
-
-    if (parsedOutput?.sheets && parsedOutput.sheets.length > 0) {
-      const typeCounts = parsedOutput.sheets.reduce(
-        (acc, sheet) => {
-          const type = sheet.type === 'attached_table' ? 'table' : sheet.type;
-          acc[type] = (acc[type] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-
-      // Determine the dominant type for naming
-      if (typeCounts.view && !typeCounts.table) {
-        toolName = 'listViews';
-      } else if (typeCounts.table && !typeCounts.view) {
-        toolName = 'listTables';
-      } else if (typeCounts.view && typeCounts.table) {
-        // Mixed - use the more common one
-        if (typeCounts.view >= typeCounts.table) {
-          toolName = 'listViews';
-        } else {
-          toolName = 'listTables';
-        }
-      }
-    }
+  let toolName: string;
+  if ('toolName' in part && typeof part.toolName === 'string' && part.toolName) {
+    const rawName = part.toolName;
+    toolName = rawName.startsWith('tool-') 
+      ? getUserFriendlyToolName(rawName)
+      : getUserFriendlyToolName(`tool-${rawName}`);
+  } else {
+    toolName = getUserFriendlyToolName(part.type);
   }
   // Render specialized visualizers based on tool type
   const renderToolOutput = () => {
@@ -630,78 +590,6 @@ export function ToolPart({
       }
     }
 
-    // Handle listTables tool with AvailableSheetsVisualizer
-    if (part.type === 'tool-listTables' && part.output) {
-      // Parse output if it's a string
-      let parsedOutput: {
-        sheets?: Array<{
-          name: string;
-          type: 'view' | 'table' | 'attached_table';
-        }>;
-        count?: number;
-      } | null = null;
-
-      if (typeof part.output === 'string') {
-        try {
-          parsedOutput = JSON.parse(part.output);
-        } catch {
-          // Not JSON, will use null
-        }
-      } else if (typeof part.output === 'object') {
-        parsedOutput = part.output as {
-          sheets?: Array<{
-            name: string;
-            type: 'view' | 'table' | 'attached_table';
-          }>;
-          count?: number;
-        };
-      }
-
-      if (parsedOutput?.sheets) {
-        // Determine the primary object type for dynamic naming
-        const typeCounts = parsedOutput.sheets.reduce(
-          (acc, sheet) => {
-            const type = sheet.type === 'attached_table' ? 'table' : sheet.type;
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          },
-          {} as Record<string, number>,
-        );
-
-        // Determine the dominant type
-        let objectTypeLabel = 'objects';
-        if (typeCounts.view && !typeCounts.table) {
-          objectTypeLabel = 'views';
-        } else if (typeCounts.table && !typeCounts.view) {
-          objectTypeLabel = 'tables';
-        } else if (typeCounts.view && typeCounts.table) {
-          // Mixed - use the more common one, or default to "tables and views"
-          if (typeCounts.view >= typeCounts.table) {
-            objectTypeLabel = 'views';
-          } else {
-            objectTypeLabel = 'tables';
-          }
-        }
-
-        // Map tool output to visualizer format
-        const mappedSheets = parsedOutput.sheets.map((sheet) => ({
-          name: sheet.name,
-          type: sheet.type === 'attached_table' ? 'table' : sheet.type,
-        }));
-        return (
-          <AvailableSheetsVisualizer
-            data={{
-              sheets: mappedSheets,
-              message: `Found ${mappedSheets.length} ${objectTypeLabel}`,
-            }}
-            onViewSheet={onViewSheet}
-            onDeleteSheets={onDeleteSheets}
-            onRenameSheet={onRenameSheet}
-            isRequestInProgress={isRequestInProgress}
-          />
-        );
-      }
-    }
 
     // Handle viewSheet tool with ViewSheetVisualizer
     if (part.type === 'tool-viewSheet' && part.output) {
@@ -768,8 +656,8 @@ export function ToolPart({
     return <ToolOutput output={part.output} errorText={part.errorText} />;
   };
 
-  // Hide input section for listTables (no meaningful parameters) and runQuery (we show SQL in SQLQueryVisualizer)
-  const showInput = part.input != null && part.type !== 'tool-listTables' && part.type !== 'tool-runQuery';
+  // Hide input section for runQuery (we show SQL in SQLQueryVisualizer)
+  const showInput = part.input != null && part.type !== 'tool-runQuery';
 
   return (
     <Tool
@@ -782,7 +670,7 @@ export function ToolPart({
         {showInput ? (
           <ToolInput input={part.input} className="border-b" />
         ) : null}
-        <div className={part.type === 'tool-listTables' ? undefined : 'p-4'}>
+        <div className="p-4">
           {renderToolOutput()}
         </div>
       </ToolContent>

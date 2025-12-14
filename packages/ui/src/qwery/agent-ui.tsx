@@ -51,6 +51,7 @@ import { Sparkles } from 'lucide-react';
 import { QweryPromptInput, type DatasourceItem, ToolPart } from './ai';
 import { QweryContextProps } from './ai/context';
 import { DatasourceBadges } from './ai/datasource-badge';
+import { getUserFriendlyToolName } from './ai/utils/tool-name';
 
 export interface QweryAgentUIProps {
   initialMessages?: UIMessage[];
@@ -832,8 +833,8 @@ export default function QweryAgentUI(props: QweryAgentUIProps) {
                                 const toolName =
                                   'toolName' in toolPart &&
                                   typeof toolPart.toolName === 'string'
-                                    ? toolPart.toolName
-                                    : toolPart.type.replace('tool-', '');
+                                    ? getUserFriendlyToolName(`tool-${toolPart.toolName}`)
+                                    : getUserFriendlyToolName(toolPart.type);
                               return (
                                 <Tool
                                   key={`${message.id}-${i}`}
