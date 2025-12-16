@@ -18,6 +18,8 @@ export interface GSheetAttachOptions {
   connection: Connection;
   datasource: Datasource;
   extractSchema?: boolean; // Default: true for backward compatibility
+  conversationId: string; // Required for persistent database file path
+  workspace: string; // Required for persistent database file path
 }
 
 export interface GSheetAttachResult {
@@ -177,8 +179,14 @@ async function discoverTabs(
 }
 
 /**
- * Attach Google Sheets as a database with tables for each tab
+ * Attach Google Sheets as a persistent database with tables for each tab
  * Similar to attachForeignDatasource but for Google Sheets
+ *
+ * Creates a persistent SQLite database file at:
+ * {workspace}/{conversationId}/{datasource_name}.db
+ *
+ * This ensures tables persist across connections, unlike in-memory databases.
+ * Each tab in the Google Sheet becomes a separate table in the attached database.
  */
 export async function attachGSheetDatasource(
   opts: GSheetAttachOptions,
@@ -187,6 +195,8 @@ export async function attachGSheetDatasource(
     connection: conn,
     datasource,
     extractSchema: shouldExtractSchema = true,
+    conversationId,
+    workspace,
   } = opts;
 
   const config = datasource.config as Record<string, unknown>;
@@ -210,9 +220,9 @@ export async function attachGSheetDatasource(
   const attachedDatabaseName = getDatasourceDatabaseName(datasource);
   const escapedDbName = attachedDatabaseName.replace(/"/g, '""');
 
-  // Create attached database (using SQLite as container, or we can use :memory:)
-  // Actually, we'll create tables directly in an attached database
-  // For Google Sheets, we'll use ATTACH with an in-memory SQLite database
+  // Create persistent attached database using SQLite file
+  // Store in conversation directory: workspace/conversationId/datasource_name.db
+  // This ensures tables persist across connections, unlike :memory: databases
   try {
     // Check if database is already attached
     // Escape single quotes in database name for SQL injection protection
@@ -226,8 +236,23 @@ export async function attachGSheetDatasource(
     }>;
 
     if (existingDbs.length === 0) {
-      // Attach an in-memory database
-      await conn.run(`ATTACH ':memory:' AS "${escapedDbName}"`);
+      // Construct persistent database file path
+      const { join } = await import('node:path');
+      const { mkdir } = await import('node:fs/promises');
+      const conversationDir = join(workspace, conversationId);
+      await mkdir(conversationDir, { recursive: true });
+      const dbFilePath = join(conversationDir, `${attachedDatabaseName}.db`);
+
+      // Escape single quotes in file path for SQL injection protection
+      const escapedPath = dbFilePath.replace(/'/g, "''");
+
+      // Attach persistent SQLite database file
+      // DuckDB will create the file if it doesn't exist, or use existing file if it does
+      await conn.run(`ATTACH '${escapedPath}' AS "${escapedDbName}"`);
+
+      console.log(
+        `[GSheetAttach] Attached persistent database: ${attachedDatabaseName} at ${dbFilePath}`,
+      );
     }
   } catch (error) {
     // If attach fails, try to continue (might already be attached)

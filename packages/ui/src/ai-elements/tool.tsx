@@ -8,6 +8,7 @@ import {
 } from '../shadcn/collapsible';
 import { cn } from '../lib/utils';
 import type { ToolUIPart } from 'ai';
+import { getUserFriendlyToolName } from '../qwery/ai/utils/tool-name';
 import {
   BarChart3Icon,
   CheckCircleIcon,
@@ -46,32 +47,6 @@ export type ToolHeaderProps = {
   type: ToolUIPart['type'];
   state: ToolUIPart['state'];
   className?: string;
-};
-
-const getUserFriendlyToolName = (type: string): string => {
-  const nameMap: Record<string, string> = {
-    'tool-testConnection': 'Test Connection',
-    'tool-runQuery': 'Run Query',
-    'tool-getTableSchema': 'Get Table Schema',
-    'tool-generateChart': 'Generate Chart',
-    'tool-selectChartType': 'Select Chart Type',
-    'tool-deleteSheet': 'Delete Sheet',
-    'tool-readLinkData': 'Read Link Data',
-    'tool-api_call': 'API Call',
-  };
-
-  if (nameMap[type]) {
-    return nameMap[type] as string;
-  }
-
-  // Convert camelCase or kebab-case to Title Case
-  return type
-    .replace('tool-', '')
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/-/g, ' ')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
 };
 
 const getStatusConfig = (status: ToolUIPart['state']) => {
@@ -215,17 +190,25 @@ export type ToolInputProps = ComponentProps<'div'> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div
-    className={cn('min-w-0 space-y-2 overflow-hidden p-4', className)}
+  <Collapsible
+    className={cn('min-w-0 overflow-hidden', className)}
+    defaultOpen={false}
     {...props}
   >
-    <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-      Parameters
-    </h4>
-    <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
-    </div>
-  </div>
+    <CollapsibleTrigger className="group hover:bg-muted/50 flex w-full items-center gap-2 px-4 py-3 text-left transition-colors">
+      <ChevronDownIcon className="text-muted-foreground size-3 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+      <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        Parameters
+      </span>
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <div className="px-4 pb-4">
+        <div className="bg-muted/50 max-w-full min-w-0 overflow-hidden rounded-md">
+          <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+        </div>
+      </div>
+    </CollapsibleContent>
+  </Collapsible>
 );
 
 export type ToolOutputProps = ComponentProps<'div'> & {

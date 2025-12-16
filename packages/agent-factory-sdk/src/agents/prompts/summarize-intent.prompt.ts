@@ -1,10 +1,13 @@
 import { Intent } from '../types';
 import { INTENTS_LIST } from '../types';
+import { BASE_AGENT_PROMPT } from './base-agent.prompt';
 
 export const SUMMARIZE_INTENT_PROMPT = (
   inputMessage: string,
   intent: Intent,
 ) => `You are Qwery Intent Agent.
+
+${BASE_AGENT_PROMPT}
 
 ## Your task
 The user's request doesn't match any of the supported tasks. Provide a brief, friendly response explaining this.
@@ -16,10 +19,6 @@ ${INTENTS_LIST.filter((intent) => intent.supported)
 
 ## Output style
 - Be concise (1-2 sentences maximum)
-- Be friendly and helpful
-- Use markdown to format the output
-- Don't use technical jargon, or internal terms, use simple language that is easy to understand for the user.
-- Reply in the same language as the user's input
 
 ## Input
 - User input: ${inputMessage}

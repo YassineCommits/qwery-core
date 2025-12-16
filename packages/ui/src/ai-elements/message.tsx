@@ -27,7 +27,7 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 export const Message = ({ className, from, ...props }: MessageProps) => (
   <div
     className={cn(
-      'group flex w-full max-w-[80%] flex-col gap-2',
+      'group flex w-full max-w-[80%] min-w-0 flex-col gap-2 overflow-x-hidden',
       from === 'user' ? 'is-user ml-auto justify-end' : 'is-assistant',
       className,
     )}
@@ -44,11 +44,12 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      'is-user:dark flex max-w-full min-w-0 flex-col gap-2 text-sm',
-      'group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:break-words',
-      'group-[.is-assistant]:text-foreground',
+      'is-user:dark flex max-w-full min-w-0 flex-col gap-2 overflow-x-hidden text-sm',
+      'group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:overflow-wrap-anywhere group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:break-words',
+      'group-[.is-assistant]:text-foreground group-[.is-assistant]:overflow-wrap-anywhere group-[.is-assistant]:break-words',
       className,
     )}
+    style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
     {...props}
   >
     {children}
@@ -310,7 +311,7 @@ export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        'size-full break-words [&_a]:break-all [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+        'overflow-wrap-anywhere size-full max-w-full min-w-0 break-words [&_a]:break-all [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
         className,
       )}
       {...props}

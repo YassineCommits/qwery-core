@@ -18,6 +18,12 @@ export { type PromptInputMessage } from '../../ai-elements/prompt-input';
 export { type ChatStatus } from 'ai';
 export { AgentTabs } from './agent-tabs';
 export { DatasourceSelector, type DatasourceItem } from './datasource-selector';
+export {
+  DatasourceBadges,
+  DatasourceBadge,
+  type DatasourceBadgeProps,
+  type DatasourceBadgesProps,
+} from './datasource-badge';
 export { AgentStatusProvider, useAgentStatus } from './agent-status-context';
 
 // Data visualization components
@@ -38,3 +44,6 @@ export * from './charts/bar-chart';
 export * from './charts/line-chart';
 export * from './charts/pie-chart';
 export * from './charts/chart-utils';
+
+// Scroll utilities
+export * from './scroll-utils';

@@ -11,9 +11,9 @@ import { fromPromise } from 'xstate/actors';
 import { resolveModel } from '../../services';
 import { testConnection } from '../../tools/test-connection';
 import type { SimpleSchema, SimpleTable } from '@qwery/domain/entities';
-import { renameSheet } from '../../tools/rename-sheet';
-import { deleteSheet } from '../../tools/delete-sheet';
 import { selectChartType, generateChart } from '../tools/generate-chart';
+import { renameTable } from '../../tools/rename-table';
+import { deleteTable } from '../../tools/delete-table';
 import { loadBusinessContext } from '../../tools/utils/business-context.storage';
 import { READ_DATA_AGENT_PROMPT } from '../prompts/read-data-agent.prompt';
 import type { BusinessContext } from '../../tools/types/business-context.types';
@@ -27,6 +27,8 @@ import { AbstractQueryEngine } from '@qwery/domain/ports';
 import { loadDatasources } from '../../tools/datasource-loader';
 import { getDatasourceDatabaseName } from '../../tools/datasource-name-utils';
 import { TransformMetadataToSimpleSchemaService } from '@qwery/domain/services';
+import type { PromptSource } from '../../domain';
+import { PROMPT_SOURCE } from '../../domain';
 
 // Lazy workspace resolution - only resolve when actually needed, not at module load time
 // This prevents side effects when the module is imported in browser/SSR contexts
@@ -66,7 +68,25 @@ export const readDataAgent = async (
   model: string,
   queryEngine: AbstractQueryEngine,
   repositories?: Repositories,
+  promptSource?: PromptSource,
+  intent?: {
+    intent: string;
+    complexity: string;
+    needsChart: boolean;
+    needsSQL: boolean;
+  },
 ) => {
+  const needSQL = intent?.needsSQL ?? false;
+  const needChart = intent?.needsChart ?? false;
+  console.log('[readDataAgent] Starting with context:', {
+    conversationId,
+    promptSource,
+    needSQL,
+    needChart,
+    intentNeedsSQL: intent?.needsSQL,
+    intentNeedsChart: intent?.needsChart,
+    messageCount: messages.length,
+  });
   // Initialize engine and attach datasources if repositories are provided
   const agentInitStartTime = performance.now();
   if (repositories && queryEngine) {
@@ -178,7 +198,7 @@ export const readDataAgent = async (
       }),
       getSchema: tool({
         description:
-          'Discover available data structures directly from DuckDB (views + attached databases). If viewName is provided, returns schema for that specific view/table. If viewNames (array) is provided, returns schemas for only those specific tables/views (more efficient than loading all). If neither is provided, returns schemas for everything discovered in DuckDB. This updates the business context automatically.',
+          'Get schema information (columns, data types, business context) for specific tables/views. Returns column names, types, and business context for the specified tables. If viewName is provided, returns schema for that specific view/table. If viewNames (array) is provided, returns schemas for only those specific tables/views. If neither is provided, returns schemas for everything discovered in DuckDB. This updates the business context automatically.',
         inputSchema: z.object({
           viewName: z.string().optional(),
           viewNames: z.array(z.string()).optional(),
@@ -645,6 +665,54 @@ export const readDataAgent = async (
           query: z.string(),
         }),
         execute: async ({ query }) => {
+          // Use promptSource, needSQL, and needChart from context (passed to readDataAgent function)
+          // needSQL comes from intent.needsSQL, needChart from intent.needsChart
+
+          // TEMPORARY OVERRIDE: When needChart is true AND inline mode, execute query for chart generation
+          // but still return SQL for pasting to notebook
+          const isChartRequestInInlineMode =
+            needChart === true &&
+            promptSource === PROMPT_SOURCE.INLINE &&
+            needSQL === true;
+
+          // Normal inline mode: skip execution, return SQL for pasting
+          const shouldSkipExecution =
+            promptSource === PROMPT_SOURCE.INLINE &&
+            needSQL === true &&
+            !isChartRequestInInlineMode;
+
+          console.log('[runQuery] Tool execution:', {
+            promptSource,
+            needSQL,
+            needChart,
+            isChartRequestInInlineMode,
+            shouldSkipExecution,
+            queryLength: query.length,
+            queryPreview: query.substring(0, 100),
+          });
+
+          // If inline mode and needSQL is true (but NOT chart request), don't execute - return SQL for pasting
+          if (shouldSkipExecution) {
+            console.log(
+              '[runQuery] Skipping execution - SQL will be pasted to notebook cell',
+            );
+            return {
+              result: null,
+              shouldPaste: true,
+              sqlQuery: query,
+            };
+          }
+
+          // For chart requests in inline mode, we'll execute but still return SQL for pasting
+          if (isChartRequestInInlineMode) {
+            console.log(
+              '[runQuery] Executing query for chart generation (inline mode override)',
+            );
+          } else {
+            console.log('[runQuery] Executing query normally');
+          }
+
+          // Normal execution path for chat mode or when needSQL is false
           const startTime = performance.now();
 
           if (!queryEngine) {
@@ -694,42 +762,52 @@ export const readDataAgent = async (
             `[ReadDataAgent] [PERF] runQuery TOTAL took ${totalTime.toFixed(2)}ms (sync: ${syncTime.toFixed(2)}ms, query: ${queryTime.toFixed(2)}ms, rows: ${result.rows.length})`,
           );
 
+          // For chart requests in inline mode, return both result AND SQL for pasting
+          if (isChartRequestInInlineMode) {
+            return {
+              result: result,
+              shouldPaste: true,
+              sqlQuery: query,
+              chartExecutionOverride: true, // Flag to show visual indicator in UI
+            };
+          }
+
           return {
             result: result,
           };
         },
       }),
-      renameSheet: tool({
+      renameTable: tool({
         description:
-          'Rename a sheet/view to give it a more meaningful name. Both oldSheetName and newSheetName are required.',
+          'Rename a table/view to give it a more meaningful name. Both oldTableName and newTableName are required.',
         inputSchema: z.object({
-          oldSheetName: z.string(),
-          newSheetName: z.string(),
+          oldTableName: z.string(),
+          newTableName: z.string(),
         }),
-        execute: async ({ oldSheetName, newSheetName }) => {
+        execute: async ({ oldTableName, newTableName }) => {
           if (!queryEngine) {
             throw new Error('Query engine not available');
           }
-          const result = await renameSheet({
-            oldSheetName,
-            newSheetName,
+          const result = await renameTable({
+            oldTableName,
+            newTableName,
             queryEngine,
           });
           return result;
         },
       }),
-      deleteSheet: tool({
+      deleteTable: tool({
         description:
-          'Delete one or more sheets/views from the database. Takes an array of sheet names to delete.',
+          'Delete one or more tables/views from the database. Takes an array of table names to delete.',
         inputSchema: z.object({
-          sheetNames: z.array(z.string()),
+          tableNames: z.array(z.string()),
         }),
-        execute: async ({ sheetNames }) => {
+        execute: async ({ tableNames }) => {
           if (!queryEngine) {
             throw new Error('Query engine not available');
           }
-          const result = await deleteSheet({
-            sheetNames,
+          const result = await deleteTable({
+            tableNames,
             queryEngine,
           });
           return result;
@@ -855,14 +933,29 @@ export const readDataAgentActor = fromPromise(
       model: string;
       repositories?: Repositories;
       queryEngine: AbstractQueryEngine;
+      promptSource?: PromptSource;
+      intent?: {
+        intent: string;
+        complexity: string;
+        needsChart: boolean;
+        needsSQL: boolean;
+      };
     };
   }) => {
+    console.log('[readDataAgentActor] Received input:', {
+      conversationId: input.conversationId,
+      promptSource: input.promptSource,
+      intentNeedsSQL: input.intent?.needsSQL,
+      messageCount: input.previousMessages.length,
+    });
     return readDataAgent(
       input.conversationId,
       input.previousMessages,
       input.model,
       input.queryEngine,
       input.repositories,
+      input.promptSource,
+      input.intent,
     );
   },
 );

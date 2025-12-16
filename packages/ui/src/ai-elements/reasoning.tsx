@@ -9,7 +9,13 @@ import {
 import { cn } from '../lib/utils';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
-import { createContext, memo, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { Streamdown } from 'streamdown';
 import { Shimmer } from './shimmer';
 
@@ -115,7 +121,25 @@ export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
 
 const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground">Thinking</span>
+        <div className="flex items-center gap-1">
+          <span
+            className="bg-primary/60 h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ animationDelay: '0ms', animationDuration: '1.4s' }}
+          />
+          <span
+            className="bg-primary/60 h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ animationDelay: '200ms', animationDuration: '1.4s' }}
+          />
+          <span
+            className="bg-primary/60 h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ animationDelay: '400ms', animationDuration: '1.4s' }}
+          />
+        </div>
+      </div>
+    );
   }
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>;
@@ -155,7 +179,7 @@ export const ReasoningTrigger = memo(
 export type ReasoningContentProps = ComponentProps<
   typeof CollapsibleContent
 > & {
-  children: string;
+  children: React.ReactNode;
 };
 
 export const ReasoningContent = memo(
@@ -163,12 +187,16 @@ export const ReasoningContent = memo(
     <CollapsibleContent
       className={cn(
         'mt-4 text-sm',
-        'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
+        'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
         className,
       )}
       {...props}
     >
-      <Streamdown {...props}>{children}</Streamdown>
+      {typeof children === 'string' ? (
+        <Streamdown {...props}>{children}</Streamdown>
+      ) : (
+        children
+      )}
     </CollapsibleContent>
   ),
 );

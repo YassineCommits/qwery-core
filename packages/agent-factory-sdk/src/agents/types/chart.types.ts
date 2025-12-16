@@ -1,8 +1,22 @@
 import { z } from 'zod';
 
-export const ChartTypeSchema = z.enum(['bar', 'line', 'pie']);
+/**
+ * Chart types supported by the system.
+ * To add new chart types, simply add them to this array.
+ */
+export const CHART_TYPES = ['bar', 'line', 'pie'] as const;
 
-export type ChartType = z.infer<typeof ChartTypeSchema>;
+/**
+ * TypeScript type for chart types.
+ * Automatically inferred from CHART_TYPES array.
+ */
+export type ChartType = (typeof CHART_TYPES)[number];
+
+/**
+ * Zod schema for chart types.
+ * Automatically created from CHART_TYPES array.
+ */
+export const ChartTypeSchema = z.enum(CHART_TYPES);
 
 export const ChartTypeSelectionSchema = z.object({
   chartType: ChartTypeSchema,

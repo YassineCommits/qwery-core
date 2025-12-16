@@ -1,37 +1,37 @@
 import type { AbstractQueryEngine } from '@qwery/domain/ports';
 
-export interface RenameSheetOptions {
-  oldSheetName: string;
-  newSheetName: string;
+export interface RenameTableOptions {
+  oldTableName: string;
+  newTableName: string;
   queryEngine: AbstractQueryEngine;
 }
 
-export interface RenameSheetResult {
-  oldSheetName: string;
-  newSheetName: string;
+export interface RenameTableResult {
+  oldTableName: string;
+  newTableName: string;
   message: string;
 }
 
-export const renameSheet = async (
-  opts: RenameSheetOptions,
-): Promise<RenameSheetResult> => {
-  const { oldSheetName, newSheetName, queryEngine } = opts;
+export const renameTable = async (
+  opts: RenameTableOptions,
+): Promise<RenameTableResult> => {
+  const { oldTableName, newTableName, queryEngine } = opts;
 
   // Validate inputs
-  if (!oldSheetName || !newSheetName) {
-    throw new Error('Both oldSheetName and newSheetName are required');
+  if (!oldTableName || !newTableName) {
+    throw new Error('Both oldTableName and newTableName are required');
   }
 
-  if (oldSheetName === newSheetName) {
-    throw new Error('Old and new sheet names cannot be the same');
+  if (oldTableName === newTableName) {
+    throw new Error('Old and new table names cannot be the same');
   }
 
   if (!queryEngine) {
     throw new Error('Query engine is required');
   }
 
-  const escapedOldName = oldSheetName.replace(/"/g, '""');
-  const escapedNewName = newSheetName.replace(/"/g, '""');
+  const escapedOldName = oldTableName.replace(/"/g, '""');
+  const escapedNewName = newTableName.replace(/"/g, '""');
 
   // Check if old view exists
   try {
@@ -43,7 +43,9 @@ export const renameSheet = async (
       errorMsg.includes('not found') ||
       errorMsg.includes('Catalog Error')
     ) {
-      throw new Error(`View "${oldSheetName}" does not exist. Cannot rename.`);
+      throw new Error(
+        `Table/view "${oldTableName}" does not exist. Cannot rename.`,
+      );
     }
     throw error;
   }
@@ -52,7 +54,7 @@ export const renameSheet = async (
   try {
     await queryEngine.query(`SELECT 1 FROM "${escapedNewName}" LIMIT 1`);
     throw new Error(
-      `View "${newSheetName}" already exists. Cannot rename to an existing name.`,
+      `Table/view "${newTableName}" already exists. Cannot rename to an existing name.`,
     );
   } catch (error) {
     // If error is about table not found, that's good - name is available
@@ -78,8 +80,8 @@ export const renameSheet = async (
   );
 
   return {
-    oldSheetName,
-    newSheetName,
-    message: `Successfully renamed view "${oldSheetName}" to "${newSheetName}"`,
+    oldTableName,
+    newTableName,
+    message: `Successfully renamed table/view "${oldTableName}" to "${newTableName}"`,
   };
 };

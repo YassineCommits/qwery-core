@@ -39,7 +39,7 @@ import {
   type NotebookCellData,
   type NotebookDatasourceInfo,
 } from './notebook-cell';
-import { NotebookDataGrid } from './notebook-datagrid';
+import { DataGrid } from '@qwery/ui/ai';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -165,7 +165,7 @@ const SortableCell = React.memo(function SortableCellComponent({
   );
 
   const handleRunQueryWithAgent = useCallback(
-    (query: string, datasourceId: string) => {
+    (query: string, datasourceId: string, _cellType?: 'query' | 'prompt') => {
       onRunQueryWithAgent?.(cell.cellId, query, datasourceId);
     },
     [cell.cellId, onRunQueryWithAgent],
@@ -372,8 +372,12 @@ function FullViewDialog({
           {/* Results Grid */}
           {isQueryCell && result && (
             <div className="overflow-hidden rounded-md border">
-              <div className="h-[60vh] min-h-[400px]">
-                <NotebookDataGrid result={result} />
+              <div className="h-[60vh] min-h-[400px] p-4">
+                <DataGrid
+                  columns={result.columns?.map((col) => col.name) ?? []}
+                  rows={result.rows ?? []}
+                  pageSize={50}
+                />
               </div>
             </div>
           )}
@@ -675,7 +679,12 @@ export function NotebookUI({
   );
 
   const handleRunQueryWithAgent = useCallback(
-    (cellId: number, query: string, datasourceId: string) => {
+    (
+      cellId: number,
+      query: string,
+      datasourceId: string,
+      _cellType?: 'query' | 'prompt',
+    ) => {
       onRunQueryWithAgent?.(cellId, query, datasourceId);
     },
     [onRunQueryWithAgent],
@@ -942,7 +951,7 @@ export function NotebookUI({
                       onRunQueryWithAgent={handleRunQueryWithAgent}
                       datasources={allDatasources}
                       result={cellResults.get(cell.cellId)}
-                      error={cellError}
+                      error={undefined}
                       isLoading={isLoading}
                       onMoveUp={handleMoveCellUp}
                       onMoveDown={handleMoveCellDown}
@@ -955,6 +964,19 @@ export function NotebookUI({
                       onOpenAiPopup={handleOpenAiPopup}
                       onCloseAiPopup={handleCloseAiPopup}
                     />
+                    {/* Error Display - Between cells */}
+                    {cell.cellType === 'query' &&
+                      cellError &&
+                      !collapsedCells.has(cell.cellId) && (
+                        <div className="border-border border-b">
+                          <Alert variant="destructive" className="m-4">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="font-mono text-sm">
+                              {cellError}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
                     {index < cells.length - 1 && (
                       <CellDivider
                         onAddCell={(type) => handleAddCell(cell.cellId, type)}

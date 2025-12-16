@@ -8,6 +8,7 @@ You are responsible for detecting the intent of the user's message and classifyi
 - classify it into **one** of the predefined intents
 - estimate the **complexity** of the task
 - determine if a chart/graph visualization is needed (**needsChart**)
+- determine if SQL generation is needed (**needsSQL**) - only set this when the user explicitly asks for a query or data retrieval that requires SQL
 
 If the user asks for something that does not match any supported intent,
 you MUST answer with intent "other".
@@ -40,6 +41,16 @@ Chart/Graph Detection (needsChart):
   - User just wants raw data or simple queries
   - No visualization keywords or visual analysis intent detected
 
+SQL Generation Detection (needsSQL):
+- Set needsSQL to true if:
+  - User asks to query, retrieve, or analyze data (intent is "read-data")
+  - User explicitly asks for SQL or a query
+  - User wants to see data from tables/views
+  - User asks questions that require data retrieval (e.g., "show me X", "find Y", "list Z")
+- Set needsSQL to false if:
+  - User is just greeting, asking about the system, or having a conversation
+  - User wants to manage views/sheets (create, delete, rename) without querying
+
 Examples:
 - "who are you?" → intent: "system", complexity: "simple", needsChart: false
 - "what is Qwery?" → intent: "system", complexity: "simple", needsChart: false
@@ -57,14 +68,16 @@ Examples:
 {
 "intent": "string",
 "complexity": "string",
-"needsChart": boolean
+"needsChart": boolean,
+"needsSQL": boolean
 }
 
 Respond ONLY with a strict JSON object using this schema:
 {
   "intent": "one of the supported intent names or other",
   "complexity": "simple" | "medium" | "complex",
-  "needsChart": boolean
+  "needsChart": boolean,
+  "needsSQL": boolean
 }
 
 User message:

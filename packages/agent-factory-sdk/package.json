@@ -13,7 +13,10 @@
     "test:watch": "vitest"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tools/datasource-name-utils": "./src/tools/datasource-name-utils.ts",
+    "./tools/datasource-loader": "./src/tools/datasource-loader.ts",
+    "./services/duckdb-query-engine.service": "./src/services/duckdb-query-engine.service.ts"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.56",

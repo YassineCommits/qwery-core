@@ -1,0 +1,184 @@
+import { getDatasourceDatabaseName } from '@qwery/agent-factory-sdk/tools/datasource-name-utils';
+import {
+  createQueryEngine,
+  type AbstractQueryEngine,
+} from '@qwery/domain/ports';
+import { DuckDBQueryEngine } from '@qwery/agent-factory-sdk';
+import type { ActionFunctionArgs } from 'react-router';
+import { createRepositories } from '~/lib/repositories/repositories-factory';
+import { handleDomainException } from '~/lib/utils/error-handler';
+
+const repositories = await createRepositories();
+
+export async function action({ request }: ActionFunctionArgs) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  try {
+    const body = await request.json();
+    const { conversationId, query, datasourceId } = body;
+
+    if (!conversationId || !query || !datasourceId) {
+      return Response.json(
+        {
+          error: 'Missing required fields: conversationId, query, datasourceId',
+        },
+        { status: 400 },
+      );
+    }
+
+    // Load datasource to get its name and verify it exists
+    const datasource = await repositories.datasource.findById(datasourceId);
+    if (!datasource) {
+      return Response.json(
+        { error: `Datasource ${datasourceId} not found` },
+        { status: 404 },
+      );
+    }
+
+    // Get expected database name (what the agent uses in queries)
+    const expectedDbName = getDatasourceDatabaseName(datasource);
+    console.log('[Notebook Query API] Datasource info:', {
+      id: datasourceId,
+      name: datasource.name,
+      expectedDbName,
+      provider: datasource.datasource_provider,
+    });
+
+    // Dynamically import loadDatasources using package export
+    const { loadDatasources } = await import(
+      '@qwery/agent-factory-sdk/tools/datasource-loader'
+    );
+
+    // Create and initialize queryEngine (aligned with main's architecture)
+    const queryEngine: AbstractQueryEngine =
+      createQueryEngine(DuckDBQueryEngine);
+
+    try {
+      await queryEngine.initialize({
+        workingDir: 'file://', // In-memory instance
+        config: {},
+      });
+
+      const loaded = await loadDatasources(
+        [datasourceId],
+        repositories.datasource,
+      );
+      if (loaded.length > 0) {
+        await queryEngine.attach(
+          loaded.map(
+            (d: { datasource: import('@qwery/domain/entities').Datasource }) =>
+              d.datasource,
+          ),
+        );
+        await queryEngine.connect();
+        console.log(
+          '[Notebook Query API] Query engine initialized and datasource attached',
+        );
+      } else {
+        throw new Error(`Failed to load datasource ${datasourceId}`);
+      }
+    } catch (initError) {
+      const errorMsg =
+        initError instanceof Error ? initError.message : String(initError);
+      console.error(
+        '[Notebook Query API] Failed to initialize query engine:',
+        errorMsg,
+      );
+      return Response.json(
+        { error: `Failed to initialize query engine: ${errorMsg}` },
+        { status: 500 },
+      );
+    }
+
+    // Transform query for Google Sheets: remove .main. schema references
+    // Google Sheets tables are created in the database's own schema, not in 'main'
+    // Agent generates: "dbname.main.tablename" but actual structure is: "dbname.tablename"
+    let transformedQuery = query;
+    if (datasource.datasource_provider === 'gsheet-csv') {
+      // Replace "dbname.main.tablename" with "dbname.tablename"
+      // Handle both quoted and unquoted database names
+      const dbNamePattern = expectedDbName.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&',
+      );
+
+      // Pattern 1: "dbname.main.tablename" -> "dbname"."tablename"
+      // This handles the case where the agent generates: "happy_moon_2l7piw.main.drivers"
+      transformedQuery = transformedQuery.replace(
+        new RegExp(`"${dbNamePattern}"\\.main\\.`, 'gi'),
+        `"${expectedDbName}".`,
+      );
+
+      // Pattern 3: dbname.main.tablename -> dbname.tablename (unquoted)
+      transformedQuery = transformedQuery.replace(
+        new RegExp(`\\b${dbNamePattern}\\.main\\.`, 'gi'),
+        `${expectedDbName}.`,
+      );
+
+      if (transformedQuery !== query) {
+        console.log(
+          '[Notebook Query API] Transformed query for Google Sheets:',
+          {
+            original: query,
+            transformed: transformedQuery,
+          },
+        );
+      }
+    }
+
+    try {
+      let result;
+      try {
+        result = await queryEngine.query(transformedQuery);
+      } catch (queryError) {
+        // If query fails with database not found error, provide helpful message
+        const errorMessage =
+          queryError instanceof Error ? queryError.message : String(queryError);
+        if (
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('Catalog Error')
+        ) {
+          const helpfulError =
+            `Query failed: ${errorMessage}\n\n` +
+            `Expected database name: "${expectedDbName}"\n` +
+            `Datasource name: "${datasource.name}"\n` +
+            `If the query uses a different database or table name, it may need to be updated to match the actual names.`;
+          console.error(
+            '[Notebook Query API] Query execution failed:',
+            helpfulError,
+          );
+          return Response.json({ error: helpfulError }, { status: 400 });
+        }
+        throw queryError;
+      }
+
+      const headers = result.columns.map((col) => ({
+        name: col.name,
+        displayName: col.displayName,
+        originalType: col.originalType,
+      }));
+
+      return Response.json({
+        success: true,
+        data: {
+          rows: result.rows,
+          headers,
+          stat: result.stat,
+        },
+      });
+    } finally {
+      try {
+        await queryEngine.close();
+      } catch (closeError) {
+        console.warn(
+          '[Notebook Query API] Failed to close query engine:',
+          closeError,
+        );
+      }
+    }
+  } catch (error) {
+    return handleDomainException(error);
+  }
+}

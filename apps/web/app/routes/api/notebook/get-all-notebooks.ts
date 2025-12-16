@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from 'react-router';
 import { DomainException } from '@qwery/domain/exceptions';
 import { CreateNotebookService } from '@qwery/domain/services';
 import { createRepositories } from '~/lib/repositories/repositories-factory';
+import { v4 as uuidv4 } from 'uuid';
 
 function handleDomainException(error: unknown): Response {
   if (error instanceof DomainException) {
@@ -50,6 +51,57 @@ export async function action({ request }: ActionFunctionArgs) {
       const body = await request.json();
       const useCase = new CreateNotebookService(repository);
       const notebook = await useCase.execute(body);
+
+      // Initialize a conversation for this notebook
+      // Each notebook gets its own conversation that all cells share
+      try {
+        const notebookTitle = `Notebook - ${notebook.id}`;
+
+        // Check if conversation already exists (in case of race condition or retry)
+        const existingConversations =
+          await repositories.conversation.findByProjectId(notebook.projectId);
+        const existingConversation = existingConversations.find(
+          (conv) => conv.title === notebookTitle,
+        );
+
+        if (existingConversation) {
+          // Conversation already exists, skip creation
+          return Response.json(notebook, { status: 201 });
+        }
+
+        const conversationId = uuidv4();
+        const now = new Date();
+
+        // Get userId from notebook createdBy if available, otherwise use 'system'
+        const notebookWithCreatedBy = notebook as {
+          createdBy?: string;
+        };
+        const userId =
+          notebookWithCreatedBy.createdBy ||
+          body.createdBy ||
+          body.userId ||
+          'system';
+
+        await repositories.conversation.create({
+          id: conversationId,
+          slug: '', // Repository will generate slug from ID
+          title: notebookTitle,
+          projectId: notebook.projectId,
+          taskId: uuidv4(), // TODO: Create or get actual task
+          datasources: [], // Start with empty datasources, will be added when cells use them
+          createdAt: now,
+          updatedAt: now,
+          createdBy: userId,
+          updatedBy: userId,
+          isPublic: false,
+          seedMessage: '',
+        });
+      } catch (convError) {
+        // Log but don't fail notebook creation if conversation creation fails
+        // The conversation will be created on first prompt if needed
+        console.error('Failed to create conversation for notebook:', convError);
+      }
+
       return Response.json(notebook, { status: 201 });
     }
 

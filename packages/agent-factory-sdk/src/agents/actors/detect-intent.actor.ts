@@ -38,6 +38,7 @@ export const detectIntent = async (text: string) => {
           intent: 'other' as const,
           complexity: intentObject.complexity,
           needsChart: intentObject.needsChart ?? false,
+          needsSQL: intentObject.needsSQL ?? false,
         };
       }
 
@@ -63,6 +64,7 @@ export const detectIntent = async (text: string) => {
     intent: 'other' as const,
     complexity: 'simple' as const,
     needsChart: false,
+    needsSQL: false,
   };
 };
 

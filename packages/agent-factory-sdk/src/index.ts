@@ -4,6 +4,10 @@ export * from './ports';
 export * from './services';
 export * from './agents';
 
+// Export tool types
+export * from './agents/tools/types';
+export * from './agents/tools/inferred-types';
+
 // Reexport AI SDK
 export type { UIMessage } from 'ai';
 export {

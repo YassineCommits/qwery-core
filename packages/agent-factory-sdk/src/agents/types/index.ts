@@ -1,6 +1,7 @@
 import { streamText, UIMessage, Experimental_Agent } from 'ai';
 import { z } from 'zod';
 import type { AnyActorRef } from 'xstate';
+import type { PromptSource } from '../../domain/prompt-source.type';
 
 /**
  * List of intents that the agent can handle.
@@ -345,6 +346,7 @@ export const IntentSchema = z.object({
   intent: z.enum(intentNames),
   complexity: z.enum(['simple', 'medium', 'complex']),
   needsChart: z.boolean().default(false),
+  needsSQL: z.boolean().default(false),
 });
 
 export type Intent = z.infer<typeof IntentSchema>;
@@ -361,6 +363,7 @@ export type AgentContext = {
     | ReturnType<(typeof Experimental_Agent)['prototype']['stream']> // holds the streaming result from AI SDK
     | null;
   intent: Intent;
+  promptSource?: PromptSource; // Source of the prompt (notebook inline or chat)
   error?: string;
   retryCount?: number;
   lastError?: Error;

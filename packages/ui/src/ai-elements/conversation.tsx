@@ -18,6 +18,7 @@ export const Conversation = ({ className, ...props }: ConversationProps) => (
     initial="smooth"
     resize="smooth"
     role="log"
+    style={{ overflowX: 'hidden' }}
     {...props}
   />
 );
@@ -31,7 +32,10 @@ export const ConversationContent = ({
   ...props
 }: ConversationContentProps) => (
   <StickToBottom.Content
-    className={cn('flex flex-col gap-8 p-4', className)}
+    className={cn(
+      'flex max-w-full min-w-0 flex-col gap-8 overflow-x-hidden p-4',
+      className,
+    )}
     {...props}
   />
 );

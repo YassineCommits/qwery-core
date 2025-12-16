@@ -108,6 +108,17 @@ export class BrowserChatTransport implements ChatTransport<UIMessage> {
     // Browser transport doesn't support reconnection
     return null;
   }
+
+  /**
+   * Stop the agent and cancel any ongoing processing.
+   * This should be called on page refresh/unmount.
+   */
+  async stop(): Promise<void> {
+    if (this.agent) {
+      this.agent.stop();
+      this.agent = null;
+    }
+  }
 }
 
 export function createBrowserTransport(
