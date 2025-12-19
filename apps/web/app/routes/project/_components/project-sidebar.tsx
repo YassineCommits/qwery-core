@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { toast } from 'sonner';
 
-import { NewDatasource } from '@qwery/datasources/new-datasource';
 import {
   Sidebar,
   SidebarContent,
@@ -185,25 +184,44 @@ export function ProjectSidebar() {
     </Button>
   ) : undefined;
 
+  // Get unsaved notebook slugs from localStorage
+  const [unsavedNotebookSlugs, setUnsavedNotebookSlugs] = useState<string[]>([]);
+
+  useEffect(() => {
+    const updateUnsavedSlugs = () => {
+      try {
+        const unsaved = JSON.parse(
+          localStorage.getItem('notebook:unsaved') || '[]',
+        ) as string[];
+        setUnsavedNotebookSlugs(unsaved);
+      } catch {
+        setUnsavedNotebookSlugs([]);
+      }
+    };
+
+    updateUnsavedSlugs();
+    // Listen for storage events to update when other tabs update
+    window.addEventListener('storage', updateUnsavedSlugs);
+    // Poll for changes (since storage event only fires for other tabs)
+    const interval = setInterval(updateUnsavedSlugs, 500);
+    return () => {
+      window.removeEventListener('storage', updateUnsavedSlugs);
+      clearInterval(interval);
+    };
+  }, []);
+
   const navigationConfig = createNavigationConfig(
     slug,
     notebooksList,
     handleDeleteNotebook,
     notebookGroupAction,
+    unsavedNotebookSlugs,
   );
   return (
     <>
       <Sidebar collapsible="none">
-        <SidebarHeader className={'h-16 justify-center'}>
-          <div className="flex w-full items-center justify-center">
-            <NewDatasource
-              showLabel
-              onClick={() => {
-                telemetry.trackEvent(PROJECT_EVENTS.NEW_DATASOURCE_CLICKED);
-                navigate(createPath(pathsConfig.app.availableSources, slug));
-              }}
-            />
-          </div>
+        <SidebarHeader className={'h-justify-center'}>
+          {/* New Datasource button removed */}
         </SidebarHeader>
 
         <SidebarContent>
