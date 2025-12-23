@@ -30,6 +30,10 @@ import { TransformMetadataToSimpleSchemaService } from '@qwery/domain/services';
 import type { PromptSource } from '../../domain';
 import { PROMPT_SOURCE } from '../../domain';
 import { getSchemaCache } from '../../tools/schema-cache';
+import {
+  storeQueryResult,
+  getQueryResult,
+} from '../../tools/query-result-cache';
 
 // Lazy workspace resolution - only resolve when actually needed, not at module load time
 // This prevents side effects when the module is imported in browser/SSR contexts
@@ -1032,18 +1036,40 @@ export const readDataAgent = async (
             `[ReadDataAgent] [PERF] runQuery TOTAL took ${totalTime.toFixed(2)}ms (sync: ${syncTime.toFixed(2)}ms, query: ${queryTime.toFixed(2)}ms, rows: ${result.rows.length})`,
           );
 
-          // For chart requests in inline mode, return both result AND SQL for pasting
+          // Store full results in cache to avoid injecting into agent context
+          const columnNames = result.columns.map((col) =>
+            typeof col === 'string' ? col : col.name || String(col),
+          );
+          const queryId = storeQueryResult(
+            conversationId,
+            query,
+            columnNames,
+            result.rows,
+          );
+
+          // Return full results for UI display, but agent should use queryId to avoid token waste
+          // The prompt instructs the agent to ignore the full results and only use queryId
+          const fullResult = {
+            columns: columnNames,
+            rows: result.rows,
+          };
+
           if (isChartRequestInInlineMode) {
+            // Chart request in inline mode: return full results + SQL for pasting
             return {
-              result: result,
+              result: fullResult,
               shouldPaste: true,
               sqlQuery: query,
-              chartExecutionOverride: true, // Flag to show visual indicator in UI
+              chartExecutionOverride: true,
+              queryId, // Agent should use this, not the full results
             };
           }
 
+          // Return full results for UI display
+          // Agent prompt instructs to ignore full results and use queryId instead
           return {
-            result: result,
+            result: fullResult,
+            queryId, // Agent should use this to retrieve results for tools
           };
         },
       }),
@@ -1087,14 +1113,33 @@ export const readDataAgent = async (
         description:
           'Analyzes query results to determine the best chart type (bar, line, or pie) based on the data structure and user intent. Use this before generating a chart to select the most appropriate visualization type.',
         inputSchema: z.object({
+          queryId: z.string().optional().describe('Query ID from runQuery to retrieve full results from cache'),
           queryResults: z.object({
             rows: z.array(z.record(z.unknown())),
             columns: z.array(z.string()),
-          }),
+          }).optional().describe('Query results (optional if queryId is provided)'),
           sqlQuery: z.string().optional(),
           userInput: z.string().optional(),
         }),
-        execute: async ({ queryResults, sqlQuery = '', userInput = '' }) => {
+        execute: async ({ queryId, queryResults, sqlQuery = '', userInput = '' }) => {
+          // If queryId is provided, retrieve full results from cache
+          let fullQueryResults = queryResults;
+          if (queryId) {
+            const cachedResult = getQueryResult(conversationId, queryId);
+            if (cachedResult) {
+              fullQueryResults = {
+                columns: cachedResult.columns,
+                rows: cachedResult.rows,
+              };
+              console.log(`[selectChartType] Retrieved full results from cache: ${cachedResult.rows.length} rows`);
+            } else {
+              console.warn(`[selectChartType] Query result not found in cache: ${queryId}, using provided queryResults`);
+            }
+          }
+
+          if (!fullQueryResults) {
+            throw new Error('Either queryId or queryResults must be provided');
+          }
           const workspace = getWorkspace();
           if (!workspace) {
             throw new Error('WORKSPACE environment variable is not set');
@@ -1111,7 +1156,7 @@ export const readDataAgent = async (
           }
 
           const result = await selectChartType(
-            queryResults,
+            fullQueryResults,
             sqlQuery,
             userInput,
             businessContext,
@@ -1124,19 +1169,39 @@ export const readDataAgent = async (
           'Generates a chart configuration JSON for visualization. Takes query results and creates a chart (bar, line, or pie) with proper data transformation, colors, and labels. Use this after selecting a chart type or when the user requests a specific chart type.',
         inputSchema: z.object({
           chartType: z.enum(['bar', 'line', 'pie']).optional(),
+          queryId: z.string().optional().describe('Query ID from runQuery to retrieve full results from cache'),
           queryResults: z.object({
             rows: z.array(z.record(z.unknown())),
             columns: z.array(z.string()),
-          }),
+          }).optional().describe('Query results (optional if queryId is provided)'),
           sqlQuery: z.string().optional(),
           userInput: z.string().optional(),
         }),
         execute: async ({
           chartType,
+          queryId,
           queryResults,
           sqlQuery = '',
           userInput = '',
         }) => {
+          // If queryId is provided, retrieve full results from cache
+          let fullQueryResults = queryResults;
+          if (queryId) {
+            const cachedResult = getQueryResult(conversationId, queryId);
+            if (cachedResult) {
+              fullQueryResults = {
+                columns: cachedResult.columns,
+                rows: cachedResult.rows,
+              };
+              console.log(`[generateChart] Retrieved full results from cache: ${cachedResult.rows.length} rows`);
+            } else {
+              console.warn(`[generateChart] Query result not found in cache: ${queryId}, using provided queryResults`);
+            }
+          }
+
+          if (!fullQueryResults) {
+            throw new Error('Either queryId or queryResults must be provided');
+          }
           const startTime = performance.now();
           const workspace = getWorkspace();
           if (!workspace) {
@@ -1163,7 +1228,7 @@ export const readDataAgent = async (
           const generateStartTime = performance.now();
           const result = await generateChart({
             chartType,
-            queryResults,
+            queryResults: fullQueryResults,
             sqlQuery,
             userInput,
             businessContext,

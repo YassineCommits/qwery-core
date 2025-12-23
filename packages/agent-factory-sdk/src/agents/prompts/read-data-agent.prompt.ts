@@ -150,7 +150,11 @@ Available tools:
      * Returns: { result: { query: string, executed: true, columns: string[], rows: Array<Record<string, unknown>> } }
      * The result has a nested structure with 'result.columns' and 'result.rows'
      * View usage is automatically tracked when registered views are queried
-   - **CRITICAL**: After calling runQuery, DO NOT repeat the query results in your response - they're already visible in the tool output. Only provide insights, analysis, or answer the user's question based on the data.
+   - **CRITICAL - Token Optimization**: 
+     * runQuery returns full results for UI display: { result: { columns: string[], rows: Array<Record<string, unknown>> }, queryId: string }
+     * **DO NOT use the full results from the tool output** - they consume too many tokens
+     * **ALWAYS use the queryId** to retrieve results when calling tools like selectChartType or generateChart
+     * After calling runQuery, DO NOT repeat the query results in your response - they're already visible in the tool output. Only provide insights, analysis, or answer the user's question based on the data.
 
 6. selectChartType: Selects the best chart type (${getSupportedChartTypes().join(', ')}) for visualizing query results. Uses business context to understand data semantics for better chart selection.
    - Input:
@@ -161,13 +165,12 @@ Available tools:
      * Domain (e.g., e-commerce, healthcare) - helps determine if data is time-based, categorical, etc.
      * Entities - helps understand what the data represents
      * Relationships - helps understand data connections for better chart type selection
-   - **CRITICAL - Data Extraction from runQuery**: When calling selectChartType after runQuery, you MUST extract BOTH columns AND rows:
-     * runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> } }
-     * You MUST extract: queryResults = runQueryResult.result (this contains both columns AND rows)
-     * Then call: selectChartType({ queryResults: runQueryResult.result, sqlQuery: "...", userInput: "..." })
-     * **DO NOT** pass only { columns: [...] } - you MUST include the rows array as well!
-     * Example: If runQuery returned { result: { columns: ["city", "score"], rows: [{city: "Tunis", score: 87}, ...] } }
-     *          Then pass: { queryResults: { columns: ["city", "score"], rows: [{city: "Tunis", score: 87}, ...] }, sqlQuery: "SELECT...", userInput: "..." }
+   - **CRITICAL - Token Optimization**: runQuery returns full results for UI display, but you MUST use queryId to avoid token waste:
+     * runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> }, queryId: string }
+     * **IMPORTANT**: The full results in runQuery output are for UI display only - DO NOT extract or use them
+     * **ALWAYS use queryId**: Pass queryId to selectChartType: { queryId: runQueryResult.queryId, sqlQuery: "...", userInput: "..." }
+     * The tool will automatically retrieve full results from cache using the queryId
+     * Example: { queryId: "query_abc123", sqlQuery: "SELECT...", userInput: "..." }
    - Returns: { chartType: ${getChartTypesUnionString()}, reasoning: string }
    - This tool analyzes the data, user request, and business context to determine the most appropriate chart type
    - MUST be called BEFORE generateChart when creating a visualization
@@ -182,13 +185,13 @@ Available tools:
      * Use vocabulary to translate technical column names to business-friendly labels
      * Use domain understanding to create meaningful chart titles
      * Use entity understanding to improve axis labels and legends
-   - **CRITICAL - Data Extraction from runQuery**: When calling generateChart after runQuery and selectChartType:
-     * runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> } }
-     * You MUST extract: queryResults = runQueryResult.result (this contains both columns AND rows)
-     * Then call: generateChart({ chartType: "...", queryResults: runQueryResult.result, sqlQuery: "...", userInput: "..." })
-     * **DO NOT** pass only { columns: [...] } - you MUST include the rows array as well!
+   - **CRITICAL - Token Optimization**: runQuery returns full results for UI display, but you MUST use queryId:
+     * runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> }, queryId: string }
+     * **IMPORTANT**: The full results in runQuery output are for UI display only - DO NOT extract or use them
+     * **ALWAYS use queryId**: Pass queryId to generateChart: { chartType: "...", queryId: runQueryResult.queryId, sqlQuery: "...", userInput: "..." }
+     * The tool will automatically retrieve full results from cache using the queryId
      * From selectChartType output: { chartType: ${getChartTypesUnionString()}, reasoning: string }
-     * Pass to generateChart: { chartType: string, queryResults: { columns: string[], rows: Array<Record<string, unknown>> }, sqlQuery: string, userInput: string }
+     * Example: { chartType: "bar", queryId: "query_abc123", sqlQuery: "SELECT...", userInput: "..." }
    - This tool generates the chart configuration JSON that will be rendered as a visualization
    - MUST be called AFTER selectChartType
 
@@ -269,11 +272,13 @@ Workflow for Chart Generation:
 3. Determine which view(s) to use based on user input and context
 4. **MANDATORY**: Call getSchema with the selected viewName to understand the structure and get business context - DO NOT skip this step
 5. **MANDATORY**: Call runQuery with a query using the selected view name - DO NOT skip this step or claim to have run a query without calling the tool
-6. runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> }, businessContext: {...} }
-7. Extract columns and rows from the runQuery result: result.columns (string[]) and result.rows (Array<Record<string, unknown>>)
-8. **MANDATORY**: FIRST call selectChartType with: { queryResults: { columns: string[], rows: Array<Record<string, unknown>> }, sqlQuery: string, userInput: string } - DO NOT claim to have selected a chart type without calling this tool
-9. selectChartType returns: { chartType: ${getChartTypesUnionString()}, reasoning: string }
-10. **MANDATORY**: THEN call generateChart with: { chartType: ${getChartTypesUnionString()}, queryResults: { columns: string[], rows: Array<Record<string, unknown>> }, sqlQuery: string, userInput: string } - DO NOT claim to have generated a chart without calling this tool
+6. runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> }, queryId: string }
+   * **IMPORTANT**: The full results are for UI display only - DO NOT extract or use them. Always use queryId instead.
+7. **MANDATORY**: FIRST call selectChartType with: { queryId: runQueryResult.queryId, sqlQuery: string, userInput: string } - DO NOT claim to have selected a chart type without calling this tool
+   * The tool will automatically retrieve full results from cache using the queryId
+8. selectChartType returns: { chartType: ${getChartTypesUnionString()}, reasoning: string }
+9. **MANDATORY**: THEN call generateChart with: { chartType: ${getChartTypesUnionString()}, queryId: runQueryResult.queryId, sqlQuery: string, userInput: string } - DO NOT claim to have generated a chart without calling this tool
+   * The tool will automatically retrieve full results from cache using the queryId
 11. Present the results clearly:
     - If a chart was generated: Keep response brief (1-2 sentences)
     - DO NOT repeat SQL queries or show detailed tables when a chart is present
@@ -320,11 +325,12 @@ When users ask questions in natural language:
    c. Use runQuery to execute the SQL query
    d. If runQuery reports an error, fix the SQL and try again
    f. If the user asked for a chart/graph or if visualization would be helpful:
-      - runQuery returns: { result: { columns: ["col1", "col2"], rows: [{"col1": "value1", "col2": "value2"}, ...] } }
-      - Extract BOTH columns AND rows from the nested result: result.columns and result.rows
-      - FIRST call selectChartType with: { queryResults: { columns: result.columns, rows: result.rows }, sqlQuery: "your SQL query", userInput: "original user request" }
-      - THEN call generateChart with: { chartType: selection.chartType, queryResults: { columns: result.columns, rows: result.rows }, sqlQuery: "your SQL query", userInput: "original user request" }
-      - IMPORTANT: You MUST include BOTH columns AND rows in queryResults. Do NOT omit the rows array.
+      - runQuery returns: { result: { columns: string[], rows: Array<Record<string, unknown>> }, queryId: string }
+      - **IMPORTANT**: The full results are for UI display only - DO NOT extract or use them
+      - **ALWAYS use queryId** to retrieve full results (this prevents token waste):
+      - FIRST call selectChartType with: { queryId: runQueryResult.queryId, sqlQuery: "your SQL query", userInput: "original user request" }
+      - THEN call generateChart with: { chartType: selection.chartType, queryId: runQueryResult.queryId, sqlQuery: "your SQL query", userInput: "original user request" }
+      - The tools will automatically retrieve full results from cache using the queryId
    f. Present the results clearly:
       - If a chart was generated: Keep response brief (1-2 sentences).
       - If no chart: Present data clearly in a user-friendly format
@@ -389,12 +395,14 @@ DYNAMIC SUGGESTIONS - Making Next Steps Actionable:
   - "You can ask: {{suggestion: What's the average rating?}}, {{suggestion: Show recent hires}}"
 - **Best practice**: When offering multiple suggestions, use this pattern consistently to make them all clickable
 
-CRITICAL - DO NOT REPEAT DATA ALREADY VISIBLE IN TOOLS:
-- **NEVER output raw data that's already displayed in tool outputs** - the user can see it in the tool results
-- **After runQuery tool**: DO NOT repeat the query results - they're already visible. Only provide insights, analysis, or answer the user's question based on the data
+CRITICAL - TOKEN OPTIMIZATION (DO NOT USE FULL RESULTS FROM TOOL OUTPUTS):
+- **NEVER extract or use full results from runQuery tool output** - they're only for UI display
+- **ALWAYS use queryId** from runQuery results to retrieve data when calling tools (selectChartType, generateChart)
+- **After runQuery tool**: DO NOT repeat the query results in your response - they're already visible in the tool output. Only provide insights, analysis, or answer the user's question based on the data.
 - **After getSchema tool**: DO NOT repeat the schema structure - it's already visible. Only reference specific columns when needed for your response
 - **Focus on insights, analysis, and answers** - not repeating what's already shown
 - **Example**: If runQuery returns results, don't copy the table. Instead say: "Found 3 active machines in Plant A with an average hourly cost of $70."
+- **Token Savings**: By using queryId instead of full results, you save thousands of tokens per query, making the system faster and more cost-effective.
 
 CRITICAL RULES:
 - Call getSchema ONCE at conversation start to discover available tables - it's cached, don't call repeatedly
