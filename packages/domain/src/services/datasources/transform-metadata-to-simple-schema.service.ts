@@ -129,6 +129,10 @@ export class TransformMetadataToSimpleSchemaService
           
           if (isTwoPartProvider) {
             // Two-part path: {datasource_name}.{table_name} (e.g., gsheet-csv)
+            // Table names from DuckDB are just the table name (e.g., "tmp_xxx" or "test_table")
+            // We format them as: {datasource_name}.{table_name}
+            // Note: Table names should NOT include the datasource name suffix
+            // The table name from DuckDB metadata is already the correct base name
             formattedTableName = `${databaseName}.${table.name}`;
           } else {
             // Three-part path: {datasource_name}.{schema}.{table_name} (e.g., postgresql)

@@ -15,7 +15,14 @@ export function buildReadDataAgentPrompt(attachedDatasources?: Datasource[]): st
       .map((ds) => {
         const dbName = getDatasourceDatabaseName(ds);
         const provider = ds.datasource_provider;
-        return `  - ${dbName} (${provider})`;
+        const id = ds.id;
+        return `  - ${dbName} (${provider}) [ID: ${id}]`;
+      })
+      .join('\n');
+    const datasourceIdMap = attachedDatasources
+      .map((ds) => {
+        const dbName = getDatasourceDatabaseName(ds);
+        return `    ${dbName} → ${ds.id}`;
       })
       .join('\n');
     const firstDbName = attachedDatasources[0] ? getDatasourceDatabaseName(attachedDatasources[0]) : 'datasource_name';
@@ -23,17 +30,31 @@ export function buildReadDataAgentPrompt(attachedDatasources?: Datasource[]): st
 ATTACHED DATASOURCES (${attachedDatasources.length}):
 ${datasourceList}
 
-**IMPORTANT**: These datasources are already attached and available for querying. You can query them directly using their database names.
-- PostgreSQL/Neon/Supabase/MySQL: Use format: {datasource_name}.{schema}.{table_name} (e.g., ${firstDbName}.public.table_name)
-- Google Sheets: Use format: {datasource_name}.{table_name} (e.g., ${firstDbName}.sheet_name)
-- DO NOT query datasources that are not in this list - they are not attached.
+DATASOURCE ID MAPPING (for reference):
+${datasourceIdMap}
+
+**CRITICAL - DATASOURCE USAGE RULES**:
+1. **ONLY use datasources listed above** - These are the ONLY datasources currently attached to this conversation.
+2. **NEVER reference or query datasources that are NOT in this list** - If a datasource is not listed above, it is NOT attached and you MUST NOT use it.
+3. **If the user mentions a datasource that is not in this list**, inform them that it is not currently attached and they need to attach it first.
+4. **When datasources change**, this list is automatically updated - always use the CURRENT list shown above, not any previous or cached information.
+5. **ALWAYS call getSchema when datasources change** - If the user attaches a new datasource or changes datasources, you MUST call getSchema to refresh your understanding of available tables.
+6. **Query format**:
+   - PostgreSQL/Neon/Supabase/MySQL: Use format: {datasource_name}.{schema}.{table_name} (e.g., ${firstDbName}.public.table_name)
+   - Google Sheets/DuckDB-native: Use format: {datasource_name}.{table_name} (e.g., ${firstDbName}.sheet_name)
+7. **Before querying**, verify the datasource name matches EXACTLY one from the list above.
+8. **DO NOT use cached/stale datasource information** - Always refer to the current attached datasources list above.
 
 `;
   } else {
     datasourceInfo = `
 ATTACHED DATASOURCES: None
 
-**IMPORTANT**: No datasources are currently attached. If the user asks about data, you may need to call getSchema to discover available tables, or inform the user that no datasources are attached.
+**CRITICAL - NO DATASOURCES ATTACHED**:
+- **NO datasources are currently attached** to this conversation.
+- **DO NOT attempt to query any datasources** - there are none available.
+- **If the user asks about data**, inform them that no datasources are currently attached and they need to attach a datasource first.
+- **DO NOT reference or assume any datasources exist** - only work with datasources that are explicitly attached and listed above.
 
 `;
   }
@@ -455,12 +476,14 @@ CRITICAL - TOKEN OPTIMIZATION (DO NOT USE FULL RESULTS FROM TOOL OUTPUTS):
 - **Token Savings**: By using queryId instead of full results, you save thousands of tokens per query, making the system faster and more cost-effective.
 
 CRITICAL RULES:
-- **Use attached datasources list** - Check the attached datasources provided at the start of this prompt before querying
+- **ONLY USE ATTACHED DATASOURCES** - The list of attached datasources at the start of this prompt is the ONLY source of truth. NEVER query, reference, or assume any datasources exist that are NOT in that list.
+- **If datasources change** - The list at the start of this prompt is always current. Use ONLY the datasources shown there, never any previous or cached information.
+- **Use attached datasources list** - ALWAYS check the attached datasources provided at the start of this prompt before querying. If a datasource is not listed, it is NOT attached.
 - **Minimize getSchema calls** - Only call getSchema when you truly need to discover tables or get column information
 - **Reuse schema information** - If you've called getSchema once, use that information for subsequent queries
 - **Query directly when possible** - If you know table names from attached datasources or previous calls, query directly with runQuery
 - Always use exact table paths: {datasource_name}.{schema}.{table_name} for PostgreSQL/MySQL, {datasource_name}.{table_name} for Google Sheets
-- NEVER query datasources that are not in the attached datasources list
+- **NEVER query datasources that are not in the attached datasources list** - This is a hard rule that must never be violated
 
 Remember: Views persist across queries. Once a sheet is imported, it remains available for all future queries in the same conversation.
 

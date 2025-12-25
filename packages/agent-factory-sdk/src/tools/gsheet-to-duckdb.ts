@@ -310,7 +310,8 @@ export async function attachGSheetDatasource(
     );
   }
 
-  // Check if database already has tables - if so, skip tab discovery and table creation
+  // Drop all existing tables to ensure fresh start with semantic names
+  // This fixes issues where tables were created with wrong names (e.g., tmp_xxx_datasourcename)
   try {
     const existingTablesReader = await conn.runAndReadAll(
       `SELECT table_name FROM information_schema.tables 
@@ -325,24 +326,26 @@ export async function attachGSheetDatasource(
 
     if (existingTables.length > 0) {
       console.log(
-        `[GSheetAttach] Database ${attachedDatabaseName} already has ${existingTables.length} table(s), skipping tab discovery and table creation`,
+        `[GSheetAttach] Dropping ${existingTables.length} existing table(s) to ensure semantic naming`,
       );
-      // Return existing tables
-      const tables: GSheetAttachResult['tables'] = existingTables.map((t) => ({
-        schema: attachedDatabaseName,
-        table: t.table_name,
-        csvUrl: '', // Not available for existing tables
-        schemaDefinition: undefined,
-      }));
-      return {
-        attachedDatabaseName,
-        tables,
-      };
+      for (const table of existingTables) {
+        const escapedTableName = table.table_name.replace(/"/g, '""');
+        try {
+          await conn.run(
+            `DROP TABLE IF EXISTS "${escapedDbName}"."${escapedTableName}"`,
+          );
+        } catch (error) {
+          console.warn(
+            `[GSheetAttach] Failed to drop table ${table.table_name}:`,
+            error,
+          );
+        }
+      }
     }
   } catch (error) {
     // If check fails, continue with normal flow
     console.warn(
-      `[GSheetAttach] Failed to check existing tables, continuing with tab discovery:`,
+      `[GSheetAttach] Failed to check/drop existing tables, continuing with tab discovery:`,
       error,
     );
   }
@@ -383,36 +386,8 @@ export async function attachGSheetDatasource(
         tableName = `tab_${gid}`;
       }
 
-      let escapedTableNameForCheck = tableName.replace(/"/g, '""');
-
-      // Check if table already exists - if so, skip recreation
-      try {
-        const checkTableReader = await conn.runAndReadAll(
-          `SELECT table_name FROM information_schema.tables 
-           WHERE table_catalog = '${attachedDatabaseName.replace(/'/g, "''")}' 
-             AND table_schema = 'main' 
-             AND table_name = '${escapedTableNameForCheck.replace(/'/g, "''")}'`,
-        );
-        await checkTableReader.readAll();
-        const existingTables = checkTableReader.getRowObjectsJS() as Array<{
-          table_name: string;
-        }>;
-
-        if (existingTables.length > 0) {
-          console.log(
-            `[GSheetAttach] Table ${attachedDatabaseName}.${tableName} already exists, skipping recreation`,
-          );
-          tables.push({
-            schema: attachedDatabaseName,
-            table: tableName,
-            csvUrl,
-            schemaDefinition: undefined, // Skip schema extraction for existing tables
-          });
-          continue; // Skip to next tab
-        }
-      } catch {
-        // If check fails, continue with table creation
-      }
+      // Don't check for existing tables - always recreate to ensure semantic naming
+      // This ensures tables are always properly named, even if they were created with wrong names before
 
       // Drop temp table if it exists (from previous failed attempt)
       try {

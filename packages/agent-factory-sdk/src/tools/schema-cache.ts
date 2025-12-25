@@ -2,6 +2,7 @@ import type { SimpleSchema, SimpleTable } from '@qwery/domain/entities';
 import type { DatasourceMetadata } from '@qwery/domain/entities';
 import { TransformMetadataToSimpleSchemaService } from '@qwery/domain/services';
 import { getDatasourceDatabaseName } from './datasource-name-utils';
+import { getDatasourceType } from './datasource-loader';
 
 export interface ColumnMetadata {
   columnName: string;
@@ -83,9 +84,10 @@ export class SchemaCacheManager {
     // Also add the passed databaseName as fallback
     datasourceDatabaseNames.add(databaseName);
 
-    // For gsheet-csv and other DuckDB-native providers, tables might be in 'main' or 'memory' database
+    // For DuckDB-native providers, tables might be in 'main' or 'memory' database
     // We need to match by table names containing the datasource ID or name
-    const isGsheetCsv = provider === 'gsheet-csv';
+    const datasourceType = getDatasourceType(provider);
+    const isDuckDBNative = datasourceType === 'duckdb-native';
     const datasourceIdShort = datasourceId.replace(/-/g, '_'); // Convert UUID format for matching
 
     for (const [schemaKey, schema] of schemas.entries()) {
@@ -103,8 +105,8 @@ export class SchemaCacheManager {
           (name) => name.toLowerCase() === dbNameLower,
         );
 
-      // For gsheet-csv, also check if tables are in main/memory and contain datasource ID
-      if (!matchesDatabase && isGsheetCsv && (dbName === 'main' || dbName === 'memory')) {
+      // For DuckDB-native providers, also check if tables are in main/memory and contain datasource ID
+      if (!matchesDatabase && isDuckDBNative && (dbName === 'main' || dbName === 'memory')) {
         // Check if any table name contains the datasource ID
         const hasMatchingTable = schema.tables.some((table) => {
           const tableName = table.tableName.toLowerCase();
@@ -116,7 +118,7 @@ export class SchemaCacheManager {
         if (hasMatchingTable) {
           matchesDatabase = true;
           console.log(
-            `[SchemaCache] Found gsheet-csv tables in ${dbName} database matching datasource ID`,
+            `[SchemaCache] Found DuckDB-native provider (${provider}) tables in ${dbName} database matching datasource ID`,
           );
         }
       }
@@ -131,6 +133,7 @@ export class SchemaCacheManager {
 
         for (const table of schema.tables) {
           // Extract table name (already formatted as datasource.schema.table or datasource.table)
+          // The transform service handles all formatting, so we use it as-is
           const tableName = table.tableName;
           const columns = table.columns.map((col) => ({
             columnName: col.columnName,
@@ -265,12 +268,17 @@ export class SchemaCacheManager {
       return `${databaseName}.${schemaName}.${tableName}`;
     }
 
-    // Check if two-part provider (gsheet-csv)
-    if (provider === 'gsheet-csv') {
+    // Determine table path format based on datasource type
+    // DuckDB-native providers (gsheet-csv, json-online, parquet-online, etc.) use two-part: datasource.table
+    // Foreign databases (postgresql, mysql, etc.) use three-part: datasource.schema.table
+    const datasourceType = getDatasourceType(provider);
+    
+    if (datasourceType === 'duckdb-native') {
+      // Two-part format for DuckDB-native providers
       return `${databaseName}.${tableName}`;
     }
 
-    // Three-part for others (postgresql, etc.)
+    // Three-part format for foreign databases
     return `${databaseName}.${schemaName}.${tableName}`;
   }
 
