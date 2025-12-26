@@ -34,6 +34,7 @@ import {
   storeQueryResult,
   getQueryResult,
 } from '../../tools/query-result-cache';
+import { extractTablePathsFromQuery } from '../../tools/validate-table-paths';
 
 // Lazy workspace resolution - only resolve when actually needed, not at module load time
 // This prevents side effects when the module is imported in browser/SSR contexts
@@ -1054,26 +1055,30 @@ export const readDataAgent = async (
                   loaded.map((d) => getDatasourceDatabaseName(d.datasource)),
                 );
 
-                // Extract table references from SQL query (simple regex-based extraction)
-                // Match patterns like: FROM datasource.table, JOIN datasource.schema.table, etc.
-                const tablePattern =
-                  /(?:FROM|JOIN|INTO|UPDATE)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)?)/gi;
-                const matches = query.matchAll(tablePattern);
-                const referencedTables = new Set<string>();
+                // Extract table references from SQL query using proper extraction function
+                // This function uses word boundaries to avoid matching "FROM" in function calls
+                // and properly handles table aliases
+                const tablePaths = extractTablePathsFromQuery(query);
+                const referencedDatasources = new Set<string>();
 
-                for (const match of matches) {
-                  const tableRef = match[1];
-                  if (!tableRef) continue;
+                for (const tablePath of tablePaths) {
                   // Extract datasource name (first part before dot)
-                  const parts = tableRef.split('.');
-                  if (parts.length >= 1 && parts[0]) {
+                  // Handle both formats:
+                  // - datasource.schema.table (3 parts)
+                  // - datasource.table (2 parts)
+                  // - table (1 part - main database, skip validation)
+                  const parts = tablePath.split('.');
+                  if (parts.length >= 2 && parts[0]) {
+                    // Only validate if table path has at least 2 parts (datasource.table or datasource.schema.table)
+                    // Simple table names without datasource prefix are in main database and don't need validation
                     const datasourceName = parts[0];
-                    referencedTables.add(datasourceName);
+                    referencedDatasources.add(datasourceName);
                   }
+                  // Skip simple table names (no dots) - they're in main database
                 }
 
                 // Check if all referenced datasources are attached
-                const invalidDatasources = Array.from(referencedTables).filter(
+                const invalidDatasources = Array.from(referencedDatasources).filter(
                   (dbName) => !attachedDbNames.has(dbName),
                 );
 
@@ -1210,9 +1215,6 @@ export const readDataAgent = async (
           if (repositories) {
             try {
               const schemaCache = getSchemaCache(conversationId);
-              const { extractTablePathsFromQuery } = await import(
-                '../../tools/validate-table-paths'
-              );
               const tablePaths = extractTablePathsFromQuery(query);
               const allAvailablePaths = schemaCache.getAllTablePathsFromAllDatasources();
               const missingTables: string[] = [];
