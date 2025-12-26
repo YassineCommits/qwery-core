@@ -15,7 +15,6 @@ import { AbstractQueryEngine } from '@qwery/domain/ports';
 import type { PromptSource } from '../domain';
 import type { TelemetryManager } from '@qwery/telemetry/opentelemetry';
 import { AGENT_EVENTS } from '@qwery/telemetry/opentelemetry/events/agent.events';
-import type { UIMessage } from 'ai';
 import {
   context as otelContext,
   trace,
