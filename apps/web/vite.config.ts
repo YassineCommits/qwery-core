@@ -52,6 +52,7 @@ export default defineConfig(({ command }) => ({
       '@duckdb/node-bindings-darwin-arm64',
       '@duckdb/node-bindings-darwin-x64',
       '@duckdb/node-bindings-win32-x64',
+      /^@qwery\/extension-/,
     ],
   },
   plugins: [
@@ -84,6 +85,7 @@ export default defineConfig(({ command }) => ({
           return true;
         }
         if (id.startsWith('node:')) return true;
+        if (id.startsWith('@qwery/extension-')) return true;
         return false;
       },
     },
@@ -95,6 +97,7 @@ export default defineConfig(({ command }) => ({
       '@duckdb/node-api',
       '@duckdb/duckdb-wasm',
       '@qwery/agent-factory-sdk',
+      /^@qwery\/extension-/,
     ],
     entries: [
       './app/root.tsx',
