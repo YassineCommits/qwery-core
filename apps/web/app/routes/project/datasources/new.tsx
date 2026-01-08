@@ -175,8 +175,6 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
       return;
     }
 
-    const config = values as Record<string, unknown>;
-
     let projectId = workspace.projectId;
     if (!projectId) {
       const getProjectBySlugService = new GetProjectBySlugService(
@@ -200,7 +198,37 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
       return;
     }
 
+    let config = values as Record<string, unknown>;
     const userId = 'system'; // Default user - replace with actual user context
+
+    // Validate and normalize config for oneOf schemas
+    const hasConnectionUrl = Boolean(config.connectionUrl);
+    const hasHost = Boolean(config.host);
+
+    if (!hasConnectionUrl && !hasHost) {
+      toast.error('Please provide either a connection URL or connection details (host is required)');
+      return;
+    }
+
+    // Normalize config: if using connectionUrl, remove separate fields; if using separate fields, remove connectionUrl
+    if (hasConnectionUrl) {
+      // Using connectionUrl - remove separate fields
+      config = {
+        connectionUrl: config.connectionUrl,
+      };
+    } else {
+      // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+      config = { ...config };
+      delete config.connectionUrl;
+      Object.keys(config).forEach((key) => {
+        if (
+          key !== 'password' &&
+          (config[key] === '' || config[key] === undefined)
+        ) {
+          delete config[key];
+        }
+      });
+    }
 
     // Infer datasource_kind from extension driver runtime
     const dsMeta = await getDiscoveredDatasource(extension.data.id);
@@ -232,12 +260,41 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
       return;
     }
 
+    // Validate that either connectionUrl or host is present
+    const hasConnectionUrl = Boolean(formValues.connectionUrl);
+    const hasHost = Boolean(formValues.host);
+
+    if (!hasConnectionUrl && !hasHost) {
+      toast.error('Please provide either a connection URL or connection details (host is required)');
+      return;
+    }
+
+    // Normalize config: if using connectionUrl, remove separate fields; if using separate fields, remove connectionUrl
+    let normalizedConfig = { ...formValues };
+    if (hasConnectionUrl) {
+      // Using connectionUrl - remove separate fields
+      normalizedConfig = {
+        connectionUrl: formValues.connectionUrl,
+      };
+    } else {
+      // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+      delete normalizedConfig.connectionUrl;
+      Object.keys(normalizedConfig).forEach((key) => {
+        if (
+          key !== 'password' &&
+          (normalizedConfig[key] === '' || normalizedConfig[key] === undefined)
+        ) {
+          delete normalizedConfig[key];
+        }
+      });
+    }
+
     const testDatasource: Partial<Datasource> = {
       datasource_provider: extension.data.id,
       datasource_driver: extension.data.id,
       datasource_kind: DatasourceKind.EMBEDDED,
       name: datasourceName || 'Test Connection',
-      config: formValues,
+      config: normalizedConfig,
     };
 
     testConnectionMutation.mutate(testDatasource as Datasource);
@@ -325,7 +382,8 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
                 testConnectionMutation.isPending ||
                 createDatasourceMutation.isPending ||
                 !formValues ||
-                !isFormValid
+                !isFormValid ||
+                (!formValues.connectionUrl && !formValues.host)
               }
             >
               {testConnectionMutation.isPending ? (

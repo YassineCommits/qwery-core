@@ -29,9 +29,7 @@ import {
 } from '@qwery/ui/select';
 import { Switch } from '@qwery/ui/switch';
 import { Textarea } from '@qwery/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@qwery/ui/radio-group';
-import { Label } from '@qwery/ui/label';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 type ZodSchemaType = z.ZodTypeAny;
 
@@ -602,12 +600,40 @@ export function FormRenderer<T extends ZodSchemaType>({
     if (valuesString !== previousString) {
       previousValuesRef.current = values as z.infer<T>;
 
+      // For oneOf schemas, normalize the values before validation
+      // Remove empty fields and keep only the relevant option
+      let normalizedValues = values;
+      if (isOneOfSchema && hasOneOf) {
+        const hasConnectionUrl = Boolean(values.connectionUrl);
+        const hasHost = Boolean(values.host);
+
+        if (hasConnectionUrl) {
+          // Using connectionUrl - remove separate fields
+          normalizedValues = {
+            connectionUrl: values.connectionUrl,
+          };
+        } else if (hasHost) {
+          // Using separate fields - remove connectionUrl, keep only filled fields
+          normalizedValues = { ...values };
+          delete normalizedValues.connectionUrl;
+          // Remove empty optional fields (but keep password even if empty - it might be intentionally empty)
+          Object.keys(normalizedValues).forEach((key) => {
+            if (
+              key !== 'password' &&
+              (normalizedValues[key] === '' || normalizedValues[key] === undefined)
+            ) {
+              delete normalizedValues[key];
+            }
+          });
+        }
+      }
+
       // Validate with schema
       try {
-        const validatedValues = schema.parse(values);
+        const validatedValues = schema.parse(normalizedValues);
         onFormReadyRef.current(validatedValues);
       } catch {
-        // If validation fails, still pass the raw values
+        // If validation fails, still pass the raw values (for partial input)
         onFormReadyRef.current(values);
       }
     }
@@ -621,46 +647,122 @@ export function FormRenderer<T extends ZodSchemaType>({
     });
   }, [form]);
 
-  React.useEffect(() => {
-    if (!onValidityChangeRef.current) return;
-    const isValid =
-      form.formState.isValid && Object.keys(form.formState.errors).length === 0;
-    onValidityChangeRef.current(isValid);
-  }, [form.formState.isValid, form.formState.errors]);
-
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values);
   });
 
-  // Detect oneOf schema (connectionUrl OR separate fields)
-  const hasConnectionUrl = React.useMemo(() => {
+  // Detect oneOf schema (ZodUnion) - connectionUrl OR separate fields
+  const isOneOfSchema = React.useMemo(() => {
     try {
-      const shape = (schema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def?.shape?.();
-      return shape && 'connectionUrl' in shape;
+      const def = (schema as { _def?: { typeName?: string } })._def;
+      return def?.typeName === 'ZodUnion';
     } catch {
       return false;
     }
   }, [schema]);
 
-  const hasSeparateFields = React.useMemo(() => {
+  // Extract union options if it's a oneOf schema
+  const unionOptions = React.useMemo(() => {
+    if (!isOneOfSchema) return null;
     try {
-      const shape = (schema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def?.shape?.();
-      if (!shape) return false;
-      const connectionFieldNames = ['host', 'port', 'database', 'user', 'username', 'password'];
-      return connectionFieldNames.some((name) => name in shape);
+      const def = (schema as { _def?: { options?: z.ZodTypeAny[] } })._def;
+      return def?.options || [];
     } catch {
-      return false;
+      return null;
     }
-  }, [schema]);
+  }, [schema, isOneOfSchema]);
 
-  const hasOneOf = hasConnectionUrl && hasSeparateFields;
+  // Extract fields from union options
+  const separateFieldsSchema = React.useMemo(() => {
+    if (!unionOptions || unionOptions.length === 0) return null;
+    // Find the option that has separate fields (host, port, etc.)
+    for (const option of unionOptions) {
+      try {
+        const optionDef = (option as { _def?: { typeName?: string; shape?: () => Record<string, z.ZodTypeAny> } })._def;
+        if (optionDef?.typeName === 'ZodObject') {
+          const shape = optionDef.shape?.();
+          if (shape && ('host' in shape || 'port' in shape)) {
+            return option;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }, [unionOptions]);
 
-  // State for connection mode (connectionUrl vs separate fields)
-  const [connectionMode, setConnectionMode] = useState<'url' | 'fields'>(() => {
-    // Default to 'url' if connectionUrl is provided, otherwise 'fields'
-    const currentValues = form.getValues();
-    return currentValues?.connectionUrl ? 'url' : 'fields';
-  });
+  const connectionUrlSchema = React.useMemo(() => {
+    if (!unionOptions || unionOptions.length === 0) return null;
+    // Find the option that has connectionUrl
+    for (const option of unionOptions) {
+      try {
+        const optionDef = (option as { _def?: { typeName?: string; shape?: () => Record<string, z.ZodTypeAny> } })._def;
+        if (optionDef?.typeName === 'ZodObject') {
+          const shape = optionDef.shape?.();
+          if (shape && 'connectionUrl' in shape) {
+            return option;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }, [unionOptions]);
+
+  const hasOneOf = isOneOfSchema && separateFieldsSchema && connectionUrlSchema;
+
+  // Custom validation for oneOf schemas - check if either connectionUrl OR required fields are filled
+  const validateOneOfForm = React.useCallback(() => {
+    if (!isOneOfSchema || !hasOneOf) return null;
+
+    const values = form.getValues();
+    const hasConnectionUrl = Boolean(values.connectionUrl?.trim?.() || values.connectionUrl);
+    const hasHost = Boolean(values.host?.trim?.() || values.host);
+
+    // For oneOf: either connectionUrl OR host must be present
+    if (!hasConnectionUrl && !hasHost) {
+      return false; // Invalid - neither option is filled
+    }
+
+    // If using connectionUrl, it must be a non-empty string
+    if (hasConnectionUrl) {
+      const url = String(values.connectionUrl || '').trim();
+      if (!url) {
+        return false;
+      }
+    }
+
+    // If using separate fields, host is required
+    if (hasHost && !hasConnectionUrl) {
+      const host = String(values.host || '').trim();
+      if (!host) {
+        return false;
+      }
+    }
+
+    return true; // Valid
+  }, [isOneOfSchema, hasOneOf, form]);
+
+  // Track validity changes with custom validation for oneOf
+  React.useEffect(() => {
+    if (!onValidityChangeRef.current) return;
+
+    // For oneOf schemas, use custom validation
+    if (isOneOfSchema && hasOneOf) {
+      const customValid = validateOneOfForm();
+      if (customValid !== null) {
+        onValidityChangeRef.current(customValid);
+        return;
+      }
+    }
+
+    // For regular schemas, use form validation
+    const isValid =
+      form.formState.isValid && Object.keys(form.formState.errors).length === 0;
+    onValidityChangeRef.current(isValid);
+  }, [form.formState.isValid, form.formState.errors, isOneOfSchema, hasOneOf, validateOneOfForm, watchedValues]);
 
   // Extract fields from schema
   const fields: React.ReactNode[] = [];
@@ -686,13 +788,186 @@ export function FormRenderer<T extends ZodSchemaType>({
     }
   }
 
-  // Check if it's a ZodObject
+  // Check if it's a ZodObject or ZodUnion
   const finalDef = (
     currentSchema as { _def?: { typeName?: string; [key: string]: unknown } }
   )._def;
   const isZodObject = finalDef?.typeName === 'ZodObject';
+  const isZodUnion = finalDef?.typeName === 'ZodUnion';
 
-  if (isZodObject) {
+  // Handle ZodUnion (oneOf) - merge fields from all options
+  if (isZodUnion) {
+    console.log('[FormRenderer] Detected ZodUnion schema', {
+      hasOneOf,
+      hasSeparateFieldsSchema: !!separateFieldsSchema,
+      hasConnectionUrlSchema: !!connectionUrlSchema,
+      unionOptionsLength: unionOptions?.length,
+    });
+
+    if (hasOneOf && separateFieldsSchema && connectionUrlSchema) {
+      try {
+        // Extract shape from separate fields schema
+        const separateDef = (separateFieldsSchema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def;
+        const separateShape = separateDef?.shape?.();
+        
+        // Extract shape from connection URL schema
+        const urlDef = (connectionUrlSchema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def;
+        const urlShape = urlDef?.shape?.();
+
+        console.log('[FormRenderer] Extracted shapes', {
+          separateShapeKeys: separateShape ? Object.keys(separateShape) : null,
+          urlShapeKeys: urlShape ? Object.keys(urlShape) : null,
+        });
+
+        if (separateShape && urlShape) {
+        // Merge all fields into a single shape for rendering
+        const mergedShape = { ...separateShape, ...urlShape };
+        const shapeEntries = Object.entries(mergedShape);
+
+        // Group fields
+        const connectionUrlField: Array<[string, z.ZodTypeAny]> = [];
+        const connectionFields: Array<[string, z.ZodTypeAny]> = [];
+        const otherFields: Array<[string, z.ZodTypeAny]> = [];
+
+        shapeEntries.forEach(([key, value]) => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey === 'connectionurl') {
+            connectionUrlField.push([key, value]);
+          } else if (
+            ['host', 'port', 'database', 'user', 'username', 'password', 'sslmode', 'ssl'].includes(
+              lowerKey,
+            )
+          ) {
+            connectionFields.push([key, value]);
+          } else {
+            otherFields.push([key, value]);
+          }
+        });
+
+        // Render connection fields FIRST (compact, stacked vertically)
+        if (connectionFields.length > 0) {
+          const findField = (fieldName: string) =>
+            connectionFields.find(
+              ([k]) => k.toLowerCase() === fieldName.toLowerCase(),
+            );
+
+          // Render fields in a compact grid layout
+          const hostField = findField('host');
+          const portField = findField('port');
+          const databaseField = findField('database');
+          const usernameField = findField('username') || findField('user');
+          const passwordField = findField('password');
+          const sslmodeField = findField('sslmode');
+          const sslField = findField('ssl');
+
+          // First row: host and port side by side
+          if (hostField || portField) {
+            fields.push(
+              <div key="connection-row-1" className="grid grid-cols-2 gap-4">
+                {hostField && renderField(hostField[1], hostField[0], hostField[0])}
+                {portField && renderField(portField[1], portField[0], portField[0])}
+              </div>,
+            );
+          }
+
+          // Second row: database (full width)
+          if (databaseField) {
+            fields.push(
+              <div key="connection-row-2">
+                {renderField(databaseField[1], databaseField[0], databaseField[0])}
+              </div>,
+            );
+          }
+
+          // Third row: username and password side by side
+          if (usernameField || passwordField) {
+            fields.push(
+              <div key="connection-row-3" className="grid grid-cols-2 gap-4">
+                {usernameField && renderField(usernameField[1], usernameField[0], usernameField[0])}
+                {passwordField && renderField(passwordField[1], passwordField[0], passwordField[0])}
+              </div>,
+            );
+          }
+
+          // Fourth row: sslmode and ssl side by side (if present)
+          if (sslmodeField || sslField) {
+            fields.push(
+              <div key="connection-row-4" className="grid grid-cols-2 gap-4">
+                {sslmodeField && renderField(sslmodeField[1], sslmodeField[0], sslmodeField[0])}
+                {sslField && renderField(sslField[1], sslField[0], sslField[0])}
+              </div>,
+            );
+          }
+        }
+
+        // Render "--or--" divider between separate fields and connection URL
+        if (hasOneOf && connectionFields.length > 0 && connectionUrlField.length > 0) {
+          fields.push(
+            <div key="connection-divider" className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or</span>
+              </div>
+            </div>,
+          );
+        }
+
+        // Render connection URL field BELOW the divider
+        if (connectionUrlField.length > 0) {
+          connectionUrlField.forEach(([key, value]) => {
+            fields.push(
+              <div key={`connection-url-${key}`}>
+                {renderField(value, key, key)}
+              </div>,
+            );
+          });
+        }
+
+        // Render other fields
+        otherFields.forEach(([key, value]) => {
+          fields.push(renderField(value, key, key));
+        });
+      } else {
+        console.error('[FormRenderer] Could not extract shapes from ZodUnion options', {
+          separateShape,
+          urlShape,
+          separateDef,
+          urlDef,
+        });
+      }
+    } catch (error) {
+      console.error('[FormRenderer] Error handling ZodUnion (oneOf) schema:', error);
+    }
+    } else {
+      // Fallback: if union is detected but we can't extract fields, try to render all union options
+      console.warn('[FormRenderer] ZodUnion detected but could not extract fields, trying fallback');
+      if (unionOptions && unionOptions.length > 0) {
+        // Try to merge all union options
+        const allShapes: Record<string, z.ZodTypeAny> = {};
+        for (const option of unionOptions) {
+          try {
+            const optionDef = (option as { _def?: { typeName?: string; shape?: () => Record<string, z.ZodTypeAny> } })._def;
+            if (optionDef?.typeName === 'ZodObject') {
+              const shape = optionDef.shape?.();
+              if (shape) {
+                Object.assign(allShapes, shape);
+              }
+            }
+          } catch (e) {
+            console.error('[FormRenderer] Error extracting shape from union option:', e);
+          }
+        }
+        
+        // Render all fields from merged shapes
+        const shapeEntries = Object.entries(allShapes);
+        shapeEntries.forEach(([key, value]) => {
+          fields.push(renderField(value, key, key));
+        });
+      }
+    }
+  } else if (isZodObject) {
     const shapeFunction = (finalDef as { shape?: unknown })?.shape;
 
     if (shapeFunction && typeof shapeFunction === 'function') {
@@ -725,7 +1000,7 @@ export function FormRenderer<T extends ZodSchemaType>({
               if (lowerKey === 'connectionurl') {
                 connectionUrlField.push([key, value]);
               } else if (
-                ['host', 'port', 'database', 'user', 'username', 'password'].includes(
+                ['host', 'port', 'database', 'user', 'username', 'password', 'sslmode', 'ssl'].includes(
                   lowerKey,
                 )
               ) {
@@ -735,51 +1010,36 @@ export function FormRenderer<T extends ZodSchemaType>({
               }
             });
 
-            // Render oneOf toggle if both connectionUrl and separate fields exist
-            if (hasOneOf && connectionUrlField.length > 0 && connectionFields.length > 0) {
-              fields.push(
-                <div key="connection-mode-toggle" className="space-y-2">
-                  <Label>Connection Method</Label>
-                  <RadioGroup
-                    value={connectionMode}
-                    onValueChange={(value) => {
-                      setConnectionMode(value as 'url' | 'fields');
-                      // Clear fields when switching modes
-                      if (value === 'url') {
-                        // Clear separate fields
-                        connectionFields.forEach(([key]) => {
-                          form.setValue(key as FieldPath<FieldValues>, undefined);
-                        });
-                      } else {
-                        // Clear connectionUrl
-                        connectionUrlField.forEach(([key]) => {
-                          form.setValue(key as FieldPath<FieldValues>, undefined);
-                        });
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="url" id="connection-url" />
-                      <Label htmlFor="connection-url">Connection URL</Label>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="fields" id="connection-fields" />
-                      <Label htmlFor="connection-fields">Separate Fields</Label>
-                    </div>
-                  </RadioGroup>
-                </div>,
-              );
+            // If it's a oneOf schema, extract fields from union options
+            if (hasOneOf && separateFieldsSchema && connectionUrlSchema) {
+              try {
+                // Extract fields from separate fields schema
+                const separateDef = (separateFieldsSchema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def;
+                const separateShape = separateDef?.shape?.();
+                if (separateShape) {
+                  connectionFields.length = 0; // Clear existing
+                  Object.entries(separateShape).forEach(([key, value]) => {
+                    const lowerKey = key.toLowerCase();
+                    if (!['connectionurl'].includes(lowerKey)) {
+                      connectionFields.push([key, value]);
+                    }
+                  });
+                }
+
+                // Extract connectionUrl from connection URL schema
+                const urlDef = (connectionUrlSchema as { _def?: { shape?: () => Record<string, z.ZodTypeAny> } })._def;
+                const urlShape = urlDef?.shape?.();
+                if (urlShape && 'connectionUrl' in urlShape) {
+                  connectionUrlField.length = 0; // Clear existing
+                  connectionUrlField.push(['connectionUrl', urlShape.connectionUrl]);
+                }
+              } catch (error) {
+                console.error('Error extracting fields from oneOf schema:', error);
+              }
             }
 
-            // Render connection URL field if mode is 'url' or if no oneOf
-            if ((connectionMode === 'url' || !hasOneOf) && connectionUrlField.length > 0) {
-              connectionUrlField.forEach(([key, value]) => {
-                fields.push(renderField(value, key, key));
-              });
-            }
-
-            // Render connection fields in grid layout if mode is 'fields' or if no oneOf
-            if ((connectionMode === 'fields' || !hasOneOf) && connectionFields.length > 0) {
+            // Render connection fields FIRST (compact grid layout) - always show
+            if (connectionFields.length > 0) {
               const findField = (fieldName: string) =>
                 connectionFields.find(
                   ([k]) => k.toLowerCase() === fieldName.toLowerCase(),
@@ -788,20 +1048,18 @@ export function FormRenderer<T extends ZodSchemaType>({
               const hostField = findField('host');
               const portField = findField('port');
               const databaseField = findField('database');
-              const userField = findField('user');
+              const userField = findField('user') || findField('username');
               const passwordField = findField('password');
+              const sslmodeField = findField('sslmode');
+              const sslField = findField('ssl');
 
-              // First row: host - port
+              // Render fields in compact grid layout
+              // First row: host and port side by side
               if (hostField || portField) {
                 fields.push(
-                  <div
-                    key="connection-row-1"
-                    className="grid grid-cols-2 gap-4"
-                  >
-                    {hostField &&
-                      renderField(hostField[1], hostField[0], hostField[0])}
-                    {portField &&
-                      renderField(portField[1], portField[0], portField[0])}
+                  <div key="connection-row-1" className="grid grid-cols-2 gap-4">
+                    {hostField && renderField(hostField[1], hostField[0], hostField[0])}
+                    {portField && renderField(portField[1], portField[0], portField[0])}
                   </div>,
                 );
               }
@@ -810,33 +1068,55 @@ export function FormRenderer<T extends ZodSchemaType>({
               if (databaseField) {
                 fields.push(
                   <div key="connection-row-2">
-                    {renderField(
-                      databaseField[1],
-                      databaseField[0],
-                      databaseField[0],
-                    )}
+                    {renderField(databaseField[1], databaseField[0], databaseField[0])}
                   </div>,
                 );
               }
 
-              // Third row: user - password
+              // Third row: username and password side by side
               if (userField || passwordField) {
                 fields.push(
-                  <div
-                    key="connection-row-3"
-                    className="grid grid-cols-2 gap-4"
-                  >
-                    {userField &&
-                      renderField(userField[1], userField[0], userField[0])}
-                    {passwordField &&
-                      renderField(
-                        passwordField[1],
-                        passwordField[0],
-                        passwordField[0],
-                      )}
+                  <div key="connection-row-3" className="grid grid-cols-2 gap-4">
+                    {userField && renderField(userField[1], userField[0], userField[0])}
+                    {passwordField && renderField(passwordField[1], passwordField[0], passwordField[0])}
                   </div>,
                 );
               }
+
+              // Fourth row: sslmode and ssl side by side (if present)
+              if (sslmodeField || sslField) {
+                fields.push(
+                  <div key="connection-row-4" className="grid grid-cols-2 gap-4">
+                    {sslmodeField && renderField(sslmodeField[1], sslmodeField[0], sslmodeField[0])}
+                    {sslField && renderField(sslField[1], sslField[0], sslField[0])}
+                  </div>,
+                );
+              }
+            }
+
+            // Render "--or--" divider between separate fields and connection URL
+            if (hasOneOf && connectionFields.length > 0 && connectionUrlField.length > 0) {
+              fields.push(
+                <div key="connection-divider" className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>,
+              );
+            }
+
+            // Render connection URL field BELOW the divider - always show
+            if (connectionUrlField.length > 0) {
+              connectionUrlField.forEach(([key, value]) => {
+                fields.push(
+                  <div key={`connection-url-${key}`}>
+                    {renderField(value, key, key)}
+                  </div>,
+                );
+              });
             }
 
             // Render other fields normally

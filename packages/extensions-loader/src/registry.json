@@ -7,15 +7,57 @@
       "icon": "/extensions/clickhouse-node/ClickHouseLogo_White_FNL.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "ClickHouse connection URL (clickhouse://user:pass@host:port/database or http://host:port)",
-            "format": "uri"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "ClickHouse server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "ClickHouse server port",
+                "default": 8123
+              },
+              "username": {
+                "type": "string",
+                "description": "ClickHouse username",
+                "default": "default"
+              },
+              "user": {
+                "type": "string",
+                "description": "ClickHouse username (alias for username)",
+                "default": "default"
+              },
+              "password": {
+                "type": "string",
+                "description": "ClickHouse password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "ClickHouse database name",
+                "default": "default"
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "ClickHouse connection URL (clickhouse://user:pass@host:port/database or http://host:port)",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-clickhouse-node",
@@ -35,15 +77,57 @@
       "icon": "/extensions/clickhouse-web/ClickHouseLogo_White_FNL.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "ClickHouse connection URL (clickhouse://user:pass@host:port/database or http://host:port)",
-            "format": "uri"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "ClickHouse server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "ClickHouse server port",
+                "default": 8123
+              },
+              "username": {
+                "type": "string",
+                "description": "ClickHouse username",
+                "default": "default"
+              },
+              "user": {
+                "type": "string",
+                "description": "ClickHouse username (alias for username)",
+                "default": "default"
+              },
+              "password": {
+                "type": "string",
+                "description": "ClickHouse password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "ClickHouse database name",
+                "default": "default"
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "ClickHouse connection URL (clickhouse://user:pass@host:port/database or http://host:port)",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-clickhouse-web",
@@ -171,15 +255,59 @@
       "icon": "/extensions/mysql/MySQL.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "MySQL connection string (mysql://user:pass@host:port/database)",
-            "format": "uri"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "MySQL server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "MySQL server port",
+                "default": 3306
+              },
+              "username": {
+                "type": "string",
+                "description": "MySQL username"
+              },
+              "user": {
+                "type": "string",
+                "description": "MySQL username (alias for username)"
+              },
+              "password": {
+                "type": "string",
+                "description": "MySQL password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "MySQL database name"
+              },
+              "ssl": {
+                "type": "boolean",
+                "description": "Enable SSL connection",
+                "default": false
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "MySQL connection string (mysql://user:pass@host:port/database)",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-mysql",
@@ -253,14 +381,65 @@
       "icon": "/extensions/postgresql/postgresql.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "PostgreSQL connection string (postgresql://user:pass@host:port/db)"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "PostgreSQL server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "PostgreSQL server port",
+                "default": 5432
+              },
+              "username": {
+                "type": "string",
+                "description": "PostgreSQL username"
+              },
+              "user": {
+                "type": "string",
+                "description": "PostgreSQL username (alias for username)"
+              },
+              "password": {
+                "type": "string",
+                "description": "PostgreSQL password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "PostgreSQL database name"
+              },
+              "sslmode": {
+                "type": "string",
+                "enum": [
+                  "disable",
+                  "require",
+                  "prefer",
+                  "verify-ca",
+                  "verify-full"
+                ],
+                "description": "SSL mode",
+                "default": "prefer"
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "PostgreSQL connection string (postgresql://user:pass@host:port/db)"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-postgresql",
@@ -280,14 +459,65 @@
       "icon": "/extensions/postgresql-supabase/supabase-logo-wordmark--dark.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "Supabase connection string (postgresql://user:pass@host:port/db)"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Supabase server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "Supabase server port",
+                "default": 5432
+              },
+              "username": {
+                "type": "string",
+                "description": "Supabase username"
+              },
+              "user": {
+                "type": "string",
+                "description": "Supabase username (alias for username)"
+              },
+              "password": {
+                "type": "string",
+                "description": "Supabase password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "Supabase database name"
+              },
+              "sslmode": {
+                "type": "string",
+                "enum": [
+                  "disable",
+                  "require",
+                  "prefer",
+                  "verify-ca",
+                  "verify-full"
+                ],
+                "description": "SSL mode",
+                "default": "prefer"
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "Supabase connection string (postgresql://user:pass@host:port/db)"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-postgresql",
@@ -307,14 +537,65 @@
       "icon": "/extensions/postgresql-neon/neon-logo-dark-color.svg",
       "schema": {
         "type": "object",
-        "properties": {
-          "connectionUrl": {
-            "type": "string",
-            "description": "Neon connection string (postgresql://user:pass@host:port/db)"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Neon server hostname"
+              },
+              "port": {
+                "type": "number",
+                "description": "Neon server port",
+                "default": 5432
+              },
+              "username": {
+                "type": "string",
+                "description": "Neon username"
+              },
+              "user": {
+                "type": "string",
+                "description": "Neon username (alias for username)"
+              },
+              "password": {
+                "type": "string",
+                "description": "Neon password",
+                "format": "password"
+              },
+              "database": {
+                "type": "string",
+                "description": "Neon database name"
+              },
+              "sslmode": {
+                "type": "string",
+                "enum": [
+                  "disable",
+                  "require",
+                  "prefer",
+                  "verify-ca",
+                  "verify-full"
+                ],
+                "description": "SSL mode",
+                "default": "prefer"
+              }
+            },
+            "required": [
+              "host"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connectionUrl": {
+                "type": "string",
+                "description": "Neon connection string (postgresql://user:pass@host:port/db)"
+              }
+            },
+            "required": [
+              "connectionUrl"
+            ]
           }
-        },
-        "required": [
-          "connectionUrl"
         ]
       },
       "packageName": "@qwery/extension-postgresql",

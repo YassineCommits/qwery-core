@@ -135,12 +135,42 @@ export default function ProjectDatasourceViewPage() {
         return;
       }
 
-      const config = values as Record<string, unknown>;
+      let config = values as Record<string, unknown>;
       const userId = 'system'; // Default user - replace with actual user context
 
       if (!datasource.data) {
         toast.error('Datasource not found');
         return;
+      }
+
+      // Validate and normalize config for oneOf schemas
+      const hasConnectionUrl = Boolean(config.connectionUrl);
+      const hasHost = Boolean(config.host);
+
+      if (!hasConnectionUrl && !hasHost) {
+        toast.error('Please provide either a connection URL or connection details (host is required)');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Normalize config: if using connectionUrl, remove separate fields; if using separate fields, remove connectionUrl
+      if (hasConnectionUrl) {
+        // Using connectionUrl - remove separate fields
+        config = {
+          connectionUrl: config.connectionUrl,
+        };
+      } else {
+        // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+        config = { ...config };
+        delete config.connectionUrl;
+        Object.keys(config).forEach((key) => {
+          if (
+            key !== 'password' &&
+            (config[key] === '' || config[key] === undefined)
+          ) {
+            delete config[key];
+          }
+        });
       }
 
       // Update datasource object
@@ -187,9 +217,38 @@ export default function ProjectDatasourceViewPage() {
       return;
     }
 
+    // Validate that either connectionUrl or host is present
+    const hasConnectionUrl = Boolean(formValues.connectionUrl);
+    const hasHost = Boolean(formValues.host);
+
+    if (!hasConnectionUrl && !hasHost) {
+      toast.error('Please provide either a connection URL or connection details (host is required)');
+      return;
+    }
+
+    // Normalize config: if using connectionUrl, remove separate fields; if using separate fields, remove connectionUrl
+    let normalizedConfig = { ...formValues };
+    if (hasConnectionUrl) {
+      // Using connectionUrl - remove separate fields
+      normalizedConfig = {
+        connectionUrl: formValues.connectionUrl,
+      };
+    } else {
+      // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+      delete normalizedConfig.connectionUrl;
+      Object.keys(normalizedConfig).forEach((key) => {
+        if (
+          key !== 'password' &&
+          (normalizedConfig[key] === '' || normalizedConfig[key] === undefined)
+        ) {
+          delete normalizedConfig[key];
+        }
+      });
+    }
+
     testConnectionMutation.mutate({
       ...datasource.data,
-      config: formValues,
+      config: normalizedConfig,
     });
   };
 
@@ -350,7 +409,11 @@ export default function ProjectDatasourceViewPage() {
                 type="submit"
                 form="datasource-form"
                 disabled={
-                  isSubmitting || testConnectionMutation.isPending || isDeleting
+                  isSubmitting ||
+                  testConnectionMutation.isPending ||
+                  isDeleting ||
+                  !formValues ||
+                  (!formValues.connectionUrl && !formValues.host)
                 }
               >
                 {isSubmitting ? 'Updating...' : 'Update'}

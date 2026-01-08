@@ -25,15 +25,55 @@
         "icon": "media/MySQL.svg",
         "schema": {
           "type": "object",
-          "properties": {
-            "connectionUrl": {
-              "type": "string",
-              "description": "MySQL connection string (mysql://user:pass@host:port/database)",
-              "format": "uri"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "description": "MySQL server hostname"
+                },
+                "port": {
+                  "type": "number",
+                  "description": "MySQL server port",
+                  "default": 3306
+                },
+                "username": {
+                  "type": "string",
+                  "description": "MySQL username"
+                },
+                "user": {
+                  "type": "string",
+                  "description": "MySQL username (alias for username)"
+                },
+                "password": {
+                  "type": "string",
+                  "description": "MySQL password",
+                  "format": "password"
+                },
+                "database": {
+                  "type": "string",
+                  "description": "MySQL database name"
+                },
+                "ssl": {
+                  "type": "boolean",
+                  "description": "Enable SSL connection",
+                  "default": false
+                }
+              },
+              "required": ["host"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "connectionUrl": {
+                  "type": "string",
+                  "description": "MySQL connection string (mysql://user:pass@host:port/database)",
+                  "format": "uri"
+                }
+              },
+              "required": ["connectionUrl"]
             }
-          },
-          "required": [
-            "connectionUrl"
           ]
         },
         "drivers": [
