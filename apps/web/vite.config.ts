@@ -44,21 +44,15 @@ export default defineConfig(({ command }) => ({
       command === 'build'
         ? true
         : ['posthog-js', '@posthog/react', 'streamdown'],
-    ...(command !== 'build' && {
-      external: ((id: string) => {
-        if (
-          id === 'better-sqlite3' ||
-          id === '@duckdb/node-api' ||
-          id.startsWith('@duckdb/node-bindings')
-        ) {
-          return true;
-        }
-        if (id.startsWith('@qwery/extension-')) {
-          return true;
-        }
-        return false;
-      }) as unknown as string[],
-    }),
+    external: [
+      'better-sqlite3',
+      '@duckdb/node-api',
+      '@duckdb/node-bindings-linux-arm64',
+      '@duckdb/node-bindings-linux-x64',
+      '@duckdb/node-bindings-darwin-arm64',
+      '@duckdb/node-bindings-darwin-x64',
+      '@duckdb/node-bindings-win32-x64',
+    ],
   },
   plugins: [
     wasmMimeTypePlugin(), // Must run early to set MIME types before other plugins
@@ -80,7 +74,6 @@ export default defineConfig(({ command }) => ({
     },
   },
   build: {
-    manifest: true,
     rollupOptions: {
       external: (id: string) => {
         if (id === 'fsevents') return true;
@@ -91,7 +84,6 @@ export default defineConfig(({ command }) => ({
           return true;
         }
         if (id.startsWith('node:')) return true;
-        if (id.startsWith('@qwery/extension-')) return true;
         return false;
       },
     },
@@ -103,15 +95,7 @@ export default defineConfig(({ command }) => ({
       '@duckdb/node-api',
       '@duckdb/duckdb-wasm',
       '@qwery/agent-factory-sdk',
-      '@qwery/extension-clickhouse-node',
-      '@qwery/extension-duckdb',
-      '@qwery/extension-gsheet-csv',
-      '@qwery/extension-json-online',
-      '@qwery/extension-mysql',
-      '@qwery/extension-parquet-online',
-      '@qwery/extension-postgresql',
-      '@qwery/extension-youtube-data-api-v3',
-    ] as string[],
+    ],
     entries: [
       './app/root.tsx',
       './app/entry.server.tsx',

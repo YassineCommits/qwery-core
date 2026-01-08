@@ -9,6 +9,7 @@
     ".": {
       "types": "./dist/driver.d.ts",
       "import": "./dist/driver.js",
+      "require": "./dist/driver.js",
       "default": "./dist/driver.js"
     }
   },
