@@ -83,6 +83,17 @@ export const VirtuosoMessageList = forwardRef<
     }
   }, [status, shouldFollowOutput]);
 
+  // Use refs to avoid re-creating callback on every message update
+  const messagesRef = useRef(messages);
+
+  // Update ref in effect to avoid lint error about accessing refs during render
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Optimized itemContent: message comes from data prop
+  // Using refs prevents re-creating the callback on every message update
+  // This is a key optimization for large conversations
   const itemContent = useCallback(
     (index: number, message: UIMessage) => {
       // Validate message exists
@@ -95,13 +106,13 @@ export const VirtuosoMessageList = forwardRef<
         <MessageItem
           key={message.id}
           message={message}
-          messages={messages}
+          messages={messagesRef.current}
           status={status}
           {...messageItemProps}
         />
       );
     },
-    [messages, status, messageItemProps],
+    [status, messageItemProps],
   );
 
   const components = useMemo(
@@ -223,7 +234,14 @@ export const VirtuosoMessageList = forwardRef<
         atTopStateChange={(_atTop) => {
           setIsAtTop(_atTop);
         }}
-        overscan={200}
+        overscan={{
+          main: 500, // Render 500px above/below viewport for smooth scrolling
+          reverse: 200,
+        }}
+        increaseViewportBy={{
+          top: 400,
+          bottom: 600,
+        }}
         alignToBottom
         style={{ height: '100%' }}
       />
