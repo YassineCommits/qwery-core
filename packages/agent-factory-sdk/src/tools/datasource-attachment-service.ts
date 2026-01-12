@@ -81,7 +81,6 @@ export class DatasourceAttachmentService {
           `${provider} requires conversationId and workspace for persistent database attachment`,
         );
       }
-      // Type assertion is safe here because we've checked conversationId and workspace are defined
       result = await strategy.attach({
         connection,
         datasource,
@@ -101,7 +100,6 @@ export class DatasourceAttachmentService {
 
     // Convert result to CreateViewResult format for backward compatibility
     if (result.viewName && result.schema) {
-      // DuckDB-native views return this format directly
       return {
         viewName: result.viewName,
         displayName: result.displayName || result.viewName,
@@ -137,7 +135,6 @@ export class DatasourceAttachmentService {
 
   /**
    * Attach a datasource without returning schema (for connection-only attachment)
-   * Used by attachForeignDatasourceToConnection
    */
   async attachDatasourceToConnection(
     options: DatasourceAttachmentOptions,
@@ -145,7 +142,6 @@ export class DatasourceAttachmentService {
     const { connection, datasource, conversationId, workspace } = options;
     const provider = datasource.datasource_provider;
 
-    // Special handling for gsheet-csv
     if (provider === 'gsheet-csv') {
       if (!conversationId || !workspace) {
         throw new Error(
@@ -158,8 +154,8 @@ export class DatasourceAttachmentService {
       await strategy.attach({
         connection,
         datasource,
-        conversationId: conversationId!, // We've checked it's not undefined
-        workspace: workspace!, // We've checked it's not undefined
+        conversationId: conversationId!,
+        workspace: workspace!,
         extractSchema: true,
       });
       return;
@@ -174,12 +170,11 @@ export class DatasourceAttachmentService {
       await strategy.attach({
         connection,
         datasource,
-        extractSchema: false, // Don't extract schema for connection-only attachment
+        extractSchema: false,
       });
       return;
     }
 
-    // For other types, just attach normally (they may create views)
     await this.attachDatasource(options);
   }
 }
