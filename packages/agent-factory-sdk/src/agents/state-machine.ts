@@ -85,7 +85,9 @@ export const createStateMachine = (
 
   // Helper to parse model string and extract provider/model name
   // Handles formats like "azure/gpt-5-mini" or just "gpt-5-mini"
-  const parseModel = (model: string): {
+  const parseModel = (
+    model: string,
+  ): {
     provider: string;
     modelName: string;
     fullModel: string;
@@ -1047,11 +1049,11 @@ export const createStateMachine = (
                           },
                         );
                         return {
-                        inputMessage: context.inputMessage,
+                          inputMessage: context.inputMessage,
                           conversationId: context.conversationSlug, // Use slug for conversation lookups
-                        previousMessages: context.previousMessages,
-                        model: context.model,
-                        repositories: repositories,
+                          previousMessages: context.previousMessages,
+                          model: context.model,
+                          repositories: repositories,
                           queryEngine: queryEngine,
                           promptSource: context.promptSource,
                           intent: context.intent,

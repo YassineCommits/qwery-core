@@ -7,6 +7,8 @@ import { DuckDBQueryEngine } from '@qwery/agent-factory-sdk';
 import type { ActionFunctionArgs } from 'react-router';
 import { createRepositories } from '~/lib/repositories/repositories-factory';
 import { handleDomainException } from '~/lib/utils/error-handler';
+import { recordQueryMetrics } from '@qwery/telemetry/otel/utils';
+import { getWebTelemetry } from '~/lib/telemetry-instance';
 
 const repositories = await createRepositories();
 
@@ -129,6 +131,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     try {
+      const startTime = Date.now();
       let result;
       try {
         result = await queryEngine.query(transformedQuery);
@@ -152,6 +155,43 @@ export async function action({ request }: ActionFunctionArgs) {
           return Response.json({ error: helpfulError }, { status: 400 });
         }
         throw queryError;
+      }
+
+      const duration = Date.now() - startTime;
+      const rowCount = result.rows.length;
+
+      // Record query metrics
+      try {
+        const telemetry = await getWebTelemetry();
+        // Extract workspace context from conversation if available
+        let workspace;
+        if (conversationId) {
+          try {
+            const conversation =
+              await repositories.conversation.findBySlug(conversationId);
+            if (conversation) {
+              workspace = {
+                userId: conversation.createdBy,
+                organizationId: conversation.organizationId,
+                projectId: conversation.projectId,
+              };
+            }
+          } catch {
+            // Ignore errors when extracting workspace context
+          }
+        }
+
+        recordQueryMetrics(telemetry, 'web', workspace, duration, rowCount, {
+          'datasource.id': datasourceId,
+          'conversation.id': conversationId || '',
+          'query.mode': 'notebook',
+        });
+      } catch (metricsError) {
+        // Don't fail the request if metrics recording fails
+        console.warn(
+          '[Notebook Query API] Failed to record metrics:',
+          metricsError,
+        );
       }
 
       const headers = result.columns.map((col) => ({

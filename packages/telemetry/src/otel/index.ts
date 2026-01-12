@@ -56,4 +56,3 @@ export {
   endActorSpanWithEvent,
   withActorTelemetry,
 } from './agent-helpers';
-

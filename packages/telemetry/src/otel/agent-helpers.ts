@@ -1,10 +1,3 @@
-/**
- * Agent Telemetry Helpers
- *
- * Provides type-safe helper functions for agent telemetry operations.
- * All telemetry logic is centralized here to reduce duplication and ensure consistency.
- */
-
 import type { TelemetryManager } from './manager';
 import type { Span } from '@opentelemetry/api';
 import { AGENT_EVENTS } from '../events/agent.events';
@@ -17,10 +10,7 @@ import type {
 } from '../events/agent.events';
 import { context as otelContext, trace } from '@opentelemetry/api';
 
-/**
- * Helper to parse model string and extract provider/model name
- * Handles formats like "azure/gpt-5-mini" or just "gpt-5-mini"
- */
+
 function parseModel(model: string): {
   provider: string;
   modelName: string;
@@ -34,7 +24,6 @@ function parseModel(model: string): {
       fullModel: model,
     };
   }
-  // Default provider to 'azure' if not specified (for backward compatibility)
   return {
     provider: 'azure',
     modelName: model,
@@ -42,9 +31,7 @@ function parseModel(model: string): {
   };
 }
 
-/**
- * Creates conversation span attributes using type-safe interface
- */
+
 export function createConversationAttributes(
   conversationId: string,
   agentId: string,
@@ -57,9 +44,6 @@ export function createConversationAttributes(
   };
 }
 
-/**
- * Creates message span attributes using type-safe interface
- */
 export function createMessageAttributes(
   conversationId: string,
   text: string,
@@ -74,17 +58,15 @@ export function createMessageAttributes(
   };
 }
 
-/**
- * Creates actor span attributes using type-safe interface
- * Includes model information if provided
- */
 export function createActorAttributes(
   actorId: string,
   actorType: AgentActorAttributes['agent.actor.type'],
   conversationId: string,
   model?: string,
   input?: Record<string, unknown>,
-): AgentActorAttributes & Partial<AgentLLMAttributes> & Record<string, unknown> {
+): AgentActorAttributes &
+  Partial<AgentLLMAttributes> &
+  Record<string, unknown> {
   const baseAttributes: AgentActorAttributes = {
     'agent.actor.id': actorId,
     'agent.actor.type': actorType,
@@ -109,9 +91,7 @@ export function createActorAttributes(
   return attributes;
 }
 
-/**
- * Ends message span with event and duration recording
- */
+
 export function endMessageSpanWithEvent(
   telemetry: TelemetryManager,
   span: Span | undefined,
@@ -127,7 +107,8 @@ export function endMessageSpanWithEvent(
     ? AGENT_EVENTS.MESSAGE_PROCESSED
     : AGENT_EVENTS.MESSAGE_ERROR;
 
-  const attributes: Partial<AgentMessageAttributes> & Partial<AgentErrorAttributes> = {
+  const attributes: Partial<AgentMessageAttributes> &
+    Partial<AgentErrorAttributes> = {
     'agent.conversation.id': conversationId,
     'agent.message.duration_ms': String(duration),
     ...(errorMessage && { 'error.message': errorMessage }),
@@ -145,9 +126,7 @@ export function endMessageSpanWithEvent(
   telemetry.endSpan(span, success);
 }
 
-/**
- * Ends conversation span with event and duration recording
- */
+
 export function endConversationSpanWithEvent(
   telemetry: TelemetryManager,
   span: Span | undefined,
@@ -178,9 +157,6 @@ export function endConversationSpanWithEvent(
   telemetry.endSpan(span, success);
 }
 
-/**
- * Ends actor span with event and duration recording
- */
 export function endActorSpanWithEvent(
   telemetry: TelemetryManager,
   span: Span | undefined,
@@ -217,10 +193,7 @@ export function endActorSpanWithEvent(
   telemetry.endSpan(span, success);
 }
 
-/**
- * Helper to safely extract token usage from usage objects
- * Different providers use different property names
- */
+
 function extractTokenUsage(usage: unknown): {
   promptTokens: number;
   completionTokens: number;
@@ -255,10 +228,7 @@ function extractTokenUsage(usage: unknown): {
   return { promptTokens, completionTokens, totalTokens };
 }
 
-/**
- * Wraps an actor function with telemetry instrumentation
- * Handles span creation, token usage recording, and error handling
- */
+
 export async function withActorTelemetry<T>(
   telemetry: TelemetryManager,
   actorId: string,
@@ -325,12 +295,16 @@ export async function withActorTelemetry<T>(
                 });
 
                 // Record as metrics
-                telemetry.recordAgentTokenUsage(promptTokens, completionTokens, {
-                  'agent.llm.model.name': modelName,
-                  'agent.llm.provider.id': provider,
-                  'agent.actor.id': actorId,
-                  'agent.conversation.id': conversationId,
-                });
+                telemetry.recordAgentTokenUsage(
+                  promptTokens,
+                  completionTokens,
+                  {
+                    'agent.llm.model.name': modelName,
+                    'agent.llm.provider.id': provider,
+                    'agent.actor.id': actorId,
+                    'agent.conversation.id': conversationId,
+                  },
+                );
               }
             }
           } catch {
@@ -362,8 +336,7 @@ export async function withActorTelemetry<T>(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        const errorType =
-          error instanceof Error ? error.name : 'UnknownError';
+        const errorType = error instanceof Error ? error.name : 'UnknownError';
 
         endActorSpanWithEvent(
           telemetry,
@@ -382,4 +355,3 @@ export async function withActorTelemetry<T>(
     },
   );
 }
-

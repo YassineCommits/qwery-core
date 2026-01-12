@@ -1,6 +1,6 @@
 /**
  * PostHog Telemetry Provider
- * 
+ *
  * Implements telemetry using PostHog for product analytics.
  */
 
@@ -13,4 +13,3 @@ import type { TelemetryService } from '../types';
 export function createPostHogProvider(): () => TelemetryService {
   return () => new ClientTelemetryService();
 }
-

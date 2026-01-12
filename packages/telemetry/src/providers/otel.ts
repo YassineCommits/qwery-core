@@ -1,6 +1,6 @@
 /**
  * OpenTelemetry Telemetry Provider
- * 
+ *
  * Wraps OpenTelemetry TelemetryManager to work with the unified TelemetryManager interface.
  * This allows OTel to be used alongside PostHog and Sentry.
  */
@@ -20,7 +20,7 @@ export interface OtelProviderConfig {
 
 /**
  * Creates an OpenTelemetry telemetry provider
- * 
+ *
  * Note: OpenTelemetry is primarily for observability (spans, metrics, traces).
  * For product analytics, use PostHog provider.
  */
@@ -33,10 +33,10 @@ export function createOtelProvider(
       config?.sessionId,
       config?.options,
     );
-    
+
     // Initialize the SDK
     void manager.init();
-    
+
     // Return a wrapper that implements TelemetryService
     // This allows OTel to work with the unified TelemetryManager
     return {
@@ -107,4 +107,3 @@ export function createOtelProvider(
     };
   };
 }
-

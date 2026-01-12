@@ -206,4 +206,3 @@ export function createOtelNullTelemetryService(): OtelNullTelemetryService {
 // Export aliases for backward compatibility
 export { OtelNullTelemetryService as NullTelemetryService };
 export { createOtelNullTelemetryService as createNullTelemetryService };
-

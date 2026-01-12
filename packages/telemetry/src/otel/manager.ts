@@ -21,32 +21,42 @@ import {
 import { OtelClientService } from './client-service';
 import { FilteringSpanExporter } from './filtering-exporter';
 
-// Lazy load Node.js-only OpenTelemetry packages to avoid bundling in browser
-// These are only loaded when actually needed in Node.js environments
+
 let nodeSdkModule: typeof import('@opentelemetry/sdk-node') | null = null;
-let otlpTraceExporterModule: typeof import('@opentelemetry/exporter-trace-otlp-grpc') | null = null;
-let otlpMetricExporterModule: typeof import('@opentelemetry/exporter-metrics-otlp-grpc') | null = null;
+let otlpTraceExporterModule:
+  | typeof import('@opentelemetry/exporter-trace-otlp-grpc')
+  | null = null;
+let otlpMetricExporterModule:
+  | typeof import('@opentelemetry/exporter-metrics-otlp-grpc')
+  | null = null;
 let sdkMetricsModule: typeof import('@opentelemetry/sdk-metrics') | null = null;
 let grpcModule: typeof import('@grpc/grpc-js') | null = null;
 let resourcesModule: typeof import('@opentelemetry/resources') | null = null;
-let semanticConventionsModule: typeof import('@opentelemetry/semantic-conventions') | null = null;
+let semanticConventionsModule:
+  | typeof import('@opentelemetry/semantic-conventions')
+  | null = null;
 
-// Check if we're in Node.js environment
 const isNode = typeof process !== 'undefined' && process.versions?.node;
 
 async function loadNodeModules() {
   if (!isNode) {
-    throw new Error('OpenTelemetry Node.js modules are only available in Node.js environment');
+    throw new Error(
+      'OpenTelemetry Node.js modules are only available in Node.js environment',
+    );
   }
 
   if (!nodeSdkModule) {
     nodeSdkModule = await import('@opentelemetry/sdk-node');
   }
   if (!otlpTraceExporterModule) {
-    otlpTraceExporterModule = await import('@opentelemetry/exporter-trace-otlp-grpc');
+    otlpTraceExporterModule = await import(
+      '@opentelemetry/exporter-trace-otlp-grpc'
+    );
   }
   if (!otlpMetricExporterModule) {
-    otlpMetricExporterModule = await import('@opentelemetry/exporter-metrics-otlp-grpc');
+    otlpMetricExporterModule = await import(
+      '@opentelemetry/exporter-metrics-otlp-grpc'
+    );
   }
   if (!sdkMetricsModule) {
     sdkMetricsModule = await import('@opentelemetry/sdk-metrics');
@@ -58,31 +68,303 @@ async function loadNodeModules() {
     resourcesModule = await import('@opentelemetry/resources');
   }
   if (!semanticConventionsModule) {
-    semanticConventionsModule = await import('@opentelemetry/semantic-conventions');
+    semanticConventionsModule = await import(
+      '@opentelemetry/semantic-conventions'
+    );
   }
 
   return {
     NodeSDK: nodeSdkModule.NodeSDK,
     OTLPTraceExporter: otlpTraceExporterModule.OTLPTraceExporter,
     OTLPMetricExporter: otlpMetricExporterModule.OTLPMetricExporter,
-    PeriodicExportingMetricReader: sdkMetricsModule.PeriodicExportingMetricReader,
+    PeriodicExportingMetricReader:
+      sdkMetricsModule.PeriodicExportingMetricReader,
+    ConsoleMetricExporter: sdkMetricsModule.ConsoleMetricExporter,
     credentials: grpcModule.credentials,
     resourceFromAttributes: resourcesModule.resourceFromAttributes,
     ATTR_SERVICE_NAME: semanticConventionsModule.ATTR_SERVICE_NAME,
   };
 }
 
-// Enable OpenTelemetry internal logging (optional) - only in Node.js
 if (isNode) {
   diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 }
 
-/**
- * Wraps an OTLP exporter to gracefully handle errors (e.g., when Jaeger is not running)
- * Falls back to console logging on error instead of crashing
- */
+
+class SafeOTLPMetricExporter {
+  private otlpExporter: InstanceType<
+    typeof import('@opentelemetry/exporter-metrics-otlp-grpc').OTLPMetricExporter
+  > | null = null;
+  private consoleExporter: InstanceType<
+    typeof import('@opentelemetry/sdk-metrics').ConsoleMetricExporter
+  > | null = null;
+  private errorCount = 0;
+  private readonly ERROR_THRESHOLD = 3; // Fall back after 3 consecutive errors
+  private baseEndpoint: string;
+  private initPromise: Promise<void> | null = null;
+  private firstSuccess = false;
+  private metricsErrorLogged = false;
+
+  constructor(
+    baseEndpoint: string,
+    existingExporter?: InstanceType<
+      typeof import('@opentelemetry/exporter-metrics-otlp-grpc').OTLPMetricExporter
+    >,
+  ) {
+    this.baseEndpoint = baseEndpoint;
+    console.log(
+      `[Telemetry] SafeOTLPMetricExporter created for endpoint: ${baseEndpoint}`,
+    );
+    if (existingExporter) {
+      this.otlpExporter = existingExporter;
+      // Wrap the export method immediately
+      this.wrapExportMethod();
+    } else {
+      // Lazy initialize exporters
+      this.initPromise = this.initialize();
+    }
+  }
+
+  private async initialize(): Promise<void> {
+    if (!isNode) {
+      return;
+    }
+    try {
+      const modules = await loadNodeModules();
+      // For gRPC, remove http:// or https:// prefix if present
+      const grpcUrl = this.baseEndpoint.replace(/^https?:\/\//, '');
+      const plainGrpcUrl = grpcUrl.replace(/^grpcs?:\/\//, '');
+      this.otlpExporter = new modules.OTLPMetricExporter({
+        url: plainGrpcUrl,
+        credentials: modules.credentials.createInsecure(),
+      });
+
+      console.log(
+        `[Telemetry] OTLPMetricExporter initialized for: ${plainGrpcUrl}`,
+      );
+
+      // Wrap the export method to catch errors
+      this.wrapExportMethod();
+
+      // Also create console exporter for fallback
+      this.consoleExporter = new modules.ConsoleMetricExporter();
+    } catch (error) {
+      console.warn(
+        '[Telemetry] Failed to initialize OTLP metric exporter:',
+        error,
+      );
+    }
+  }
+
+  private wrapExportMethod(): void {
+    if (!this.otlpExporter) return;
+
+    const originalExport = this.otlpExporter.export.bind(this.otlpExporter);
+    this.otlpExporter.export = async (metrics, resultCallback) => {
+        console.log(
+          '[Telemetry] Export method called!',
+          new Date().toISOString(),
+        );
+        // Temporary logging to debug export attempts
+        const resourceMetrics = Array.isArray(metrics) ? metrics : [];
+        const metricCount = resourceMetrics.reduce(
+          (sum: number, rm: { scopeMetrics?: Array<{ metrics?: unknown[] }> }) => {
+            const scopeMetrics = rm.scopeMetrics || [];
+            return (
+              sum +
+              scopeMetrics.reduce(
+                (scopeSum: number, sm: { metrics?: unknown[] }) =>
+                  scopeSum + (sm.metrics?.length || 0),
+                0,
+              )
+            );
+          },
+          0,
+        );
+        console.log('[Telemetry] Attempting to export metrics:', {
+          metricCount,
+          resourceCount: resourceMetrics.length,
+          timestamp: new Date().toISOString(),
+          endpoint: this.baseEndpoint,
+        });
+
+        try {
+          await originalExport(metrics, (result) => {
+            const hasError = result.error !== undefined && result.error !== null;
+
+            // Temporary logging: Always log export result
+            console.log('[Telemetry] Metrics export result:', {
+              success: !hasError,
+              errorCode: result.code,
+              error: result.error
+                ? (result.error instanceof Error
+                    ? result.error.message
+                    : String(result.error))
+                : null,
+              errorCount: this.errorCount,
+              timestamp: new Date().toISOString(),
+            });
+
+            if (!hasError) {
+              // Success - reset error count
+              this.errorCount = 0;
+              if (!this.firstSuccess) {
+                this.firstSuccess = true;
+                console.log(
+                  '[Telemetry] OTLP Metrics export connection established successfully.',
+                );
+              }
+              if (resultCallback) {
+                resultCallback(result);
+              }
+              return;
+            }
+
+            // Handle errors
+            const errorMessage =
+              result.error instanceof Error
+                ? result.error.message
+                : String(result.error);
+            const isUnimplemented = errorMessage.includes('12 UNIMPLEMENTED');
+
+            // Increment error count
+            this.errorCount++;
+
+            // Only log once per session to avoid spam
+            if (!this.metricsErrorLogged) {
+              if (isUnimplemented) {
+                console.warn(
+                  `[Telemetry] Metrics export not supported by collector (${errorMessage}). ` +
+                    `Metrics will be collected but not exported. Set QWERY_EXPORT_METRICS=false to disable metrics collection.`,
+                );
+              } else {
+                console.warn(
+                  `[Telemetry] Metrics export failed (${errorMessage}). ` +
+                    `Falling back to console exporter.`,
+                );
+              }
+              this.metricsErrorLogged = true;
+            }
+
+            // Log export failures for debugging
+            if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+              console.warn(
+                `[Telemetry] Metrics export failed (attempt ${this.errorCount}): ${errorMessage}`,
+              );
+            }
+
+            if (this.consoleExporter) {
+              this.consoleExporter.export(metrics, (consoleResult) => {
+                
+                if (resultCallback) {
+                  resultCallback({ code: 0 });
+                }
+              });
+            } else {
+              if (resultCallback) {
+                resultCallback({ code: 0 });
+              }
+            }
+          });
+        } catch (error) {
+          // Handle synchronous errors
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const isUnimplemented = errorMessage.includes('12 UNIMPLEMENTED');
+
+          if (!this.metricsErrorLogged) {
+            if (isUnimplemented) {
+              console.warn(
+                `[Telemetry] Metrics export not supported by collector (${errorMessage}). ` +
+                  `Metrics will be collected but not exported.`,
+              );
+            } else {
+              console.warn(
+                `[Telemetry] Metrics export error (${errorMessage}). ` +
+                  `Falling back to console exporter.`,
+              );
+            }
+            this.metricsErrorLogged = true;
+          }
+
+          // Fallback to console exporter
+          if (this.consoleExporter) {
+            this.consoleExporter.export(metrics, (consoleResult) => {
+              if (resultCallback) {
+                resultCallback({ code: 0 });
+              }
+            });
+          } else if (resultCallback) {
+            resultCallback({ code: 0 });
+          }
+        }
+      };
+  }
+
+  async export(
+    metrics: Parameters<
+      InstanceType<
+        typeof import('@opentelemetry/exporter-metrics-otlp-grpc').OTLPMetricExporter
+      >['export']
+    >[0],
+    resultCallback: Parameters<
+      InstanceType<
+        typeof import('@opentelemetry/exporter-metrics-otlp-grpc').OTLPMetricExporter
+      >['export']
+    >[1],
+  ): Promise<void> {
+    console.log(
+      '[Telemetry] SafeOTLPMetricExporter.export() called!',
+      new Date().toISOString(),
+    );
+
+    // Ensure exporters are initialized
+    if (this.initPromise) {
+      console.log(
+        '[Telemetry] Waiting for exporter initialization...',
+        new Date().toISOString(),
+      );
+      await this.initPromise;
+      console.log(
+        '[Telemetry] Exporter initialization complete',
+        new Date().toISOString(),
+      );
+    }
+
+    if (!this.otlpExporter) {
+      console.warn(
+        '[Telemetry] OTLP exporter not initialized, falling back to console',
+      );
+      // Fallback to console if OTLP not available
+      if (this.consoleExporter) {
+        this.consoleExporter.export(metrics, resultCallback);
+      }
+      return;
+    }
+
+    console.log(
+      '[Telemetry] Calling wrapped otlpExporter.export()...',
+      new Date().toISOString(),
+    );
+  
+    await this.otlpExporter.export(metrics, resultCallback);
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.otlpExporter && 'shutdown' in this.otlpExporter) {
+      await (this.otlpExporter as { shutdown: () => Promise<void> }).shutdown();
+    }
+    if (this.consoleExporter && 'shutdown' in this.consoleExporter) {
+      await (this.consoleExporter as { shutdown: () => Promise<void> }).shutdown();
+    }
+  }
+}
+
+
 class SafeOTLPExporter implements SpanExporter {
-  private otlpExporter: InstanceType<typeof import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter> | null = null;
+  private otlpExporter: InstanceType<
+    typeof import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter
+  > | null = null;
   private consoleExporter: ConsoleSpanExporter;
   private errorCount = 0;
   private readonly ERROR_THRESHOLD = 3; // Fall back after 3 consecutive errors
@@ -102,18 +384,14 @@ class SafeOTLPExporter implements SpanExporter {
     }
     try {
       const modules = await loadNodeModules();
-      // For gRPC, remove http:// or https:// prefix if present
-      // gRPC expects format: host:port (e.g., "10.103.227.71:4317")
-      // Use plain text (non-TLS) connection
+     
       const grpcUrl = this.baseEndpoint.replace(/^https?:\/\//, '');
-      // Ensure we're using plain gRPC (not grpcs:// which would use TLS)
       const plainGrpcUrl = grpcUrl.replace(/^grpcs?:\/\//, '');
       this.otlpExporter = new modules.OTLPTraceExporter({
         url: plainGrpcUrl,
         credentials: modules.credentials.createInsecure(), // Use insecure credentials for plain gRPC (non-TLS)
       });
     } catch (error) {
-      // If initialization fails, we'll just use console exporter
       console.warn('[Telemetry] Failed to initialize OTLP exporter:', error);
     }
   }
@@ -126,12 +404,14 @@ class SafeOTLPExporter implements SpanExporter {
   ): void {
     // Ensure OTLP exporter is initialized
     if (this.initPromise) {
-      this.initPromise.then(() => {
-        this.exportInternal(spans, resultCallback);
-      }).catch(() => {
-        // If initialization failed, use console exporter
-        this.consoleExporter.export(spans, resultCallback);
-      });
+      this.initPromise
+        .then(() => {
+          this.exportInternal(spans, resultCallback);
+        })
+        .catch(() => {
+          // If initialization failed, use console exporter
+          this.consoleExporter.export(spans, resultCallback);
+        });
       return;
     }
     this.exportInternal(spans, resultCallback);
@@ -141,16 +421,13 @@ class SafeOTLPExporter implements SpanExporter {
     spans: ReadableSpan[],
     resultCallback: (result: { code: number; error?: Error }) => void,
   ): void {
-    // Try OTLP export first, with error handling
     if (!this.otlpExporter) {
-      // Fallback to console if OTLP not available
       this.consoleExporter.export(spans, resultCallback);
       return;
     }
 
     try {
       this.otlpExporter.export(spans, (result) => {
-        // Only treat as failure if there's an actual error object
         const hasError = result.error !== undefined && result.error !== null;
 
         if (!hasError) {
@@ -245,12 +522,14 @@ export interface OtelTelemetryManagerOptions {
 
 /**
  * OpenTelemetry Telemetry Manager
- * 
+ *
  * Manages OpenTelemetry SDK, spans, metrics, and events.
  * Supports multiple backends: OTLP (Jaeger), Console, etc.
  */
 export class OtelTelemetryManager {
-  private sdk: InstanceType<typeof import('@opentelemetry/sdk-node').NodeSDK> | null = null;
+  private sdk: InstanceType<
+    typeof import('@opentelemetry/sdk-node').NodeSDK
+  > | null = null;
   public clientService: OtelClientService;
   private serviceName: string;
   private sessionId: string;
@@ -293,7 +572,9 @@ export class OtelTelemetryManager {
     }
   }
 
-  private async initializeNodeSDK(options?: OtelTelemetryManagerOptions): Promise<void> {
+  private async initializeNodeSDK(
+    options?: OtelTelemetryManagerOptions,
+  ): Promise<void> {
     try {
       const modules = await loadNodeModules();
 
@@ -303,15 +584,8 @@ export class OtelTelemetryManager {
         'session.id': this.sessionId,
       });
 
-      // Use ConsoleSpanExporter for local/CLI testing (prints spans to console)
-      // OTLP exporter is optional and only used if OTEL_EXPORTER_OTLP_ENDPOINT is set
-      //const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-      const otlpEndpoint = 'http://34.71.179.124:4317';
+      const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
-      // Resolve exportAppTelemetry setting:
-      // 1. Check environment variable (QWERY_EXPORT_APP_TELEMETRY)
-      // 2. Check options parameter
-      // 3. Default to true (backward compatibility)
       const exportAppTelemetryEnv =
         process.env.QWERY_EXPORT_APP_TELEMETRY !== undefined
           ? process.env.QWERY_EXPORT_APP_TELEMETRY !== 'false'
@@ -330,40 +604,98 @@ export class OtelTelemetryManager {
         exportAppTelemetry,
       });
 
-      // Metrics exporter for gRPC (optional - only if collector supports metrics)
-      // Resolve exportMetrics setting:
-      // 1. Check environment variable (QWERY_EXPORT_METRICS)
-      // 2. Check options parameter
-      // 3. Default to false (many collectors don't support metrics service)
+      
       const exportMetricsEnv =
         process.env.QWERY_EXPORT_METRICS !== undefined
           ? process.env.QWERY_EXPORT_METRICS === 'true'
           : undefined;
-      const exportMetrics =
-        exportMetricsEnv ?? options?.exportMetrics ?? true;
+      const exportMetrics = exportMetricsEnv ?? options?.exportMetrics ?? true;
 
-      // Create metric reader only if metrics export is enabled
-      // Note: Metrics are still collected via the Meter API, just not exported
-      // This prevents errors when collector doesn't support metrics service
+    
+      const isDebugMode = process.env.QWERY_TELEMETRY_DEBUG === 'true';
       const metricReader =
-        otlpEndpoint && exportMetrics
-          ? new modules.PeriodicExportingMetricReader({
-              exporter: new modules.OTLPMetricExporter({
-                url: otlpEndpoint
-                  .replace(/^https?:\/\//, '')
-                  .replace(/^grpcs?:\/\//, ''), // Remove http:// or grpc:// prefix for plain gRPC
-                credentials: modules.credentials.createInsecure(), // Use insecure credentials for plain gRPC (non-TLS)
-              }),
-              exportIntervalMillis: 5000, // Export every 5 seconds
-            })
-          : undefined;
+        isDebugMode
+          ? (() => {
+              console.log(
+                '[Telemetry] Debug mode enabled: Using ConsoleMetricExporter for metrics',
+              );
+              return new modules.PeriodicExportingMetricReader({
+                exporter: new modules.ConsoleMetricExporter(), // Console exporter for debugging
+                exportIntervalMillis: 2000, // More frequent for debugging
+              });
+            })()
+          : otlpEndpoint && exportMetrics
+            ? (() => {
+                console.log(
+                  `[Telemetry] Using OTLP MetricExporter for metrics (endpoint: ${otlpEndpoint})`,
+                );
+                // Create OTLP exporter directly
+                const grpcUrl = otlpEndpoint.replace(/^https?:\/\//, '');
+                const plainGrpcUrl = grpcUrl.replace(/^grpcs?:\/\//, '');
+                const otlpMetricExporter = new modules.OTLPMetricExporter({
+                  url: plainGrpcUrl,
+                  credentials: modules.credentials.createInsecure(),
+                });
+
+                // Create SafeOTLPMetricExporter with the existing exporter
+                // This will wrap the export method with error handling
+                const safeMetricExporter = new SafeOTLPMetricExporter(
+                  otlpEndpoint,
+                  otlpMetricExporter,
+                );
+
+                console.log(
+                  '[Telemetry] Creating PeriodicExportingMetricReader with SafeOTLPMetricExporter',
+                );
+                console.log(
+                  `[Telemetry] SafeOTLPMetricExporter has export method: ${typeof safeMetricExporter.export === 'function'}`,
+                );
+                const reader = new modules.PeriodicExportingMetricReader({
+                  exporter: safeMetricExporter as unknown as InstanceType<
+                    typeof modules.OTLPMetricExporter
+                  >, // Pass SafeOTLPMetricExporter directly - it implements the interface
+                  exportIntervalMillis: 5000, // Export every 5 seconds
+                });
+                console.log(
+                  '[Telemetry] PeriodicExportingMetricReader created, will export every 5 seconds',
+                );
+                return reader;
+              })()
+            : (() => {
+                console.log(
+                  '[Telemetry] Metrics export disabled (no OTLP endpoint or exportMetrics=false)',
+                );
+                return undefined;
+              })();
 
       this.sdk = new modules.NodeSDK({
         traceExporter,
-        metricReader,
+        metricReaders: metricReader ? [metricReader] : undefined,
         resource,
         autoDetectResources: true,
       });
+
+      // Log metric reader details
+      if (metricReader) {
+        console.log(
+          `[Telemetry] NodeSDK created with metricReader: ${metricReader.constructor.name}`,
+        );
+        console.log(
+          `[Telemetry] MetricReader type check: ${metricReader instanceof modules.PeriodicExportingMetricReader ? 'PeriodicExportingMetricReader' : 'Unknown'}`,
+        );
+      }
+
+      // Log metrics pipeline status
+      if (metricReader) {
+        console.log(
+          '[Telemetry] Metrics pipeline initialized successfully. Metrics will be exported every 5 seconds.',
+        );
+        if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+          console.log(
+            '[Telemetry] Debug mode: All metric recordings will be logged.',
+          );
+        }
+      }
     } catch (error) {
       console.warn('[Telemetry] Failed to initialize Node.js SDK:', error);
     }
@@ -469,8 +801,23 @@ export class OtelTelemetryManager {
         await this.initPromise;
       }
       if (this.sdk) {
+        console.log('[Telemetry] Starting NodeSDK...');
         await this.sdk.start();
         console.log('OtelTelemetryManager: OpenTelemetry initialized.');
+        console.log(
+          '[Telemetry] NodeSDK started - PeriodicExportingMetricReader should now be active',
+        );
+        
+      
+        setTimeout(() => {
+          console.log(
+            '[Telemetry] Test: Recording a dummy metric to trigger export...',
+          );
+          this.tokenTotalCount.add(1, { test: 'true' });
+          console.log(
+            '[Telemetry] Test metric recorded - export should trigger in next 5 seconds',
+          );
+        }, 2000);
       }
     } catch (error) {
       console.error('OtelTelemetryManager init error:', error);
@@ -642,6 +989,15 @@ export class OtelTelemetryManager {
     completionTokens: number,
     attributes?: Record<string, string | number | boolean>,
   ): void {
+    if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+      console.log('[Telemetry] Recording token usage:', {
+        promptTokens,
+        completionTokens,
+        total: promptTokens + completionTokens,
+        attributes,
+        timestamp: new Date().toISOString(),
+      });
+    }
     this.tokenPromptCount.add(promptTokens, attributes);
     this.tokenCompletionCount.add(completionTokens, attributes);
     this.tokenTotalCount.add(promptTokens + completionTokens, attributes);
@@ -651,12 +1007,25 @@ export class OtelTelemetryManager {
     durationMs: number,
     attributes?: Record<string, string | number | boolean>,
   ): void {
+    if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+      console.log('[Telemetry] Recording query duration:', {
+        durationMs,
+        attributes,
+        timestamp: new Date().toISOString(),
+      });
+    }
     this.queryDuration.record(durationMs, attributes);
   }
 
   recordQueryCount(
     attributes?: Record<string, string | number | boolean>,
   ): void {
+    if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+      console.log('[Telemetry] Recording query count:', {
+        attributes,
+        timestamp: new Date().toISOString(),
+      });
+    }
     this.queryCount.add(1, attributes);
   }
 
@@ -664,6 +1033,13 @@ export class OtelTelemetryManager {
     rowCount: number,
     attributes?: Record<string, string | number | boolean>,
   ): void {
+    if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+      console.log('[Telemetry] Recording query rows returned:', {
+        rowCount,
+        attributes,
+        timestamp: new Date().toISOString(),
+      });
+    }
     this.queryRowsReturned.record(rowCount, attributes);
   }
 
@@ -680,6 +1056,23 @@ export class OtelTelemetryManager {
     completionTokens: number,
     attributes?: Record<string, string | number | boolean>,
   ): void {
+    if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+      console.log('[Telemetry] Recording agent token usage:', {
+        promptTokens,
+        completionTokens,
+        total: promptTokens + completionTokens,
+        attributes,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    // Validate token values before recording (prevent negative or invalid values)
+    if (promptTokens < 0 || completionTokens < 0) {
+      console.warn(
+        '[Telemetry] Invalid token values detected:',
+        { promptTokens, completionTokens, attributes },
+      );
+      return;
+    }
     this.tokensPrompt.add(promptTokens, attributes);
     this.tokensCompletion.add(completionTokens, attributes);
     this.tokensTotal.add(promptTokens + completionTokens, attributes);
@@ -689,4 +1082,3 @@ export class OtelTelemetryManager {
 // Export as TelemetryManager for backward compatibility
 export { OtelTelemetryManager as TelemetryManager };
 export type { OtelTelemetryManagerOptions as TelemetryManagerOptions };
-

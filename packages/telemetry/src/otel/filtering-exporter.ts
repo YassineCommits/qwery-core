@@ -100,4 +100,3 @@ export class FilteringSpanExporter implements SpanExporter {
     return this.exporter.shutdown();
   }
 }
-

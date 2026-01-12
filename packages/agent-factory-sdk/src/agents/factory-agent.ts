@@ -60,8 +60,8 @@ export class FactoryAgent {
     this.repositories = opts.repositories;
     this.actorRegistry = new ActorRegistry(); // NEW
     this.model = opts.model;
-    this.telemetry =
-      (opts.telemetry ?? createNullTelemetryService()) as TelemetryManager;
+    this.telemetry = (opts.telemetry ??
+      createNullTelemetryService()) as TelemetryManager;
 
     // Create queryEngine before state machine so it can be passed
     this.queryEngine = createQueryEngine(DuckDBQueryEngine);

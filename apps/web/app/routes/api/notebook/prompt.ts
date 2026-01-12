@@ -11,6 +11,7 @@ import {
 } from '@qwery/agent-factory-sdk';
 import { createRepositories } from '~/lib/repositories/repositories-factory';
 import { handleDomainException } from '~/lib/utils/error-handler';
+import { getWebTelemetry } from '~/lib/telemetry-instance';
 import { v4 as uuidv4 } from 'uuid';
 
 const agents = new Map<string, FactoryAgent>();
@@ -141,10 +142,12 @@ async function getOrCreateAgent(
         );
       }
 
+      const telemetry = await getWebTelemetry();
       agent = await FactoryAgent.create({
         conversationSlug: conversationSlug,
         model: model,
         repositories: repositories,
+        telemetry: telemetry,
       });
 
       agents.set(conversationSlug, agent);

@@ -1,9 +1,4 @@
-/**
- * OpenTelemetry Context for React Applications
- *
- * Provides React context wrapper for web/desktop apps.
- * Automatically injects workspace/session attributes into events and spans.
- */
+
 
 'use client';
 
@@ -23,7 +18,9 @@ export interface OtelTelemetryContextValue {
   setWorkspace: (workspace: WorkspaceContext | undefined) => void;
 }
 
-const OtelTelemetryContext = createContext<OtelTelemetryContextValue | null>(null);
+const OtelTelemetryContext = createContext<OtelTelemetryContextValue | null>(
+  null,
+);
 
 export interface OtelTelemetryProviderProps {
   children: ReactNode;
@@ -31,12 +28,7 @@ export interface OtelTelemetryProviderProps {
   initialWorkspace?: WorkspaceContext;
 }
 
-/**
- * OpenTelemetry Provider Component
- *
- * Wraps the application and provides telemetry context to all children.
- * Automatically enriches events and spans with workspace context.
- */
+
 export function OtelTelemetryProvider({
   children,
   telemetry,
@@ -88,7 +80,9 @@ export function OtelTelemetryProvider({
 export function useOtelTelemetry(): OtelTelemetryContextValue {
   const context = useContext(OtelTelemetryContext);
   if (!context) {
-    throw new Error('useOtelTelemetry must be used within an OtelTelemetryProvider');
+    throw new Error(
+      'useOtelTelemetry must be used within an OtelTelemetryProvider',
+    );
   }
   return context;
 }
@@ -116,4 +110,3 @@ export { useOtelTelemetry as useTelemetry };
 export { withOtelTelemetryContext as withTelemetryContext };
 export type { OtelTelemetryContextValue as TelemetryContextValue };
 export type { OtelTelemetryProviderProps as TelemetryProviderProps };
-

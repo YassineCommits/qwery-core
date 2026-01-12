@@ -1,8 +1,8 @@
 /**
  * Sentry Telemetry Provider
- * 
+ *
  * Implements telemetry using Sentry for error tracking and monitoring.
- * 
+ *
  * Note: Sentry integration is a placeholder. Full implementation requires
  * Sentry SDK configuration and initialization.
  */
@@ -20,7 +20,7 @@ export interface SentryProviderConfig {
 
 /**
  * Creates a Sentry telemetry provider
- * 
+ *
  * TODO: Implement full Sentry integration
  * - Initialize Sentry SDK
  * - Configure error tracking
@@ -72,4 +72,3 @@ export function createSentryProvider(
     };
   };
 }
-

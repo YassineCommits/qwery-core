@@ -262,6 +262,17 @@ export function recordQueryMetrics(
   rowCount: number,
   additionalAttributes?: Record<string, string | number | boolean>,
 ): void {
+  if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+    console.log('[Telemetry] recordQueryMetrics called:', {
+      appType,
+      durationMs,
+      rowCount,
+      workspace,
+      additionalAttributes,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const sessionId = telemetry.getSessionId();
   const attributes = createActionAttributes(
     {
@@ -276,6 +287,10 @@ export function recordQueryMetrics(
       ...additionalAttributes,
     },
   );
+
+  if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+    console.log('[Telemetry] Query metrics attributes:', attributes);
+  }
 
   telemetry.recordQueryDuration(durationMs, attributes);
   telemetry.recordQueryCount(attributes);
@@ -304,6 +319,18 @@ export function recordTokenUsage(
   completionTokens: number,
   additionalAttributes?: Record<string, string | number | boolean>,
 ): void {
+  if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+    console.log('[Telemetry] recordTokenUsage called:', {
+      appType,
+      promptTokens,
+      completionTokens,
+      total: promptTokens + completionTokens,
+      workspace,
+      additionalAttributes,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const sessionId = telemetry.getSessionId();
   const attributes = createActionAttributes(
     {
@@ -319,6 +346,9 @@ export function recordTokenUsage(
     },
   );
 
+  if (process.env.QWERY_TELEMETRY_DEBUG === 'true') {
+    console.log('[Telemetry] Token usage attributes:', attributes);
+  }
+
   telemetry.recordTokenUsage(promptTokens, completionTokens, attributes);
 }
-

@@ -10,13 +10,6 @@ export type TelemetryEvent = {
   sessionId?: string;
 };
 
-/**
- * OpenTelemetry Client Telemetry Service
- *
- * Provides simple APIs for CLI, web, and desktop applications.
- * Integrates with OtelTelemetryManager for underlying OpenTelemetry logic.
- * Handles workspace context enrichment automatically.
- */
 export class OtelClientService {
   private telemetry: OtelTelemetryManager | null = null;
   private queue: TelemetryEvent[] = [];
@@ -33,23 +26,16 @@ export class OtelClientService {
     this.startFlushTimer();
   }
 
-  /**
-   * Set the underlying telemetry manager
-   */
+
   setTelemetryManager(telemetry: OtelTelemetryManager): void {
     this.telemetry = telemetry;
   }
 
-  /**
-   * Get session ID from telemetry manager or generate one
-   */
   getSessionId(): string {
     return this.telemetry?.getSessionId() || 'client-session';
   }
 
-  /**
-   * Track a command execution
-   */
+ 
   trackCommand(
     command: string,
     args?: Record<string, unknown>,
@@ -80,9 +66,7 @@ export class OtelClientService {
     }
   }
 
-  /**
-   * Track a generic event
-   */
+ 
   trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (this.telemetry) {
       this.telemetry.captureEvent({
@@ -98,16 +82,13 @@ export class OtelClientService {
     }
   }
 
-  /**
-   * Track a metric
-   */
+  
   trackMetric(
     name: string,
     value: number,
     attributes?: Record<string, string | number | boolean>,
   ): void {
-    // Note: TelemetryManager doesn't have a generic trackMetric method
-    // This could be extended in the future
+    
     if (this.telemetry) {
       this.telemetry.captureEvent({
         name: 'client.metric',
@@ -120,9 +101,7 @@ export class OtelClientService {
     }
   }
 
-  /**
-   * Capture a generic event (legacy method, uses queue if no telemetry manager)
-   */
+  
   captureEvent(event: Omit<TelemetryEvent, 'sessionId' | 'timestamp'>) {
     if (this.telemetry) {
       // Use telemetry manager directly
@@ -225,4 +204,3 @@ export class OtelClientService {
     }
   }
 }
-
