@@ -77,7 +77,9 @@ describe('Provider Registry', () => {
       const config = { connectionUrl: 'postgresql://user:pass@host:5432/db' };
       const connectionString = mapping!.getConnectionString(config);
       // Connection string should have sslmode=prefer added by default
-      expect(connectionString).toBe('postgresql://user:pass@host:5432/db');
+      expect(connectionString).toBe(
+        'postgresql://user:pass@host:5432/db?sslmode=prefer',
+      );
     });
 
     it('should throw error if connectionUrl missing for PostgreSQL', async () => {
@@ -86,7 +88,7 @@ describe('Provider Registry', () => {
 
       const config = {};
       expect(() => mapping!.getConnectionString(config)).toThrow(
-        'PostgreSQL datasource requires connectionUrl in config',
+        'PostgreSQL datasource requires connectionUrl or host in config',
       );
     });
 
@@ -112,7 +114,7 @@ describe('Provider Registry', () => {
       };
       const connectionString = mapping!.getConnectionString(config);
       expect(connectionString).toBe(
-        'host=localhost port=3306 user=root password=secret database=testdb',
+        'mysql://root:secret@localhost:3306/testdb',
       );
     });
 
@@ -197,8 +199,8 @@ describe('Provider Registry', () => {
 
     it('should return false for unsupported providers', async () => {
       expect(await isProviderSupported('clickhouse-node')).toBe(false);
-      expect(await isProviderSupported('pglite')).toBe(false);
       expect(await isProviderSupported('duckdb-wasm')).toBe(false);
+      expect(await isProviderSupported('unknown-provider')).toBe(false);
     });
 
     it('should return true for duckdb provider', async () => {

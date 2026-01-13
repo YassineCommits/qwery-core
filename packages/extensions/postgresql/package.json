@@ -25,14 +25,65 @@
         "icon": "media/postgresql.svg",
         "schema": {
           "type": "object",
-          "properties": {
-            "connectionUrl": {
-              "type": "string",
-              "description": "PostgreSQL connection string (postgresql://user:pass@host:port/db)"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "description": "PostgreSQL server hostname"
+                },
+                "port": {
+                  "type": "number",
+                  "description": "PostgreSQL server port",
+                  "default": 5432
+                },
+                "username": {
+                  "type": "string",
+                  "description": "PostgreSQL username"
+                },
+                "user": {
+                  "type": "string",
+                  "description": "PostgreSQL username (alias for username)"
+                },
+                "password": {
+                  "type": "string",
+                  "description": "PostgreSQL password",
+                  "format": "password"
+                },
+                "database": {
+                  "type": "string",
+                  "description": "PostgreSQL database name"
+                },
+                "sslmode": {
+                  "type": "string",
+                  "enum": [
+                    "disable",
+                    "require",
+                    "prefer",
+                    "verify-ca",
+                    "verify-full"
+                  ],
+                  "description": "SSL mode",
+                  "default": "prefer"
+                }
+              },
+              "required": [
+                "host"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "connectionUrl": {
+                  "type": "string",
+                  "description": "PostgreSQL connection string (postgresql://user:pass@host:port/db)"
+                }
+              },
+              "required": [
+                "connectionUrl"
+              ]
             }
-          },
-          "required": [
-            "connectionUrl"
           ]
         },
         "drivers": [
@@ -46,14 +97,65 @@
         "icon": "media/supabase-logo-wordmark--dark.svg",
         "schema": {
           "type": "object",
-          "properties": {
-            "connectionUrl": {
-              "type": "string",
-              "description": "Supabase connection string (postgresql://user:pass@host:port/db)"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "description": "Supabase server hostname"
+                },
+                "port": {
+                  "type": "number",
+                  "description": "Supabase server port",
+                  "default": 5432
+                },
+                "username": {
+                  "type": "string",
+                  "description": "Supabase username"
+                },
+                "user": {
+                  "type": "string",
+                  "description": "Supabase username (alias for username)"
+                },
+                "password": {
+                  "type": "string",
+                  "description": "Supabase password",
+                  "format": "password"
+                },
+                "database": {
+                  "type": "string",
+                  "description": "Supabase database name"
+                },
+                "sslmode": {
+                  "type": "string",
+                  "enum": [
+                    "disable",
+                    "require",
+                    "prefer",
+                    "verify-ca",
+                    "verify-full"
+                  ],
+                  "description": "SSL mode",
+                  "default": "prefer"
+                }
+              },
+              "required": [
+                "host"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "connectionUrl": {
+                  "type": "string",
+                  "description": "Supabase connection string (postgresql://user:pass@host:port/db)"
+                }
+              },
+              "required": [
+                "connectionUrl"
+              ]
             }
-          },
-          "required": [
-            "connectionUrl"
           ]
         },
         "drivers": [
@@ -67,14 +169,65 @@
         "icon": "media/neon-logo-dark-color.svg",
         "schema": {
           "type": "object",
-          "properties": {
-            "connectionUrl": {
-              "type": "string",
-              "description": "Neon connection string (postgresql://user:pass@host:port/db)"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "description": "Neon server hostname"
+                },
+                "port": {
+                  "type": "number",
+                  "description": "Neon server port",
+                  "default": 5432
+                },
+                "username": {
+                  "type": "string",
+                  "description": "Neon username"
+                },
+                "user": {
+                  "type": "string",
+                  "description": "Neon username (alias for username)"
+                },
+                "password": {
+                  "type": "string",
+                  "description": "Neon password",
+                  "format": "password"
+                },
+                "database": {
+                  "type": "string",
+                  "description": "Neon database name"
+                },
+                "sslmode": {
+                  "type": "string",
+                  "enum": [
+                    "disable",
+                    "require",
+                    "prefer",
+                    "verify-ca",
+                    "verify-full"
+                  ],
+                  "description": "SSL mode",
+                  "default": "prefer"
+                }
+              },
+              "required": [
+                "host"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "connectionUrl": {
+                  "type": "string",
+                  "description": "Neon connection string (postgresql://user:pass@host:port/db)"
+                }
+              },
+              "required": [
+                "connectionUrl"
+              ]
             }
-          },
-          "required": [
-            "connectionUrl"
           ]
         },
         "drivers": [

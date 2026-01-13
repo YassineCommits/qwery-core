@@ -7,13 +7,43 @@ import type {
   IDataSourceDriver,
   DatasourceResultSet,
 } from '@qwery/extensions-sdk';
-import { DatasourceMetadataZodSchema } from '@qwery/extensions-sdk';
+import {
+  DatasourceMetadataZodSchema,
+  extractConnectionUrl,
+  withTimeout,
+  DEFAULT_CONNECTION_TEST_TIMEOUT_MS,
+} from '@qwery/extensions-sdk';
 
-const ConfigSchema = z.object({
-  connectionUrl: z.string().url(),
-});
+const ConfigSchema = z
+  .object({
+    connectionUrl: z.string().url().optional(),
+    host: z.string().optional(),
+    port: z.number().int().min(1).max(65535).optional(),
+    username: z.string().optional(),
+    user: z.string().optional(),
+    password: z.string().optional(),
+    database: z.string().optional(),
+    sslmode: z
+      .enum(['disable', 'require', 'prefer', 'verify-ca', 'verify-full'])
+      .optional(),
+  })
+  .refine(
+    (data) => data.connectionUrl || data.host,
+    {
+      message: 'Either connectionUrl or host must be provided',
+    },
+  );
 
 type DriverConfig = z.infer<typeof ConfigSchema>;
+
+export function buildPostgresConfig(config: DriverConfig) {
+  // Extract connection URL (either from connectionUrl or build from fields)
+  const connectionUrl = extractConnectionUrl(
+    config as Record<string, unknown>,
+    'postgresql',
+  );
+  return buildPgConfig(connectionUrl);
+}
 
 function buildPgConfig(connectionUrl: string) {
   const url = new URL(connectionUrl);
@@ -38,16 +68,25 @@ function buildPgConfig(connectionUrl: string) {
 
 export function makePostgresDriver(context: DriverContext): IDataSourceDriver {
   const withClient = async <T>(
-    config: DriverConfig,
+    config: { connectionUrl: string },
     callback: (client: Client) => Promise<T>,
+    timeoutMs: number = DEFAULT_CONNECTION_TEST_TIMEOUT_MS,
   ): Promise<T> => {
-    const client = new Client(buildPgConfig(config.connectionUrl));
-    try {
-      await client.connect();
-      return await callback(client);
-    } finally {
-      await client.end().catch(() => undefined);
-    }
+    const clientPromise = (async () => {
+      const client = new Client(buildPgConfig(config.connectionUrl));
+      try {
+        await client.connect();
+        return await callback(client);
+      } finally {
+        await client.end().catch(() => undefined);
+      }
+    })();
+
+    return withTimeout(
+      clientPromise,
+      timeoutMs,
+      `PostgreSQL connection operation timed out after ${timeoutMs}ms`,
+    );
   };
 
   const collectColumns = (fields: Array<{ name: string; dataTypeID: number }>) =>
@@ -67,15 +106,27 @@ export function makePostgresDriver(context: DriverContext): IDataSourceDriver {
   return {
     async testConnection(config: unknown): Promise<void> {
       const parsed = ConfigSchema.parse(config);
-      await withClient(parsed, async (client) => {
-        await client.query('SELECT 1');
-      });
+      const connectionUrl = extractConnectionUrl(
+        parsed as Record<string, unknown>,
+        'postgresql',
+      );
+      await withClient(
+        { connectionUrl },
+        async (client) => {
+          await client.query('SELECT 1');
+        },
+        DEFAULT_CONNECTION_TEST_TIMEOUT_MS,
+      );
       context.logger?.info?.('postgres: testConnection ok');
     },
 
     async metadata(config: unknown) {
       const parsed = ConfigSchema.parse(config);
-      const rows = await withClient(parsed, async (client) => {
+      const connectionUrl = extractConnectionUrl(
+        parsed as Record<string, unknown>,
+        'postgresql',
+      );
+      const rows = await withClient({ connectionUrl }, async (client) => {
         const result = await client.query<{
           table_schema: string;
           table_name: string;
@@ -97,7 +148,7 @@ export function makePostgresDriver(context: DriverContext): IDataSourceDriver {
         return result.rows;
       });
 
-      const primaryKeyRows = await withClient(parsed, async (client) => {
+      const primaryKeyRows = await withClient({ connectionUrl }, async (client) => {
         const result = await client.query<{
           table_schema: string;
           table_name: string;
@@ -117,7 +168,7 @@ export function makePostgresDriver(context: DriverContext): IDataSourceDriver {
         return result.rows;
       });
 
-      const foreignKeyRows = await withClient(parsed, async (client) => {
+      const foreignKeyRows = await withClient({ connectionUrl }, async (client) => {
         const result = await client.query<{
           constraint_name: string;
           source_schema: string;
@@ -284,8 +335,12 @@ export function makePostgresDriver(context: DriverContext): IDataSourceDriver {
 
     async query(sql: string, config: unknown): Promise<DatasourceResultSet> {
       const parsed = ConfigSchema.parse(config);
+      const connectionUrl = extractConnectionUrl(
+        parsed as Record<string, unknown>,
+        'postgresql',
+      );
       const { rows, rowCount, fields } = (await withClient(
-        parsed,
+        { connectionUrl },
         (client) => client.query(sql),
       )) as PgQueryResult;
 

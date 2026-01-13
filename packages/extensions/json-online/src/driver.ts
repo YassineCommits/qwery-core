@@ -7,11 +7,29 @@ import type {
   DatasourceResultSet,
   DatasourceMetadata,
 } from '@qwery/extensions-sdk';
-import { DatasourceMetadataZodSchema } from '@qwery/extensions-sdk';
+import {
+  DatasourceMetadataZodSchema,
+  withTimeout,
+  DEFAULT_CONNECTION_TEST_TIMEOUT_MS,
+  getQueryEngineConnection,
+  type QueryEngineConnection,
+} from '@qwery/extensions-sdk';
 
-const ConfigSchema = z.object({
-  jsonUrl: z.string().url().describe('Public JSON file URL'),
-});
+const ConfigSchema = z
+  .object({
+    jsonUrl: z.string().url().optional().describe('Public JSON file URL'),
+    url: z.string().url().optional().describe('Public JSON file URL'),
+    connectionUrl: z.string().url().optional().describe('Public JSON file URL'),
+  })
+  .refine(
+    (data) => data.jsonUrl || data.url || data.connectionUrl,
+    {
+      message: 'Either jsonUrl, url, or connectionUrl must be provided',
+    },
+  )
+  .transform((data) => ({
+    jsonUrl: data.jsonUrl || data.url || data.connectionUrl || '',
+  }));
 
 type DriverConfig = z.infer<typeof ConfigSchema>;
 
@@ -54,29 +72,57 @@ export function makeJsonDriver(context: DriverContext): IDataSourceDriver {
   return {
     async testConnection(config: unknown): Promise<void> {
       const parsed = ConfigSchema.parse(config);
-      const instance = await getInstance(parsed);
-      const conn = await instance.connect();
+      
+      const testPromise = (async () => {
+        const instance = await getInstance(parsed);
+        const conn = await instance.connect();
 
-      try {
-        // Test by querying the view
-        const resultReader = await conn.runAndReadAll(
-          `SELECT 1 as test FROM "${VIEW_NAME}" LIMIT 1`,
-        );
-        await resultReader.readAll();
-        context.logger?.info?.('json-online: testConnection ok');
-      } catch (error) {
-        throw new Error(
-          `Failed to connect to JSON URL: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      } finally {
-        conn.closeSync();
-      }
+        try {
+          // Test by querying the view
+          const resultReader = await conn.runAndReadAll(
+            `SELECT 1 as test FROM "${VIEW_NAME}" LIMIT 1`,
+          );
+          await resultReader.readAll();
+          context.logger?.info?.('json-online: testConnection ok');
+        } catch (error) {
+          throw new Error(
+            `Failed to connect to JSON URL: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        } finally {
+          conn.closeSync();
+        }
+      })();
+
+      await withTimeout(
+        testPromise,
+        DEFAULT_CONNECTION_TEST_TIMEOUT_MS,
+        `JSON connection test timed out after ${DEFAULT_CONNECTION_TEST_TIMEOUT_MS}ms. Please verify the URL is accessible and points to a valid JSON file.`,
+      );
     },
 
     async metadata(config: unknown): Promise<DatasourceMetadata> {
       const parsed = ConfigSchema.parse(config);
-      const instance = await getInstance(parsed);
-      const conn = await instance.connect();
+      let conn: QueryEngineConnection | Awaited<ReturnType<Awaited<ReturnType<typeof getInstance>>['connect']>>;
+      let shouldCloseConnection = false;
+
+      const queryEngineConn = getQueryEngineConnection(context);
+      if (queryEngineConn) {
+        // Use provided connection - create view in main engine
+        conn = queryEngineConn;
+        const escapedUrl = parsed.jsonUrl.replace(/'/g, "''");
+        const escapedViewName = VIEW_NAME.replace(/"/g, '""');
+
+        // Create view from JSON URL using read_json_auto in main engine
+        await conn.run(`
+          CREATE OR REPLACE VIEW "${escapedViewName}" AS
+          SELECT * FROM read_json_auto('${escapedUrl}')
+        `);
+      } else {
+        // Fallback for testConnection or when no connection provided - create temporary instance
+        const instance = await getInstance(parsed);
+        conn = await instance.connect();
+        shouldCloseConnection = true;
+      }
 
       try {
         // Get column information from the view using DESCRIBE
@@ -157,7 +203,9 @@ export function makeJsonDriver(context: DriverContext): IDataSourceDriver {
           `Failed to fetch metadata: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
-        conn.closeSync();
+        if (shouldCloseConnection && 'closeSync' in conn && typeof conn.closeSync === 'function') {
+          conn.closeSync();
+        }
       }
     },
 

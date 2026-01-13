@@ -229,6 +229,7 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
     const { duckdbNative, foreignDatabases } = groupDatasourcesByType(loaded);
 
     // Attach foreign databases (PostgreSQL, MySQL, Google Sheets, etc.)
+    const attachmentErrors: Array<{ datasourceId: string; error: string }> = [];
     for (const { datasource } of foreignDatabases) {
       // Skip if already attached (optimization)
       if (this.attachedDatasources.has(datasource.id)) {
@@ -246,6 +247,9 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
           workspace,
         });
         this.attachedDatasources.add(datasource.id);
+        console.log(
+          `[DuckDBQueryEngine] Successfully attached datasource ${datasource.id}`,
+        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         // If already attached error, mark as attached and continue
@@ -256,9 +260,10 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
           this.attachedDatasources.add(datasource.id);
           continue;
         }
-        throw new Error(
-          `Failed to attach datasource ${datasource.id}: ${errorMsg}`,
-        );
+        // Log error but continue with other datasources
+        const errorMessage = `Failed to attach datasource ${datasource.id}: ${errorMsg}`;
+        console.error(`[DuckDBQueryEngine] ${errorMessage}`);
+        attachmentErrors.push({ datasourceId: datasource.id, error: errorMsg });
       }
     }
 
@@ -276,14 +281,28 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
         await datasourceToDuckdb({
           connection: this.connection,
           datasource,
+          conversationId,
+          workspace,
         });
         this.attachedDatasources.add(datasource.id);
+        console.log(
+          `[DuckDBQueryEngine] Successfully created view for datasource ${datasource.id}`,
+        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `Failed to create view for datasource ${datasource.id}: ${errorMsg}`,
-        );
+        // Log error but continue with other datasources
+        const errorMessage = `Failed to create view for datasource ${datasource.id}: ${errorMsg}`;
+        console.error(`[DuckDBQueryEngine] ${errorMessage}`);
+        attachmentErrors.push({ datasourceId: datasource.id, error: errorMsg });
       }
+    }
+
+    // Log summary of attachment results
+    if (attachmentErrors.length > 0) {
+      console.warn(
+        `[DuckDBQueryEngine] ${attachmentErrors.length} datasource(s) failed to attach:`,
+        attachmentErrors.map((e) => `${e.datasourceId}: ${e.error}`).join(', '),
+      );
     }
   }
 
@@ -819,5 +838,142 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
       const errorMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to retrieve metadata: ${errorMsg}`);
     }
+  }
+
+  /**
+   * Delete one or more tables/views
+   */
+  async deleteTable(tableNames: string[]): Promise<{
+    deletedTables: string[];
+    failedTables: Array<{ tableName: string; error: string }>;
+    message: string;
+  }> {
+    if (!this.initialized || !this.connection) {
+      throw new Error(
+        'DuckDBQueryEngine must be initialized before deleting tables',
+      );
+    }
+
+    if (!tableNames || tableNames.length === 0) {
+      throw new Error('At least one table name is required');
+    }
+
+    const deletedTables: string[] = [];
+    const failedTables: Array<{ tableName: string; error: string }> = [];
+
+    // Delete each table using connection
+    for (const tableName of tableNames) {
+      try {
+        const escapedName = tableName.replace(/"/g, '""');
+        // Try to drop as VIEW first, then as TABLE
+        // DROP VIEW IF EXISTS and DROP TABLE IF EXISTS won't error if the object doesn't exist
+        await this.connection.run(`DROP VIEW IF EXISTS "${escapedName}"`);
+        await this.connection.run(`DROP TABLE IF EXISTS "${escapedName}"`);
+        deletedTables.push(tableName);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        failedTables.push({ tableName, error: errorMsg });
+      }
+    }
+
+    const successCount = deletedTables.length;
+    const failCount = failedTables.length;
+
+    let message: string;
+    if (successCount === tableNames.length) {
+      message = `Successfully deleted ${successCount} table(s): ${deletedTables.join(', ')}`;
+    } else if (successCount > 0) {
+      message = `Deleted ${successCount} table(s): ${deletedTables.join(', ')}. Failed to delete ${failCount} table(s): ${failedTables.map((f) => f.tableName).join(', ')}`;
+    } else {
+      message = `Failed to delete all ${failCount} table(s)`;
+    }
+
+    return {
+      deletedTables,
+      failedTables,
+      message,
+    };
+  }
+
+  /**
+   * Rename a table/view
+   */
+  async renameTable(
+    oldTableName: string,
+    newTableName: string,
+  ): Promise<{
+    oldTableName: string;
+    newTableName: string;
+    message: string;
+  }> {
+    if (!this.initialized || !this.connection) {
+      throw new Error(
+        'DuckDBQueryEngine must be initialized before renaming tables',
+      );
+    }
+
+    // Validate inputs
+    if (!oldTableName || !newTableName) {
+      throw new Error('Both oldTableName and newTableName are required');
+    }
+
+    if (oldTableName === newTableName) {
+      throw new Error('Old and new table names cannot be the same');
+    }
+
+    const escapedOldName = oldTableName.replace(/"/g, '""');
+    const escapedNewName = newTableName.replace(/"/g, '""');
+
+    // Check if old view exists
+    try {
+      await this.connection.run(`SELECT 1 FROM "${escapedOldName}" LIMIT 1`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (
+        errorMsg.includes('does not exist') ||
+        errorMsg.includes('not found') ||
+        errorMsg.includes('Catalog Error')
+      ) {
+        throw new Error(
+          `Table/view "${oldTableName}" does not exist. Cannot rename.`,
+        );
+      }
+      throw error;
+    }
+
+    // Check if new name already exists
+    try {
+      await this.connection.run(`SELECT 1 FROM "${escapedNewName}" LIMIT 1`);
+      throw new Error(
+        `Table/view "${newTableName}" already exists. Cannot rename to an existing name.`,
+      );
+    } catch (error) {
+      // If error is about table not found, that's good - name is available
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (
+        !errorMsg.includes('does not exist') &&
+        !errorMsg.includes('not found') &&
+        !errorMsg.includes('Catalog Error') &&
+        !errorMsg.includes('already exists')
+      ) {
+        // Some other error occurred, rethrow
+        throw error;
+      }
+      // If it's "already exists", rethrow that specific error
+      if (errorMsg.includes('already exists')) {
+        throw error;
+      }
+    }
+
+    // Rename the view using ALTER VIEW
+    await this.connection.run(
+      `ALTER VIEW "${escapedOldName}" RENAME TO "${escapedNewName}"`,
+    );
+
+    return {
+      oldTableName,
+      newTableName,
+      message: `Successfully renamed table/view "${oldTableName}" to "${newTableName}"`,
+    };
   }
 }

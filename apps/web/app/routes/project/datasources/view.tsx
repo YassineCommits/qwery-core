@@ -127,6 +127,95 @@ export default function ProjectDatasourceViewPage() {
     return <div>Extension not found</div>;
   }
 
+  const provider = extension.data.id;
+
+  // Helper: Validate provider config
+  const validateProviderConfig = (
+    config: Record<string, unknown>,
+  ): string | null => {
+    if (provider === 'gsheet-csv') {
+      if (!(config.sharedLink || config.url)) {
+        return 'Please provide a Google Sheets shared link';
+      }
+    } else if (provider === 'json-online') {
+      if (!(config.jsonUrl || config.url || config.connectionUrl)) {
+        return 'Please provide a JSON file URL (jsonUrl, url, or connectionUrl)';
+      }
+    } else if (provider === 'parquet-online') {
+      if (!(config.url || config.connectionUrl)) {
+        return 'Please provide a Parquet file URL (url or connectionUrl)';
+      }
+    } else if (
+      provider !== 'duckdb' &&
+      provider !== 'duckdb-wasm' &&
+      provider !== 'pglite'
+    ) {
+      if (!(config.connectionUrl || config.host)) {
+        return 'Please provide either a connection URL or connection details (host is required)';
+      }
+    }
+    return null;
+  };
+
+  // Helper: Normalize provider config
+  const normalizeProviderConfig = (
+    config: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    if (provider === 'gsheet-csv') {
+      return { sharedLink: config.sharedLink || config.url };
+    }
+    if (provider === 'json-online') {
+      return { jsonUrl: config.jsonUrl || config.url || config.connectionUrl };
+    }
+    if (provider === 'parquet-online') {
+      return { url: config.url || config.connectionUrl };
+    }
+    if (
+      provider === 'duckdb' ||
+      provider === 'duckdb-wasm' ||
+      provider === 'pglite'
+    ) {
+      return config.database ? { database: config.database } : {};
+    }
+    // For other providers with oneOf schemas
+    if (config.connectionUrl) {
+      return { connectionUrl: config.connectionUrl };
+    }
+    // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+    const normalized = { ...config };
+    delete normalized.connectionUrl;
+    Object.keys(normalized).forEach((key) => {
+      if (
+        key !== 'password' &&
+        (normalized[key] === '' || normalized[key] === undefined)
+      ) {
+        delete normalized[key];
+      }
+    });
+    return normalized;
+  };
+
+  // Helper: Check if form is valid for provider
+  const isFormValid = (values: Record<string, unknown>): boolean => {
+    if (provider === 'gsheet-csv') {
+      return !!(values.sharedLink || values.url);
+    }
+    if (provider === 'json-online') {
+      return !!(values.jsonUrl || values.url || values.connectionUrl);
+    }
+    if (provider === 'parquet-online') {
+      return !!(values.url || values.connectionUrl);
+    }
+    if (
+      provider === 'duckdb' ||
+      provider === 'duckdb-wasm' ||
+      provider === 'pglite'
+    ) {
+      return true; // Always enabled - database field is optional with defaults
+    }
+    return !!(values.connectionUrl || values.host);
+  };
+
   const handleSubmit = async (values: unknown) => {
     setIsSubmitting(true);
     try {
@@ -135,13 +224,28 @@ export default function ProjectDatasourceViewPage() {
         return;
       }
 
-      const config = values as Record<string, unknown>;
+      let config = values as Record<string, unknown>;
       const userId = 'system'; // Default user - replace with actual user context
 
       if (!datasource.data) {
         toast.error('Datasource not found');
         return;
       }
+
+      if (!provider) {
+        toast.error('Extension provider not found');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const validationError = validateProviderConfig(config);
+      if (validationError) {
+        toast.error(validationError);
+        setIsSubmitting(false);
+        return;
+      }
+
+      config = normalizeProviderConfig(config);
 
       // Update datasource object
       const updatedDatasource: Datasource = {
@@ -187,9 +291,17 @@ export default function ProjectDatasourceViewPage() {
       return;
     }
 
+    const validationError = validateProviderConfig(formValues);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const normalizedConfig = normalizeProviderConfig(formValues);
+
     testConnectionMutation.mutate({
       ...datasource.data,
-      config: formValues,
+      config: normalizedConfig,
     });
   };
 
@@ -320,7 +432,8 @@ export default function ProjectDatasourceViewPage() {
                 disabled={
                   testConnectionMutation.isPending ||
                   isSubmitting ||
-                  !formValues
+                  !formValues ||
+                  !isFormValid(formValues)
                 }
               >
                 {testConnectionMutation.isPending
@@ -350,7 +463,11 @@ export default function ProjectDatasourceViewPage() {
                 type="submit"
                 form="datasource-form"
                 disabled={
-                  isSubmitting || testConnectionMutation.isPending || isDeleting
+                  isSubmitting ||
+                  testConnectionMutation.isPending ||
+                  isDeleting ||
+                  !formValues ||
+                  !isFormValid(formValues)
                 }
               >
                 {isSubmitting ? 'Updating...' : 'Update'}

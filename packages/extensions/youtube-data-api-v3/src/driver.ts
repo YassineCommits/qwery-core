@@ -9,7 +9,11 @@ import type {
   IDataSourceDriver,
   DatasourceResultSet,
 } from '@qwery/extensions-sdk';
-import { DatasourceMetadataZodSchema } from '@qwery/extensions-sdk';
+import {
+  DatasourceMetadataZodSchema,
+  getQueryEngineConnection,
+  type QueryEngineConnection,
+} from '@qwery/extensions-sdk';
 
 const ConfigSchema = z.object({
   apiKey: z.string().min(1, 'apiKey is required'),
@@ -353,6 +357,20 @@ function convertBigInt(value: unknown): unknown {
 async function toMetadata(entry: InstanceEntry): Promise<DatasourceMetadata> {
   const conn = await entry.instance.connect();
   try {
+    return await toMetadataFromConnection(conn);
+  } finally {
+    conn.closeSync();
+  }
+}
+
+async function toMetadataFromConnection(
+  conn: {
+    runAndReadAll: (sql: string) => Promise<{
+      readAll: () => Promise<void>;
+      getRowObjectsJS: () => Array<Record<string, unknown>>;
+    }>;
+  },
+): Promise<DatasourceMetadata> {
     const describeReader = await conn.runAndReadAll(`DESCRIBE "${VIEW_NAME}"`);
     await describeReader.readAll();
     const describeRows = describeReader.getRowObjectsJS() as Array<{
@@ -423,9 +441,6 @@ async function toMetadata(entry: InstanceEntry): Promise<DatasourceMetadata> {
       tables,
       columns,
     });
-  } finally {
-    conn.closeSync();
-  }
 }
 
 export function makeYouTubeDriver(context: DriverContext): IDataSourceDriver {
@@ -438,8 +453,63 @@ export function makeYouTubeDriver(context: DriverContext): IDataSourceDriver {
 
     async metadata(config: unknown): Promise<DatasourceMetadata> {
       const parsed = ConfigSchema.parse(config);
-      const entry = await ensureInstanceReady(parsed, context);
-      return toMetadata(entry);
+      
+      const queryEngineConn = getQueryEngineConnection(context);
+      if (queryEngineConn) {
+        // Use provided connection - load data into main engine
+        const connection = queryEngineConn;
+        const entry = await ensureInstanceReady(parsed, context);
+        const conn = await entry.instance.connect();
+        
+        try {
+          // Load data from entry instance into main connection
+          const dataReader = await conn.runAndReadAll(
+            `SELECT * FROM "${VIEW_NAME}"`,
+          );
+          await dataReader.readAll();
+          const rows = dataReader.getRowObjectsJS() as Array<Record<string, unknown>>;
+          
+          // Create table in main connection
+          await connection.run(buildTableSql);
+          
+          // Insert data into main connection
+          if (rows.length > 0) {
+            const valuesSql = rows
+              .map((row) => {
+                const videoId = formatString(row.videoId as string | null);
+                const title = formatString(row.title as string | null);
+                const description = formatString(row.description as string | null);
+                const publishedAt = toTimestampLiteral(row.publishedAt as string | null);
+                const channelId = formatString(row.channelId as string | null);
+                const channelTitle = formatString(row.channelTitle as string | null);
+                const categoryId = formatString(row.categoryId as string | null);
+                const durationSeconds = formatNumber(row.durationSeconds as number | null);
+                const viewCount = formatNumber(row.viewCount as number | null);
+                const likeCount = formatNumber(row.likeCount as number | null);
+                const commentCount = formatNumber(row.commentCount as number | null);
+                const favoriteCount = formatNumber(row.favoriteCount as number | null);
+                const definition = formatString(row.definition as string | null);
+                const dimension = formatString(row.dimension as string | null);
+                const liveBroadcastContent = formatString(row.liveBroadcastContent as string | null);
+                const tags = formatStringArray((row.tags as string[]) || []);
+                
+                return `(${videoId}, ${title}, ${description}, ${publishedAt}, ${channelId}, ${channelTitle}, ${categoryId}, ${durationSeconds}, ${viewCount}, ${likeCount}, ${commentCount}, ${favoriteCount}, ${definition}, ${dimension}, ${liveBroadcastContent}, ${tags})`;
+              })
+              .join(',');
+            
+            await connection.run(`INSERT INTO "${VIEW_NAME}" VALUES ${valuesSql};`);
+          }
+          
+          // Use main connection for metadata
+          return toMetadataFromConnection(connection);
+        } finally {
+          conn.closeSync();
+        }
+      } else {
+        // Fallback for testConnection or when no connection provided - use isolated instance
+        const entry = await ensureInstanceReady(parsed, context);
+        return toMetadata(entry);
+      }
     },
 
     async query(sql: string, config: unknown): Promise<DatasourceResultSet> {

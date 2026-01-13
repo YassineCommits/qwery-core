@@ -9,11 +9,12 @@ export type JsonSchema = {
   description?: string;
   format?: string;
   default?: unknown;
+  oneOf?: JsonSchema[];
 };
 
 /**
  * Convert a minimal JSON Schema (v7-ish) to a Zod schema.
- * Supported: object/string/number/integer/boolean/array/enum + required.
+ * Supported: object/string/number/integer/boolean/array/enum + required + oneOf.
  * Falls back to z.any() when structure is not recognised.
  */
 export function jsonSchemaToZod(schema: JsonSchema): z.ZodTypeAny {
@@ -21,6 +22,17 @@ export function jsonSchemaToZod(schema: JsonSchema): z.ZodTypeAny {
     base: T,
     description?: string,
   ) => (description ? base.describe(description) : base);
+
+  // Handle oneOf first (union types)
+  if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 0) {
+    const unionSchemas = schema.oneOf.map((subSchema) =>
+      jsonSchemaToZod(subSchema),
+    );
+    return withDescription(
+      z.union(unionSchemas as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
+      schema.description,
+    );
+  }
 
   switch (schema.type) {
     case 'string': {

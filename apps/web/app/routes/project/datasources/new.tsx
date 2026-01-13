@@ -169,13 +169,103 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
     );
   }
 
+  const provider = extension.data?.id;
+
+  // Helper: Validate provider config
+  const validateProviderConfig = (
+    config: Record<string, unknown>,
+  ): string | null => {
+    if (!provider) return 'Extension provider not found';
+    if (provider === 'gsheet-csv') {
+      if (!(config.sharedLink || config.url)) {
+        return 'Please provide a Google Sheets shared link';
+      }
+    } else if (provider === 'json-online') {
+      if (!(config.jsonUrl || config.url || config.connectionUrl)) {
+        return 'Please provide a JSON file URL (jsonUrl, url, or connectionUrl)';
+      }
+    } else if (provider === 'parquet-online') {
+      if (!(config.url || config.connectionUrl)) {
+        return 'Please provide a Parquet file URL (url or connectionUrl)';
+      }
+    } else if (
+      provider !== 'duckdb' &&
+      provider !== 'duckdb-wasm' &&
+      provider !== 'pglite'
+    ) {
+      if (!(config.connectionUrl || config.host)) {
+        return 'Please provide either a connection URL or connection details (host is required)';
+      }
+    }
+    return null;
+  };
+
+  // Helper: Normalize provider config
+  const normalizeProviderConfig = (
+    config: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    if (!provider) return config;
+    if (provider === 'gsheet-csv') {
+      return { sharedLink: config.sharedLink || config.url };
+    }
+    if (provider === 'json-online') {
+      return { jsonUrl: config.jsonUrl || config.url || config.connectionUrl };
+    }
+    if (provider === 'parquet-online') {
+      return { url: config.url || config.connectionUrl };
+    }
+    if (
+      provider === 'duckdb' ||
+      provider === 'duckdb-wasm' ||
+      provider === 'pglite'
+    ) {
+      return config.database ? { database: config.database } : {};
+    }
+    // For other providers with oneOf schemas
+    if (config.connectionUrl) {
+      return { connectionUrl: config.connectionUrl };
+    }
+    // Using separate fields - remove connectionUrl and empty fields (but keep password even if empty)
+    const normalized = { ...config };
+    delete normalized.connectionUrl;
+    Object.keys(normalized).forEach((key) => {
+      if (
+        key !== 'password' &&
+        (normalized[key] === '' || normalized[key] === undefined)
+      ) {
+        delete normalized[key];
+      }
+    });
+    return normalized;
+  };
+
+  // Helper: Check if form is valid for provider
+  const isFormValidForProvider = (values: Record<string, unknown>): boolean => {
+    if (!provider) return false;
+    if (provider === 'gsheet-csv') {
+      return !!(values.sharedLink || values.url);
+    }
+    if (provider === 'json-online') {
+      return !!(values.jsonUrl || values.url || values.connectionUrl);
+    }
+    if (provider === 'parquet-online') {
+      return !!(values.url || values.connectionUrl);
+    }
+    if (
+      provider === 'duckdb' ||
+      provider === 'duckdb-wasm' ||
+      provider === 'pglite'
+    ) {
+      return true; // Always enabled - database field is optional with defaults
+    }
+    return !!(values.connectionUrl || values.host);
+  };
+
   const handleSubmit = async (values: unknown) => {
     if (!extension?.data) {
       toast.error(<Trans i18nKey="datasources:notFoundError" />);
       return;
     }
-
-    const config = values as Record<string, unknown>;
 
     let projectId = workspace.projectId;
     if (!projectId) {
@@ -200,7 +290,16 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
       return;
     }
 
+    let config = values as Record<string, unknown>;
     const userId = 'system'; // Default user - replace with actual user context
+
+    const validationError = validateProviderConfig(config);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    config = normalizeProviderConfig(config);
 
     // Infer datasource_kind from extension driver runtime
     const dsMeta = await getDiscoveredDatasource(extension.data.id);
@@ -232,12 +331,20 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
       return;
     }
 
+    const validationError = validateProviderConfig(formValues);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const normalizedConfig = normalizeProviderConfig(formValues);
+
     const testDatasource: Partial<Datasource> = {
       datasource_provider: extension.data.id,
       datasource_driver: extension.data.id,
       datasource_kind: DatasourceKind.EMBEDDED,
       name: datasourceName || 'Test Connection',
-      config: formValues,
+      config: normalizedConfig,
     };
 
     testConnectionMutation.mutate(testDatasource as Datasource);
@@ -325,7 +432,7 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
                 testConnectionMutation.isPending ||
                 createDatasourceMutation.isPending ||
                 !formValues ||
-                !isFormValid
+                !isFormValidForProvider(formValues)
               }
             >
               {testConnectionMutation.isPending ? (
@@ -355,7 +462,13 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
                 disabled={
                   createDatasourceMutation.isPending ||
                   testConnectionMutation.isPending ||
-                  !isFormValid
+                  (provider === 'duckdb' ||
+                  provider === 'duckdb-wasm' ||
+                  provider === 'pglite'
+                    ? false
+                    : !isFormValid ||
+                      !formValues ||
+                      !isFormValidForProvider(formValues))
                 }
               >
                 {createDatasourceMutation.isPending ? (

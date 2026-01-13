@@ -102,6 +102,11 @@ export interface DriverContext {
   secrets?: SecureStore;
   abortSignal?: AbortSignal;
   runtime?: DriverRuntime;
+  /**
+   * Optional query engine connection for drivers that need to create views
+   * in the main query engine. This is abstract and engine-agnostic.
+   */
+  queryEngineConnection?: unknown;
 }
 
 export interface IDataSourceDriver {
