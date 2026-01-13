@@ -114,7 +114,10 @@ function createWebLLMModel(
           'agent.llm.status': 'success',
         });
 
-        const completedEventAttributes = createLLMAttributes(modelName, 'webllm');
+        const completedEventAttributes = createLLMAttributes(
+          modelName,
+          'webllm',
+        );
         span.addEvent(AGENT_EVENTS.LLM_CALL_COMPLETED, {
           ...completedEventAttributes,
           'agent.llm.duration_ms': String(duration),
