@@ -39,7 +39,6 @@ const isNode = typeof process !== 'undefined' && process.versions?.node;
 
 function secureRandomStringBase36(length: number): string {
   try {
-
     const webCrypto = globalThis.crypto;
     if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
       const bytes = new Uint8Array(Math.max(8, Math.ceil(length * 0.75)));
