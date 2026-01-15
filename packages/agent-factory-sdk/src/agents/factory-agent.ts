@@ -12,11 +12,22 @@ import {
   DuckDBQueryEngine,
 } from '../services';
 import { createQueryEngine, AbstractQueryEngine } from '@qwery/domain/ports';
+import type { TelemetryManager } from '@qwery/telemetry/otel';
+import {
+  createNullTelemetryService,
+  createConversationAttributes,
+  createMessageAttributes,
+  endMessageSpanWithEvent,
+  endConversationSpanWithEvent,
+} from '@qwery/telemetry/otel';
+import { AGENT_EVENTS } from '@qwery/telemetry/events/agent.events';
+import { context, trace, type SpanContext } from '@opentelemetry/api';
 
 export interface FactoryAgentOptions {
   conversationSlug: string;
   model: string;
   repositories: Repositories;
+  telemetry?: TelemetryManager;
 }
 
 export class FactoryAgent {
@@ -29,6 +40,18 @@ export class FactoryAgent {
   private actorRegistry: ActorRegistry; // NEW: Actor registry
   private model: string;
   private queryEngine: AbstractQueryEngine;
+  private readonly telemetry: TelemetryManager;
+  // Store parent span contexts for linking actor spans
+  private parentSpanContexts:
+    | Array<{
+        context: SpanContext;
+        attributes?: Record<string, string | number | boolean>;
+      }>
+    | undefined;
+  // Store loadContext span reference to add links later
+  private loadContextSpan:
+    | ReturnType<TelemetryManager['startSpan']>
+    | undefined;
 
   constructor(opts: FactoryAgentOptions & { conversationId: string }) {
     this.id = nanoid();
@@ -37,6 +60,8 @@ export class FactoryAgent {
     this.repositories = opts.repositories;
     this.actorRegistry = new ActorRegistry(); // NEW
     this.model = opts.model;
+    this.telemetry = (opts.telemetry ??
+      createNullTelemetryService()) as TelemetryManager;
 
     // Create queryEngine before state machine so it can be passed
     this.queryEngine = createQueryEngine(DuckDBQueryEngine);
@@ -47,6 +72,11 @@ export class FactoryAgent {
       this.model,
       this.repositories,
       this.queryEngine, // Pass queryEngine to state machine
+      this.telemetry,
+      () => this.parentSpanContexts, // Function to get current parent span contexts
+      (span: ReturnType<TelemetryManager['startSpan']>) => {
+        this.loadContextSpan = span;
+      }, // Callback to store loadContext span
     );
 
     // NEW: Load persisted state (async, but we'll handle it)
@@ -103,19 +133,21 @@ export class FactoryAgent {
       this.factoryActor.getSnapshot().value,
     );
 
-    // Wait for the agent to be in idle state before processing messages
-    const currentState = this.factoryActor.getSnapshot().value;
-    if (currentState !== 'idle') {
-      // Wait for the state machine to reach idle
-      await new Promise<void>((resolve) => {
-        const subscription = this.factoryActor.subscribe((state) => {
-          if (state.value === 'idle') {
-            subscription.unsubscribe();
-            resolve();
-          }
-        });
-      });
-    }
+    // Start conversation span
+    const conversationAttrs = createConversationAttributes(
+      this.conversationSlug,
+      this.id,
+      opts.messages.length,
+    );
+    const conversationSpan = this.telemetry.startSpan(
+      'agent.conversation',
+      conversationAttrs as unknown as Record<string, unknown>,
+    );
+
+    this.telemetry.captureEvent({
+      name: AGENT_EVENTS.CONVERSATION_STARTED,
+      attributes: conversationAttrs as unknown as Record<string, unknown>,
+    });
 
     // Get the current input message to track which request this is for
     const lastMessage = opts.messages[opts.messages.length - 1];
@@ -154,7 +186,126 @@ export class FactoryAgent {
     const currentInputMessage =
       textPart && 'text' in textPart ? (textPart.text as string) : '';
 
+    // Start message span
+    const messageAttrs = createMessageAttributes(
+      this.conversationSlug,
+      currentInputMessage,
+      opts.messages.length - 1,
+      'user',
+    );
+    const messageSpan = this.telemetry.startSpan(
+      'agent.message',
+      messageAttrs as unknown as Record<string, unknown>,
+    );
+
+    // Capture parent span contexts for linking actor spans
+    if (conversationSpan && messageSpan) {
+      this.parentSpanContexts = [
+        {
+          context: conversationSpan.spanContext(),
+          attributes: {
+            'agent.span.type': 'conversation',
+            'agent.conversation.id': this.conversationSlug,
+          },
+        },
+        {
+          context: messageSpan.spanContext(),
+          attributes: {
+            'agent.span.type': 'message',
+            'agent.conversation.id': this.conversationSlug,
+          },
+        },
+      ];
+
+      // Add links to loadContext span if it exists and is still recording
+      if (this.loadContextSpan && this.loadContextSpan.isRecording()) {
+        this.loadContextSpan.addLinks([
+          {
+            context: conversationSpan.spanContext(),
+            attributes: {
+              'agent.span.type': 'conversation',
+              'agent.conversation.id': this.conversationSlug,
+            },
+          },
+          {
+            context: messageSpan.spanContext(),
+            attributes: {
+              'agent.span.type': 'message',
+              'agent.conversation.id': this.conversationSlug,
+            },
+          },
+        ]);
+      }
+    } else {
+      this.parentSpanContexts = undefined;
+    }
+
+    this.telemetry.captureEvent({
+      name: AGENT_EVENTS.MESSAGE_RECEIVED,
+      attributes: messageAttrs as unknown as Record<string, unknown>,
+    });
+
     //console.log("Last user text:", JSON.stringify(opts.messages, null, 2));
+
+    const conversationStartTime = Date.now();
+    const messageEnded = { current: false };
+
+    // Run the promise within the conversation span's context for proper nesting
+    const runInContext = async () => {
+      if (conversationSpan) {
+        // Set conversation span as active so child spans nest properly
+        return context.with(
+          trace.setSpan(context.active(), conversationSpan),
+          async () => {
+            // Set message span as active within conversation context
+            if (messageSpan) {
+              return context.with(
+                trace.setSpan(context.active(), messageSpan),
+                async () => {
+                  return await this._executeRespond(
+                    opts,
+                    conversationSpan,
+                    messageSpan,
+                    conversationStartTime,
+                    messageEnded,
+                  );
+                },
+              );
+            }
+            return await this._executeRespond(
+              opts,
+              conversationSpan,
+              messageSpan,
+              conversationStartTime,
+              messageEnded,
+            );
+          },
+        );
+      }
+      return await this._executeRespond(
+        opts,
+        conversationSpan,
+        messageSpan,
+        conversationStartTime,
+        messageEnded,
+      );
+    };
+
+    return await runInContext();
+  }
+
+  private async _executeRespond(
+    opts: { messages: UIMessage[] },
+    conversationSpan: ReturnType<TelemetryManager['startSpan']> | undefined,
+    messageSpan: ReturnType<TelemetryManager['startSpan']> | undefined,
+    conversationStartTime: number,
+    messageEnded: { current: boolean },
+  ): Promise<Response> {
+    // Extract current input message for logging
+    const lastMessage = opts.messages[opts.messages.length - 1];
+    const textPart = lastMessage?.parts.find((p) => p.type === 'text');
+    const currentInputMessage =
+      textPart && 'text' in textPart ? (textPart.text as string) : '';
 
     return await new Promise<Response>((resolve, reject) => {
       let resolved = false;
@@ -165,6 +316,31 @@ export class FactoryAgent {
       const timeout = setTimeout(() => {
         if (!resolved) {
           subscription.unsubscribe();
+
+          // End spans on timeout
+          if (messageSpan && !messageEnded.current) {
+            messageEnded.current = true;
+            endMessageSpanWithEvent(
+              this.telemetry,
+              messageSpan,
+              this.conversationSlug,
+              conversationStartTime,
+              false,
+              'Response timeout',
+            );
+          }
+
+          if (conversationSpan) {
+            endConversationSpanWithEvent(
+              this.telemetry,
+              conversationSpan,
+              this.conversationSlug,
+              conversationStartTime,
+              false,
+              `Response timeout: Last state: ${lastState}, state changes: ${stateChangeCount}`,
+            );
+          }
+
           reject(
             new Error(
               `FactoryAgent response timeout: state machine did not produce streamResult within 60 seconds. Last state: ${lastState}, state changes: ${stateChangeCount}`,
@@ -228,6 +404,32 @@ export class FactoryAgent {
             resolved = true;
             clearTimeout(timeout);
             subscription.unsubscribe();
+
+            // End message span on error
+            if (messageSpan && !messageEnded.current) {
+              messageEnded.current = true;
+              endMessageSpanWithEvent(
+                this.telemetry,
+                messageSpan,
+                this.conversationSlug,
+                conversationStartTime,
+                false,
+                ctx.error,
+              );
+            }
+
+            // End conversation span on error
+            if (conversationSpan) {
+              endConversationSpanWithEvent(
+                this.telemetry,
+                conversationSpan,
+                this.conversationSlug,
+                conversationStartTime,
+                false,
+                ctx.error,
+              );
+            }
+
             reject(new Error(`State machine error: ${ctx.error}`));
           }
           return;
@@ -244,6 +446,32 @@ export class FactoryAgent {
             resolved = true;
             clearTimeout(timeout);
             subscription.unsubscribe();
+
+            // End message span on error
+            if (messageSpan && !messageEnded.current) {
+              messageEnded.current = true;
+              endMessageSpanWithEvent(
+                this.telemetry,
+                messageSpan,
+                this.conversationSlug,
+                conversationStartTime,
+                false,
+                ctx.error,
+              );
+            }
+
+            // End conversation span on error
+            if (conversationSpan) {
+              endConversationSpanWithEvent(
+                this.telemetry,
+                conversationSpan,
+                this.conversationSlug,
+                conversationStartTime,
+                false,
+                ctx.error,
+              );
+            }
+
             reject(new Error(`State machine error: ${ctx.error}`));
           }
           return;
@@ -266,10 +494,27 @@ export class FactoryAgent {
         if (ctx.streamResult && requestStarted) {
           // Verify this result is for the current request by checking inputMessage matches
           const resultInputMessage = ctx.inputMessage;
+          const currentInputMessage =
+            (opts.messages[opts.messages.length - 1]?.parts.find(
+              (p) => p.type === 'text' && 'text' in p,
+            )?.text as string) || '';
           if (resultInputMessage === currentInputMessage) {
             if (!resolved) {
               resolved = true;
               clearTimeout(timeout);
+
+              // End message span on success
+              if (messageSpan && !messageEnded.current) {
+                messageEnded.current = true;
+                endMessageSpanWithEvent(
+                  this.telemetry,
+                  messageSpan,
+                  this.conversationSlug,
+                  conversationStartTime,
+                  true,
+                );
+              }
+
               try {
                 const response = ctx.streamResult.toUIMessageStreamResponse({
                   // Generate server-side UUIDs for message persistence
@@ -330,12 +575,59 @@ export class FactoryAgent {
                         error instanceof Error ? error.message : String(error),
                       );
                     }
+
+                    // End conversation span when stream finishes
+                    if (conversationSpan) {
+                      // Record message duration metric if message span hasn't been ended yet
+                      if (messageSpan && !messageEnded.current) {
+                        messageEnded.current = true;
+                        endMessageSpanWithEvent(
+                          this.telemetry,
+                          messageSpan,
+                          this.conversationSlug,
+                          conversationStartTime,
+                          true,
+                        );
+                      }
+                      endConversationSpanWithEvent(
+                        this.telemetry,
+                        conversationSpan,
+                        this.conversationSlug,
+                        conversationStartTime,
+                        true,
+                      );
+                    }
                   },
                 });
                 subscription.unsubscribe();
                 resolve(response);
               } catch (err) {
                 subscription.unsubscribe();
+
+                // End spans on error
+                if (messageSpan && !messageEnded.current) {
+                  messageEnded.current = true;
+                  endMessageSpanWithEvent(
+                    this.telemetry,
+                    messageSpan,
+                    this.conversationSlug,
+                    conversationStartTime,
+                    false,
+                    err instanceof Error ? err.message : String(err),
+                  );
+                }
+
+                if (conversationSpan) {
+                  endConversationSpanWithEvent(
+                    this.telemetry,
+                    conversationSpan,
+                    this.conversationSlug,
+                    conversationStartTime,
+                    false,
+                    err instanceof Error ? err.message : String(err),
+                  );
+                }
+
                 reject(err);
               }
             }
@@ -344,29 +636,41 @@ export class FactoryAgent {
         }
       });
 
-      // Wait for state machine to be in idle before sending USER_INPUT
       const currentState = this.factoryActor.getSnapshot().value;
-      const isIdle =
-        currentState === 'idle' || String(currentState).includes('idle');
+      const currentStateStr =
+        typeof currentState === 'string'
+          ? currentState
+          : JSON.stringify(currentState);
 
-      if (!isIdle) {
-        setTimeout(() => {
-          console.log(
-            `Sending USER_INPUT event. Current state: ${this.factoryActor.getSnapshot().value}`,
-          );
-          this.factoryActor.send({
-            type: 'USER_INPUT',
-            messages: opts.messages,
-          });
-        }, 100);
-      } else {
-        this.factoryActor.send({
-          type: 'USER_INPUT',
-          messages: opts.messages,
+      if (currentStateStr.includes('loadContext')) {
+        // Wait for loadContext to complete before sending USER_INPUT
+        const loadContextSubscription = this.factoryActor.subscribe((state) => {
+          const stateValue = state.value;
+          const stateStr =
+            typeof stateValue === 'string'
+              ? stateValue
+              : JSON.stringify(stateValue);
+          if (stateStr.includes('idle') || stateStr.includes('running')) {
+            loadContextSubscription.unsubscribe();
+            // Now send USER_INPUT within the message span context
+            if (messageSpan) {
+              context.with(trace.setSpan(context.active(), messageSpan), () => {
+                sendUserInput();
+              });
+            } else {
+              sendUserInput();
+            }
+          }
         });
-        console.log(
-          `USER_INPUT sent. New state: ${this.factoryActor.getSnapshot().value}`,
-        );
+      } else {
+        // State machine is ready, send USER_INPUT immediately within message span context
+        if (messageSpan) {
+          context.with(trace.setSpan(context.active(), messageSpan), () => {
+            sendUserInput();
+          });
+        } else {
+          sendUserInput();
+        }
       }
     });
   }

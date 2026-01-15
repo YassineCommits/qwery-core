@@ -1,4 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import type { Workspace } from '@qwery/domain/entities';
+import { TelemetryManager } from '@qwery/telemetry/otel';
+
 import {
   CreateProjectService,
   DeleteProjectService,
@@ -28,6 +31,7 @@ import { NotebookRunner } from '../services/notebook-runner';
 
 export class CliContainer {
   private state: CliState = createInitialState();
+  public telemetry: TelemetryManager;
 
   private readonly repositories = {
     user: new UserRepository(),
@@ -41,7 +45,7 @@ export class CliContainer {
   };
 
   private readonly workspaceModeService = new CliWorkspaceModeService();
-  private readonly notebookRunner = new NotebookRunner();
+  private readonly notebookRunner: NotebookRunner;
 
   private readonly useCases = {
     initWorkspace: new InitWorkspaceService(
@@ -70,11 +74,22 @@ export class CliContainer {
 
   constructor(
     private readonly stateStore: FileStateStore = new FileStateStore(),
-  ) {}
+  ) {
+    const bytes = randomBytes(4);
+    const randomString = Array.from(bytes)
+      .map((byte) => byte.toString(36))
+      .join('')
+      .substring(0, 7);
+    const sessionId = `cli-${Date.now()}-${randomString}`;
+    this.telemetry = new TelemetryManager('qwery-cli', sessionId);
+    this.notebookRunner = new NotebookRunner(this.telemetry);
+  }
 
   public async init(): Promise<void> {
     this.state = await this.stateStore.load();
     await this.seedRepositories();
+    // Initialize telemetry after repositories are seeded
+    await this.telemetry.init();
   }
 
   public async persist(): Promise<void> {
