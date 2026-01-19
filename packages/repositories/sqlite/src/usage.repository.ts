@@ -142,20 +142,24 @@ export class UsageRepository extends IUsageRepository {
     return this.findByConversationId(conversation.id);
   }
 
+  // Counter for unique ID generation (avoids collisions in same millisecond)
+  private static usageCounter = 0;
+
   async create(entity: Usage): Promise<Usage> {
     await this.init();
 
-    // Generate a high-resolution timestamp ID using clock ticks to avoid collisions
-    // Uses process.hrtime for nanosecond precision combined with Date.now()
+    // Generate a unique timestamp ID using clock ticks + counter to avoid collisions
     const generateTimestampId = (): number => {
       const baseTime = Date.now();
-      // Get high-resolution time since process start (nanoseconds)
       const hrtime = process.hrtime();
-      // Convert nanoseconds to microseconds (0-999,999 range)
-      const microseconds = Math.floor(hrtime[1] / 1000);
-      // Combine: base timestamp in milliseconds * 1,000,000 + microseconds
-      // This gives us microsecond-level precision (1,000,000 unique values per millisecond)
-      return baseTime * 1_000_000 + microseconds;
+      // Use microseconds (0-999) + counter (0-999) for 1M unique values per ms
+      const microseconds = Math.floor(hrtime[1] / 1000) % 1000;
+      UsageRepository.usageCounter = (UsageRepository.usageCounter + 1) % 1000;
+      return (
+        baseTime * 1_000_000 +
+        microseconds * 1000 +
+        UsageRepository.usageCounter
+      );
     };
 
     const entityWithId = {

@@ -376,4 +376,5 @@ export type AgentEvents =
   | { type: 'SEND_RESPONSE'; response: string }
   | { type: 'LLM_READY'; streamResult: ReturnType<typeof streamText> }
   | { type: 'INTENT_DETECTED'; intent: Intent }
-  | { type: 'GET_INTENT' };
+  | { type: 'GET_INTENT' }
+  | { type: 'FINISH_STREAM' };

@@ -17,6 +17,7 @@ import {
   getDatasourceType,
   type LoadedDatasource,
 } from '../tools/datasource-loader';
+import { queryRewriter } from './query';
 
 // Connection type from DuckDB instance
 type Connection = Awaited<ReturnType<DuckDBInstance['connect']>>;
@@ -69,6 +70,8 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
   private workingDir: string | null = null;
   private attachedDatasources: Set<string> = new Set(); // datasource IDs
   private initialized = false;
+  private pathMappings: Map<string, string> = new Map(); // displayPath -> queryPath
+  private allTablePaths: string[] = []; // all available table paths for rewriting
 
   /**
    * Determines which DuckDB extension to load based on the workingDir URI protocol.
@@ -96,13 +99,22 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
   }
 
   /**
+   * Check if the query engine has been initialized.
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
    * Initialize the DuckDB query engine with the provided configuration.
    * Creates an in-memory transient instance, loads required extensions based on
    * workingDir URI protocol, and applies configuration.
+   *
+   * This method is idempotent - calling it multiple times is safe.
    */
   async initialize(config: QueryEngineConfig): Promise<void> {
     if (this.initialized) {
-      throw new Error('DuckDBQueryEngine is already initialized');
+      return; // Idempotent - already initialized, just return
     }
 
     const { workingDir, config: engineConfig } = config;
@@ -233,9 +245,6 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
     for (const { datasource } of foreignDatabases) {
       // Skip if already attached (optimization)
       if (this.attachedDatasources.has(datasource.id)) {
-        console.log(
-          `[DuckDBQueryEngine] Datasource ${datasource.id} already attached, skipping`,
-        );
         continue;
       }
 
@@ -247,9 +256,6 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
           workspace,
         });
         this.attachedDatasources.add(datasource.id);
-        console.log(
-          `[DuckDBQueryEngine] Successfully attached datasource ${datasource.id}`,
-        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         // If already attached error, mark as attached and continue
@@ -261,8 +267,9 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
           continue;
         }
         // Log error but continue with other datasources
-        const errorMessage = `Failed to attach datasource ${datasource.id}: ${errorMsg}`;
-        console.error(`[DuckDBQueryEngine] ${errorMessage}`);
+        console.error(
+          `[DuckDBQueryEngine] Failed to attach datasource ${datasource.id}: ${errorMsg}`,
+        );
         attachmentErrors.push({ datasourceId: datasource.id, error: errorMsg });
       }
     }
@@ -271,9 +278,6 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
     for (const { datasource } of duckdbNative) {
       // Skip if already attached (optimization)
       if (this.attachedDatasources.has(datasource.id)) {
-        console.log(
-          `[DuckDBQueryEngine] Datasource ${datasource.id} already attached, skipping`,
-        );
         continue;
       }
 
@@ -285,24 +289,14 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
           workspace,
         });
         this.attachedDatasources.add(datasource.id);
-        console.log(
-          `[DuckDBQueryEngine] Successfully created view for datasource ${datasource.id}`,
-        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         // Log error but continue with other datasources
-        const errorMessage = `Failed to create view for datasource ${datasource.id}: ${errorMsg}`;
-        console.error(`[DuckDBQueryEngine] ${errorMessage}`);
+        console.error(
+          `[DuckDBQueryEngine] Failed to create view for datasource ${datasource.id}: ${errorMsg}`,
+        );
         attachmentErrors.push({ datasourceId: datasource.id, error: errorMsg });
       }
-    }
-
-    // Log summary of attachment results
-    if (attachmentErrors.length > 0) {
-      console.warn(
-        `[DuckDBQueryEngine] ${attachmentErrors.length} datasource(s) failed to attach:`,
-        attachmentErrors.map((e) => `${e.datasourceId}: ${e.error}`).join(', '),
-      );
     }
   }
 
@@ -418,6 +412,8 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
       }
 
       this.attachedDatasources.clear();
+      this.pathMappings.clear();
+      this.allTablePaths = [];
       this.initialized = false;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -426,7 +422,17 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
   }
 
   /**
+   * Set path mappings for query rewriting (display path -> query path)
+   * Used for providers like ClickHouse where schema names need translation
+   */
+  setPathMappings(mappings: Map<string, string>, allPaths: string[]): void {
+    this.pathMappings = mappings;
+    this.allTablePaths = allPaths;
+  }
+
+  /**
    * Execute a SQL query across attached datasources.
+   * Automatically rewrites table paths if path mappings are configured.
    */
   async query(query: string): Promise<DatasourceResultSet> {
     if (!this.initialized || !this.connection) {
@@ -437,7 +443,22 @@ export class DuckDBQueryEngine extends AbstractQueryEngine {
 
     try {
       const startTime = performance.now();
-      const resultReader = await this.connection.runAndReadAll(query);
+
+      // Rewrite query if path mappings are configured
+      let finalQuery = query;
+      if (this.pathMappings.size > 0 || this.allTablePaths.length > 0) {
+        const rewriteResult = queryRewriter.rewrite(
+          query,
+          this.pathMappings,
+          this.allTablePaths,
+        );
+
+        if (rewriteResult.wasRewritten) {
+          finalQuery = rewriteResult.rewrittenQuery;
+        }
+      }
+
+      const resultReader = await this.connection.runAndReadAll(finalQuery);
       await resultReader.readAll();
       const rows = resultReader.getRowObjectsJS() as Array<
         Record<string, unknown>

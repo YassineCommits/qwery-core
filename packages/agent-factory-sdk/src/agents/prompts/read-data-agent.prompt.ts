@@ -6,9 +6,23 @@ import {
 import { BASE_AGENT_PROMPT } from './base-agent.prompt';
 import type { Datasource } from '@qwery/domain/entities';
 import { getDatasourceDatabaseName } from '../../tools/datasource-name-utils';
+import { FeatureFlags } from '../../services/feature-flags';
+
+/**
+ * Semantic context from the semantic model for prompt enrichment
+ */
+export interface SemanticContext {
+  entities: Array<{ name: string; table: string; domain: string }>;
+  metrics: Array<{ name: string; expression: string; description: string }>;
+  dimensions: Array<{ name: string; column: string; type: string }>;
+  relationships: Array<{ from: string; to: string; joinCondition: string }>;
+  vocabulary: Array<{ term: string; synonyms: string[] }>;
+}
 
 export function buildReadDataAgentPrompt(
   attachedDatasources?: Datasource[],
+  ragContext?: string,
+  semanticContext?: SemanticContext,
 ): string {
   // Build datasource information section
   let datasourceInfo = '';
@@ -63,12 +77,75 @@ ATTACHED DATASOURCES: None
 `;
   }
 
+  // Build RAG context section if available
+  let ragSection = '';
+  if (ragContext && FeatureFlags.useOptimizedPrompt) {
+    ragSection = `
+RETRIEVED CONTEXT (from semantic search):
+${ragContext}
+
+**Use this context to understand the most relevant tables and columns for the user's query.**
+`;
+  }
+
+  // Build retrieval tool guidance
+  let retrievalGuidance = '';
+  if (FeatureFlags.useRetrieval) {
+    retrievalGuidance = `
+**SEMANTIC RETRIEVAL (Enabled)**:
+- Use the \`retrieveContext\` tool to find relevant tables/columns before generating SQL
+- This uses semantic search to find the most relevant schema elements
+- More efficient than calling getSchema for the full schema
+`;
+  }
+
+  // Build semantic context section
+  let semanticSection = '';
+  if (semanticContext) {
+    const entityList = semanticContext.entities
+      .slice(0, 10)
+      .map((e) => `${e.name} (${e.table})`)
+      .join(', ');
+    const metricList = semanticContext.metrics
+      .slice(0, 5)
+      .map((m) => `${m.name}: ${m.expression}`)
+      .join('; ');
+    const dimensionList = semanticContext.dimensions
+      .slice(0, 8)
+      .map((d) => d.name)
+      .join(', ');
+    const joinList = semanticContext.relationships
+      .slice(0, 5)
+      .map((r) => `${r.from} → ${r.to}`)
+      .join(', ');
+    const vocabList = semanticContext.vocabulary
+      .slice(0, 5)
+      .map((v) => `${v.term} (${v.synonyms.slice(0, 2).join(', ')})`)
+      .join('; ');
+
+    semanticSection = `
+**SEMANTIC MODEL (use for accurate query generation)**:
+- Entities: ${entityList || 'None discovered'}
+- Metrics: ${metricList || 'None inferred'}
+- Dimensions: ${dimensionList || 'None inferred'}
+- Join Paths: ${joinList || 'None detected'}
+- Vocabulary: ${vocabList || 'Default synonyms'}
+
+Use this semantic context to:
+1. Match user terms to correct table/column names
+2. Use pre-defined metrics instead of computing from scratch
+3. Follow join paths for multi-table queries
+`;
+  }
+
   return `
 You are a Qwery Agent, a Data Engineering Agent. You are responsible for helping the user with their data engineering needs.
 
 ${BASE_AGENT_PROMPT}
 ${datasourceInfo}
-
+${semanticSection}
+${ragSection}
+${retrievalGuidance}
 CRITICAL - TOOL USAGE RULE:
 - You MUST use tools to perform actions. NEVER claim to have done something without actually calling the appropriate tool.
 - If the user asks for a chart, you MUST call runQuery, then selectChartType, then generateChart tools.

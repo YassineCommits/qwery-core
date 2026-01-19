@@ -117,9 +117,6 @@ async function discoverTabs(
   };
 
   // 1. Try to discover all tabs via metadata
-  console.log(
-    `[GSheetAttach] Fetching metadata for spreadsheet ${spreadsheetId}`,
-  );
   const metadata = await fetchSpreadsheetMetadata(spreadsheetId);
   for (const meta of metadata) {
     addTab(meta.gid, getCsvUrlForTab(spreadsheetId, meta.gid), meta.name);
@@ -146,18 +143,10 @@ async function discoverTabs(
       );
       await testReader.readAll();
       validatedTabs.push(tab);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.warn(
-        `[GSheetAttach] Tab gid=${tab.gid} (${tab.name || 'unnamed'}) is not accessible:`,
-        errorMsg,
-      );
+    } catch {
+      // Tab not accessible, skip
     }
   }
-
-  console.log(
-    `[GSheetAttach] Tab discovery complete: found ${validatedTabs.length} accessible tab(s)`,
-  );
 
   return validatedTabs;
 }
@@ -217,16 +206,9 @@ export class GSheetAttachmentStrategy implements AttachmentStrategy {
 
         const escapedPath = dbFilePath.replace(/'/g, "''");
         await conn.run(`ATTACH '${escapedPath}' AS "${escapedDbName}"`);
-
-        console.log(
-          `[GSheetAttach] Attached persistent database: ${attachedDatabaseName} at ${dbFilePath}`,
-        );
       }
-    } catch (error) {
-      console.warn(
-        `[GSheetAttach] Could not attach database ${attachedDatabaseName}, continuing:`,
-        error,
-      );
+    } catch {
+      // Database already attached or other issue, continue
     }
 
     // Drop all existing tables to ensure fresh start with semantic names
@@ -243,34 +225,22 @@ export class GSheetAttachmentStrategy implements AttachmentStrategy {
       }>;
 
       if (existingTables.length > 0) {
-        console.log(
-          `[GSheetAttach] Dropping ${existingTables.length} existing table(s) to ensure semantic naming`,
-        );
         for (const table of existingTables) {
           const escapedTableName = table.table_name.replace(/"/g, '""');
           try {
             await conn.run(
               `DROP TABLE IF EXISTS "${escapedDbName}"."${escapedTableName}"`,
             );
-          } catch (error) {
-            console.warn(
-              `[GSheetAttach] Failed to drop table ${table.table_name}:`,
-              error,
-            );
+          } catch {
+            // Ignore drop failures
           }
         }
       }
-    } catch (error) {
-      console.warn(
-        `[GSheetAttach] Failed to check/drop existing tables, continuing with tab discovery:`,
-        error,
-      );
+    } catch {
+      // Ignore failures checking existing tables
     }
 
     // Discover tabs
-    console.log(
-      `[GSheetAttach] Discovering tabs for spreadsheet ${spreadsheetId}...`,
-    );
     const tabs = await discoverTabs(conn, spreadsheetId, sharedLink);
 
     if (tabs.length === 0) {
@@ -278,10 +248,6 @@ export class GSheetAttachmentStrategy implements AttachmentStrategy {
         `No tabs found in Google Sheet: ${sharedLink}. Make sure the sheet is publicly accessible.`,
       );
     }
-
-    console.log(
-      `[GSheetAttach] Found ${tabs.length} tab(s) in spreadsheet ${spreadsheetId}`,
-    );
 
     // Create tables for each tab
     const tables: AttachmentResult['tables'] = [];
@@ -343,11 +309,8 @@ export class GSheetAttachmentStrategy implements AttachmentStrategy {
                 },
               ],
             };
-          } catch (error) {
-            console.warn(
-              `[GSheetAttach] Failed to extract schema for tab gid=${gid}:`,
-              error,
-            );
+          } catch {
+            // Schema extraction failed, continue without it
           }
         }
 
@@ -397,15 +360,10 @@ export class GSheetAttachmentStrategy implements AttachmentStrategy {
           csvUrl,
           schemaDefinition: schema,
         });
-
-        console.log(
-          `[GSheetAttach] Created table ${attachedDatabaseName}.${tableName} from tab gid=${gid}`,
-        );
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
         console.error(
           `[GSheetAttach] Failed to create table for tab gid=${gid}:`,
-          errorMsg,
+          error instanceof Error ? error.message : String(error),
         );
       }
     }

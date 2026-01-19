@@ -1,4 +1,5 @@
 export * from './model-resolver';
+export { FeatureFlags } from './feature-flags';
 export * from './models/azure-model.provider';
 export * from './models/ollama-model.provider';
 export * from './webllm-model.provider';
@@ -9,3 +10,8 @@ export * from './transport-factory';
 export * from './usage-persistence.service';
 export * from './generate-conversation-title.service';
 export * from './duckdb-query-engine.service';
+export * from './query';
+export * from './schema';
+export * from './semantic';
+export * from './rag';
+export * from './explainability';

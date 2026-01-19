@@ -108,14 +108,15 @@ export class DatasourceOrchestrationService {
 
     const schemaCache = getSchemaCache(conversationId);
 
+    // Initialize engine (idempotent - safe to call multiple times)
+    await queryEngine.initialize({
+      workingDir: 'file://',
+      config: {},
+    });
+
     let attached = false;
     if (datasourcesToUse.length > 0) {
       try {
-        await queryEngine.initialize({
-          workingDir: 'file://',
-          config: {},
-        });
-
         const loaded = await loadDatasources(
           datasourcesToUse,
           repositories.datasource,
@@ -123,7 +124,6 @@ export class DatasourceOrchestrationService {
 
         if (loaded.length > 0) {
           // Attach all datasources (will continue on individual failures)
-          // attach() now processes all datasources and logs errors without throwing
           await queryEngine.attach(
             loaded.map((d) => d.datasource),
             {
@@ -133,36 +133,18 @@ export class DatasourceOrchestrationService {
           );
           await queryEngine.connect();
           attached = true;
-          console.log(
-            `[DatasourceOrchestration] Initialized engine and processed ${loaded.length} datasource(s) (some may have failed - check logs)`,
-          );
-
-          console.log(
-            `[DatasourceOrchestration] [CACHE] Loading schema cache for ${loaded.length} datasource(s) after attach...`,
-          );
 
           const uncachedDatasources = loaded.filter(
             ({ datasource }) => !schemaCache.isCached(datasource.id),
           );
 
           if (uncachedDatasources.length > 0) {
-            console.log(
-              `[DatasourceOrchestration] [CACHE] ${uncachedDatasources.length} uncached datasource(s) found, loading metadata...`,
-            );
-            const cacheLoadStartTime = performance.now();
             const metadata = await queryEngine.metadata(
               uncachedDatasources.map((d) => d.datasource),
             );
 
-            console.log(
-              `[DatasourceOrchestration] [CACHE] Metadata retrieved: ${metadata.tables.length} table(s), ${metadata.columns.length} column(s)`,
-            );
-
             for (const { datasource } of uncachedDatasources) {
               const dbName = getDatasourceDatabaseName(datasource);
-              console.log(
-                `[DatasourceOrchestration] [CACHE] Loading cache for datasource ${datasource.id} (provider: ${datasource.datasource_provider}, dbName: ${dbName})`,
-              );
               await schemaCache.loadSchemaForDatasource(
                 datasource.id,
                 metadata,
@@ -170,14 +152,6 @@ export class DatasourceOrchestrationService {
                 dbName,
               );
             }
-            const cacheLoadTime = performance.now() - cacheLoadStartTime;
-            console.log(
-              `[DatasourceOrchestration] [CACHE] ✓ Cache loaded for ${uncachedDatasources.length} datasource(s) during init in ${cacheLoadTime.toFixed(2)}ms`,
-            );
-          } else {
-            console.log(
-              `[DatasourceOrchestration] [CACHE] ✓ All datasources already cached, skipping load`,
-            );
           }
 
           return {
@@ -191,25 +165,12 @@ export class DatasourceOrchestrationService {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.warn(
-          `[DatasourceOrchestration] Failed to initialize engine or attach datasources:`,
+          `[DatasourceOrchestration] Failed to attach datasources:`,
           errorMsg,
         );
       }
     } else {
-      try {
-        await queryEngine.initialize({
-          workingDir: 'file://',
-          config: {},
-        });
-        await queryEngine.connect();
-      } catch {
-        console.log(
-          `[DatasourceOrchestration] Engine already initialized or initialization skipped`,
-        );
-      }
-      console.log(
-        `[DatasourceOrchestration] No datasources found in conversation ${conversationId}, engine initialized`,
-      );
+      await queryEngine.connect();
     }
 
     return {
@@ -231,98 +192,73 @@ export class DatasourceOrchestrationService {
     const { conversationId, repositories, queryEngine, metadataDatasources } =
       options;
 
-    if (existingResult) {
-      const schemaCache = existingResult.schemaCache;
-      const datasourcesToUse = prioritizeDatasources(
-        metadataDatasources,
-        existingResult.conversation?.datasources,
-      );
+    if (!existingResult) {
+      return this.orchestrate(options);
+    }
 
-      if (datasourcesToUse.length > 0) {
-        const loaded = await loadDatasources(
-          datasourcesToUse,
-          repositories.datasource,
-        );
+    const schemaCache = existingResult.schemaCache;
+    const datasourcesToUse = prioritizeDatasources(
+      metadataDatasources,
+      existingResult.conversation?.datasources,
+    );
 
-        const cachedDatasourceIds = schemaCache.getDatasources();
-        const currentDatasourceIds = new Set(
-          loaded.map((d) => d.datasource.id),
-        );
+    if (datasourcesToUse.length === 0) {
+      return existingResult;
+    }
 
-        for (const cachedId of cachedDatasourceIds) {
-          if (!currentDatasourceIds.has(cachedId)) {
-            console.log(
-              `[DatasourceOrchestration] [CACHE] Datasource ${cachedId} no longer attached, invalidating cache`,
-            );
-            schemaCache.invalidate(cachedId);
-          }
-        }
+    const loaded = await loadDatasources(
+      datasourcesToUse,
+      repositories.datasource,
+    );
 
-        const uncachedDatasources = loaded.filter(
-          ({ datasource }) => !schemaCache.isCached(datasource.id),
-        );
+    if (loaded.length === 0) {
+      return existingResult;
+    }
 
-        // Force refresh if metadata datasources differ from cached
-        const hasMetadataDatasources =
-          metadataDatasources && metadataDatasources.length > 0;
-        const metadataDiffers =
-          hasMetadataDatasources &&
-          metadataDatasources.some((id) => !schemaCache.isCached(id));
-
-        if (uncachedDatasources.length > 0 || metadataDiffers) {
-          console.log(
-            `[DatasourceOrchestration] [CACHE] ✗ ${uncachedDatasources.length} uncached datasource(s) found${metadataDiffers ? ' (metadata differs)' : ''}, syncing and loading cache...`,
-          );
-
-          await queryEngine.attach(
-            loaded.map((d) => d.datasource),
-            {
-              conversationId,
-              workspace: existingResult.workspace,
-            },
-          );
-
-          const metadata = await queryEngine.metadata(
-            uncachedDatasources.map((d) => d.datasource),
-          );
-
-          for (const { datasource } of uncachedDatasources) {
-            const dbName = getDatasourceDatabaseName(datasource);
-            await schemaCache.loadSchemaForDatasource(
-              datasource.id,
-              metadata,
-              datasource.datasource_provider,
-              dbName,
-            );
-          }
-          console.log(
-            `[DatasourceOrchestration] [CACHE] ✓ Sync and cache load completed`,
-          );
-        } else {
-          console.log(
-            `[DatasourceOrchestration] [CACHE] ✓ All datasources cached, ensuring attachment`,
-          );
-          const loaded = await loadDatasources(
-            datasourcesToUse,
-            repositories.datasource,
-          );
-          await queryEngine.attach(
-            loaded.map((d) => d.datasource),
-            {
-              conversationId,
-              workspace: existingResult.workspace,
-            },
-          );
-        }
-
-        return {
-          ...existingResult,
-          datasources: loaded,
-        };
+    // Invalidate cache for datasources that are no longer in use
+    const cachedDatasourceIds = schemaCache.getDatasources();
+    const currentDatasourceIds = new Set(loaded.map((d) => d.datasource.id));
+    for (const cachedId of cachedDatasourceIds) {
+      if (!currentDatasourceIds.has(cachedId)) {
+        schemaCache.invalidate(cachedId);
       }
     }
 
-    return this.orchestrate(options);
+    // Find uncached datasources that need metadata
+    const uncachedDatasources = loaded.filter(
+      ({ datasource }) => !schemaCache.isCached(datasource.id),
+    );
+
+    // Attach datasources (idempotent - safe to call for already-attached)
+    await queryEngine.attach(
+      loaded.map((d) => d.datasource),
+      {
+        conversationId,
+        workspace: existingResult.workspace,
+      },
+    );
+
+    // Load metadata for uncached datasources only
+    if (uncachedDatasources.length > 0) {
+      const metadata = await queryEngine.metadata(
+        uncachedDatasources.map((d) => d.datasource),
+      );
+
+      for (const { datasource } of uncachedDatasources) {
+        const dbName = getDatasourceDatabaseName(datasource);
+        await schemaCache.loadSchemaForDatasource(
+          datasource.id,
+          metadata,
+          datasource.datasource_provider,
+          dbName,
+        );
+      }
+    }
+
+    return {
+      ...existingResult,
+      datasources: loaded,
+    };
   }
 }
 

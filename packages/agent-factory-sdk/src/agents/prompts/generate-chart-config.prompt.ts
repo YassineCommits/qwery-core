@@ -4,7 +4,15 @@ import {
   getChartDefinition,
   getAxesLabelsPrecisionGuidelines,
 } from '../config/supported-charts';
-import type { BusinessContext } from '../../tools/types/business-context.types';
+
+interface SimpleBusinessContext {
+  domain?: string;
+  entities?: Array<{ name: string }>;
+  vocabulary?: Map<
+    string,
+    { businessTerm: string; technicalTerms: string[]; synonyms: string[] }
+  >;
+}
 
 export const GENERATE_CHART_CONFIG_PROMPT = (
   chartType: ChartType,
@@ -13,7 +21,7 @@ export const GENERATE_CHART_CONFIG_PROMPT = (
     columns: string[];
   },
   sqlQuery: string,
-  businessContext?: BusinessContext | null,
+  businessContext?: SimpleBusinessContext | null,
 ) => {
   const chartDef = getChartDefinition(chartType);
   if (!chartDef) {
@@ -62,11 +70,9 @@ ${getChartGenerationPrompt(chartType)}
   - Provide an array of 3-5 colors for variety
 - labels: Map column names to human-readable labels (REQUIRED - see precision guidelines below)
   ${
-    businessContext &&
-    businessContext.vocabulary &&
-    businessContext.vocabulary.size > 0
+    businessContext?.vocabulary && businessContext.vocabulary.size > 0
       ? `- Use business context vocabulary to improve labels:
-  * Domain: ${businessContext.domain.domain}
+  * Domain: ${businessContext.domain ?? 'general'}
   * Vocabulary mappings (technical column → business term):
     ${Array.from(businessContext.vocabulary.entries())
       .map(
@@ -75,24 +81,20 @@ ${getChartGenerationPrompt(chartType)}
       )
       .join('\n    ')}
   * When creating labels, check if a column name matches any technical term in the vocabulary
-  * If found, use the business term as the label (e.g., if column is "user_id" and vocabulary maps "user" → "Customer", use "Customer" as the label)
-  * Example: Column "user_id" → Look up "user" in vocabulary → Find "Customer" → Use "Customer" as label`
-      : businessContext
+  * If found, use the business term as the label`
+      : businessContext?.domain
         ? `- Use business context to improve labels:
-  * Domain: ${businessContext.domain.domain}
+  * Domain: ${businessContext.domain}
   * Use domain understanding to create meaningful labels`
         : ''
   }
 - Include chart-specific keys: ${chartDef.requirements.requiredKeys.join(', ')}
 ${
-  businessContext
+  businessContext?.entities && businessContext.entities.length > 0
     ? `
 **Business Context:**
-- Domain: ${businessContext.domain.domain}
-- Key entities: ${Array.from(businessContext.entities.values())
-        .map((e) => e.name)
-        .join(', ')}
-- Use vocabulary mappings to translate technical column names to business-friendly labels
+- Domain: ${businessContext.domain ?? 'general'}
+- Key entities: ${businessContext.entities.map((e) => e.name).join(', ')}
 - Use domain understanding to create meaningful chart titles`
     : ''
 }

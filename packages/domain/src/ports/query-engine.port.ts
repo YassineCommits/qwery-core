@@ -82,7 +82,21 @@ export type QueryEngineConfig = z.infer<typeof QueryEngineConfigSchema>;
  */
 export abstract class AbstractQueryEngine {
   /**
+   * Check if the query engine has been initialized.
+   *
+   * This method should return true if initialize() has been called successfully,
+   * allowing callers to avoid redundant initialization attempts.
+   *
+   * @returns true if the engine is initialized, false otherwise
+   */
+  abstract isInitialized(): boolean;
+
+  /**
    * Initialize the query engine with the provided configuration.
+   *
+   * This method should be idempotent - if already initialized, it should
+   * return immediately without error. This allows safe re-calls during
+   * orchestration flows.
    *
    * This method should:
    * - Set up the engine instance

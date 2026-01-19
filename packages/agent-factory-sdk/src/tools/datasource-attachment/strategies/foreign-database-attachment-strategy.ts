@@ -87,9 +87,6 @@ export class ForeignDatabaseAttachmentStrategy implements AttachmentStrategy {
     // Attach the foreign database
     try {
       await conn.run(attachQuery);
-      console.log(
-        `[ForeignDatabaseAttach] Attached ${attachedDatabaseName} (${mapping.duckdbType})`,
-      );
     } catch (error) {
       // If already attached, that's okay
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -166,7 +163,6 @@ export class ForeignDatabaseAttachmentStrategy implements AttachmentStrategy {
           ORDER BY table_schema, table_name, ordinal_position
         `;
 
-        const columnsStartTime = performance.now();
         const columnsReader = await conn.runAndReadAll(columnsQuery);
         await columnsReader.readAll();
         const allColumns = columnsReader.getRowObjectsJS() as Array<{
@@ -175,11 +171,6 @@ export class ForeignDatabaseAttachmentStrategy implements AttachmentStrategy {
           column_name: string;
           data_type: string;
         }>;
-        const columnsTime = performance.now() - columnsStartTime;
-        console.log(
-          `[ForeignDatabaseAttach] [PERF] Batch column query took ${columnsTime.toFixed(2)}ms (${allColumns.length} columns for ${userTables.length} tables)`,
-        );
-
         // Group columns by table
         for (const col of allColumns) {
           const key = `${col.table_schema || 'main'}.${col.table_name}`;
@@ -192,12 +183,8 @@ export class ForeignDatabaseAttachmentStrategy implements AttachmentStrategy {
           });
         }
       }
-    } catch (error) {
+    } catch {
       // If batch query fails, fall back to individual DESCRIBE queries
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.warn(
-        `[ForeignDatabaseAttach] Batch column query failed, falling back to individual DESCRIBE: ${errorMsg}`,
-      );
     }
 
     // Process each table

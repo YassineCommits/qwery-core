@@ -14,3 +14,6 @@ export * from './ai/index';
 
 // Datasource Meta Entities
 export * from './datasource-meta/index';
+
+// Semantic Layer Entities
+export * from './semantic/index';

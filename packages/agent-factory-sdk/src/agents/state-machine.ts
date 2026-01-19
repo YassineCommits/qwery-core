@@ -24,6 +24,31 @@ import {
   trace,
   type SpanContext,
 } from '@opentelemetry/api';
+import { extractTokenUsage, parseModel } from './utils/actor-telemetry';
+
+/**
+ * Extract first datasource ID from message metadata for semantic-aware intent detection
+ */
+function extractDatasourceIdFromMessages(
+  messages: UIMessage[],
+): string | undefined {
+  if (!messages || messages.length === 0) return undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role === 'user' && message.metadata) {
+      const metadata = message.metadata as Record<string, unknown>;
+      const datasources = metadata.datasources;
+      if (
+        Array.isArray(datasources) &&
+        datasources.length > 0 &&
+        typeof datasources[0] === 'string'
+      ) {
+        return datasources[0];
+      }
+    }
+  }
+  return undefined;
+}
 
 export const createStateMachine = (
   conversationId: string,
@@ -42,71 +67,6 @@ export const createStateMachine = (
     span: ReturnType<TelemetryManager['startSpan']>,
   ) => void,
 ) => {
-  // Helper to safely extract token usage from usage objects
-  // Different providers use different property names
-  const extractTokenUsage = (
-    usage: unknown,
-  ): {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  } => {
-    if (!usage || typeof usage !== 'object') {
-      return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-    }
-
-    const usageObj = usage as Record<string, unknown>;
-    const promptTokens =
-      (typeof usageObj.inputTokens === 'number' ? usageObj.inputTokens : 0) ||
-      (typeof usageObj.promptTokens === 'number' ? usageObj.promptTokens : 0) ||
-      (typeof usageObj.prompt_tokens === 'number'
-        ? usageObj.prompt_tokens
-        : 0) ||
-      0;
-
-    const completionTokens =
-      (typeof usageObj.outputTokens === 'number' ? usageObj.outputTokens : 0) ||
-      (typeof usageObj.completionTokens === 'number'
-        ? usageObj.completionTokens
-        : 0) ||
-      (typeof usageObj.completion_tokens === 'number'
-        ? usageObj.completion_tokens
-        : 0) ||
-      0;
-
-    const totalTokens =
-      (typeof usageObj.totalTokens === 'number' ? usageObj.totalTokens : 0) ||
-      (typeof usageObj.total_tokens === 'number' ? usageObj.total_tokens : 0) ||
-      promptTokens + completionTokens;
-
-    return { promptTokens, completionTokens, totalTokens };
-  };
-
-  // Helper to parse model string and extract provider/model name
-  // Handles formats like "azure/gpt-5-mini" or just "gpt-5-mini"
-  const parseModel = (
-    model: string,
-  ): {
-    provider: string;
-    modelName: string;
-    fullModel: string;
-  } => {
-    const parts = model.split('/');
-    if (parts.length === 2) {
-      return {
-        provider: parts[0]!,
-        modelName: parts[1]!,
-        fullModel: model,
-      };
-    }
-    // Default provider to 'azure' if not specified (for backward compatibility)
-    return {
-      provider: 'azure',
-      modelName: model,
-      fullModel: model,
-    };
-  };
-
   // Create telemetry-wrapped actors
   // All actors use startSpan for consistent nesting behavior
   // OpenTelemetry's AsyncLocalStorage should preserve context across async boundaries
@@ -118,6 +78,7 @@ export const createStateMachine = (
       input: {
         inputMessage: string;
         model: string;
+        datasourceId?: string;
       };
     }): Promise<AgentContext['intent']> => {
       const startTime = Date.now();
@@ -153,7 +114,12 @@ export const createStateMachine = (
         trace.setSpan(otelContext.active(), span),
         async () => {
           try {
-            const result = await detectIntent(input.inputMessage, undefined);
+            // Pass datasourceId for semantic-aware intent detection
+            const result = await detectIntent(
+              input.inputMessage,
+              undefined,
+              input.datasourceId,
+            );
 
             endActorSpanWithEvent(
               telemetry,
@@ -634,8 +600,12 @@ export const createStateMachine = (
       detectIntentActor,
       detectIntentActorCached: createCachedActor(
         detectIntentActor,
-        (input: { inputMessage: string; model: string }) => {
-          return `${input.inputMessage}::${input.model}`;
+        (input: {
+          inputMessage: string;
+          model: string;
+          datasourceId?: string;
+        }) => {
+          return `${input.inputMessage}::${input.model}::${input.datasourceId ?? ''}`;
         },
         30000,
       ),
@@ -646,16 +616,35 @@ export const createStateMachine = (
       systemInfoActor,
     },
     guards: {
+      // Intent-based guards (deterministic)
       //eslint-disable-next-line @typescript-eslint/no-explicit-any
-      isGreeting: ({ event }: { event: any }) =>
-        event.output?.intent === 'greeting',
+      isGreeting: ({ event }: any) => event.output?.intent === 'greeting',
 
-      isOther: ({ event }) => event.output?.intent === 'other',
+      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+      isOther: ({ event }: any) => event.output?.intent === 'other',
 
-      isReadData: ({ event }) => event.output?.intent === 'read-data',
+      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+      isReadData: ({ event }: any) => event.output?.intent === 'read-data',
 
-      isSystem: ({ event }) => event.output?.intent === 'system',
+      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+      isSystem: ({ event }: any) => event.output?.intent === 'system',
 
+      // Chart-related guards (deterministic - based on intent flags)
+      needsChart: ({ context }) => context.intent.needsChart === true,
+
+      needsSQL: ({ context }) => context.intent.needsSQL === true,
+
+      // Complexity guards (deterministic)
+      isSimpleQuery: ({ context }) => context.intent.complexity === 'simple',
+
+      isComplexQuery: ({ context }) => context.intent.complexity === 'complex',
+
+      // Message state guards (deterministic)
+      hasMessages: ({ context }) => context.previousMessages.length > 0,
+
+      hasStreamResult: ({ context }) => context.streamResult !== undefined,
+
+      // Retry guards (deterministic)
       shouldRetry: ({ context }) => {
         const retryCount = context.retryCount || 0;
         return retryCount < 3;
@@ -664,6 +653,20 @@ export const createStateMachine = (
       retryLimitExceeded: ({ context }) => {
         const retryCount = context.retryCount || 0;
         return retryCount >= 3;
+      },
+
+      // Error state guards (deterministic)
+      hasError: ({ context }) =>
+        context.error !== undefined && context.error !== null,
+
+      isRecoverableError: ({ context }) => {
+        if (!context.lastError) return false;
+        const message = context.lastError.message?.toLowerCase() ?? '';
+        return (
+          message.includes('timeout') ||
+          message.includes('rate limit') ||
+          message.includes('network')
+        );
       },
     },
     delays: {
@@ -724,8 +727,11 @@ export const createStateMachine = (
             actions: assign({
               previousMessages: ({ event }) => event.messages,
               model: ({ context }) => context.model,
-              inputMessage: ({ event }) =>
-                event.messages[event.messages.length - 1]?.parts[0]?.text ?? '',
+              inputMessage: ({ event }) => {
+                const lastPart =
+                  event.messages[event.messages.length - 1]?.parts[0];
+                return lastPart && 'text' in lastPart ? lastPart.text : '';
+              },
               streamResult: () => undefined,
               error: () => undefined,
               promptSource: ({ event }) => {
@@ -754,8 +760,11 @@ export const createStateMachine = (
             actions: assign({
               previousMessages: ({ event }) => event.messages,
               model: ({ context }) => context.model,
-              inputMessage: ({ event }) =>
-                event.messages[event.messages.length - 1]?.parts[0]?.text ?? '',
+              inputMessage: ({ event }) => {
+                const lastPart =
+                  event.messages[event.messages.length - 1]?.parts[0];
+                return lastPart && 'text' in lastPart ? lastPart.text : '';
+              },
               streamResult: undefined,
               promptSource: ({ event }) => {
                 const lastUserMessage = event.messages
@@ -780,6 +789,9 @@ export const createStateMachine = (
                   input: ({ context }: { context: AgentContext }) => ({
                     inputMessage: context.inputMessage,
                     model: context.model,
+                    datasourceId: extractDatasourceIdFromMessages(
+                      context.previousMessages,
+                    ),
                   }),
                   onDone: [
                     {

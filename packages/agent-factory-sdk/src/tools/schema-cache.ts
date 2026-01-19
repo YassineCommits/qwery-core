@@ -61,24 +61,8 @@ export class SchemaCacheManager {
       datasourceProviderMap,
     });
 
-    console.log(
-      `[SchemaCache] Transformed metadata: ${schemas.size} schema(s) found, looking for database: ${databaseName}`,
-    );
-    console.log(
-      `[SchemaCache] Schema keys: ${Array.from(schemas.keys()).join(', ')}`,
-    );
-    console.log(
-      `[SchemaCache] Datasource database map: ${Array.from(
-        datasourceDatabaseMap.entries(),
-      )
-        .map(([id, name]) => `${id}=${name}`)
-        .join(', ')}`,
-    );
-
     // Build nested cache structure
     const datasourceCache = new Map<string, Map<string, ColumnMetadata[]>>();
-    let totalTables = 0;
-    let totalColumns = 0;
 
     // Get all database names that belong to this datasource (from the map)
     const datasourceDatabaseNames = new Set<string>();
@@ -127,15 +111,8 @@ export class SchemaCacheManager {
         });
         if (hasMatchingTable) {
           matchesDatabase = true;
-          console.log(
-            `[SchemaCache] Found DuckDB-native provider (${provider}) tables in ${dbName} database matching datasource ID`,
-          );
         }
       }
-
-      console.log(
-        `[SchemaCache] Checking schema key: ${schemaKey} (dbName: ${dbName}, expected: ${databaseName}, matches: ${matchesDatabase})`,
-      );
 
       // Only cache if this schema belongs to our datasource
       if (matchesDatabase) {
@@ -160,18 +137,11 @@ export class SchemaCacheManager {
             const parts = tableName.split('.');
             if (parts.length === 3 && parts[2] && parts[0]) {
               const datasourceName = parts[0];
-              const displaySchema = parts[1]; // This is "default" or "test_schema" (from transform service)
               const baseTableName = parts[2];
 
               // For ClickHouse, the query path is always datasource.main.table (SQLite limitation)
-              // The display path is datasource.{originalSchema}.table (from transform service)
-              // Since transform service already converted main -> default, we need to convert back
               queryTablePath = `${datasourceName}.main.${baseTableName}`;
-              displayTableName = tableName; // Keep the display format from transform service
-
-              console.log(
-                `[SchemaCache] ClickHouse table: display="${displayTableName}", query="${queryTablePath}" (display schema: ${displaySchema})`,
-              );
+              displayTableName = tableName;
             }
           }
 
@@ -185,22 +155,11 @@ export class SchemaCacheManager {
 
           // Store query path mapping if different from display path
           if (queryTablePath && queryTablePath !== displayTableName) {
-            // Store mapping: display path -> query path
-            // We'll use this in getAllTablePaths and hasTablePath
             if (!this.queryPathMap) {
               this.queryPathMap = new Map();
             }
             this.queryPathMap.set(displayTableName, queryTablePath);
-            console.log(
-              `[SchemaCache] Stored query path mapping: ${displayTableName} -> ${queryTablePath}`,
-            );
-          } else {
-            console.log(
-              `[SchemaCache] No query path mapping needed: display="${displayTableName}", query="${queryTablePath || 'N/A'}"`,
-            );
           }
-          totalTables++;
-          totalColumns += columns.length;
         }
 
         // For ClickHouse, we need to group tables by their original schema names
@@ -211,18 +170,7 @@ export class SchemaCacheManager {
 
         if (schemaCache.size > 0) {
           datasourceCache.set(cacheSchemaName, schemaCache);
-          console.log(
-            `[SchemaCache] Cached schema ${cacheSchemaName} with ${schemaCache.size} table(s)`,
-          );
-        } else {
-          console.log(
-            `[SchemaCache] Schema ${cacheSchemaName} has no tables, skipping`,
-          );
         }
-      } else {
-        console.log(
-          `[SchemaCache] Schema ${schemaKey} doesn't match datasource database ${databaseName}, skipping`,
-        );
       }
     }
 
@@ -231,10 +179,6 @@ export class SchemaCacheManager {
     this.cachedDatasources.add(datasourceId);
     this.providerMap.set(datasourceId, provider);
     this.databaseNameMap.set(datasourceId, databaseName);
-
-    console.log(
-      `[SchemaCache] ✓ Cached datasource ${datasourceId}: ${datasourceCache.size} schema(s), ${totalTables} table(s), ${totalColumns} column(s)`,
-    );
   }
 
   /**
@@ -368,14 +312,13 @@ export class SchemaCacheManager {
     const tables = this.getTables(datasourceId);
     // Return query paths if available, otherwise display paths
     // For ClickHouse, we MUST return query paths (datasource.main.table) for validation
-    const paths = tables.map((table) => {
+    return tables.map((table) => {
       if (table.queryPath) {
         return table.queryPath;
       }
       // If no queryPath, check if this is a ClickHouse display path that needs conversion
       const parts = table.tableName.split('.');
       if (parts.length === 3 && parts[1] !== 'main') {
-        // This is a display path, try to get query path from mapping
         const queryPath = this.queryPathMap.get(table.tableName);
         if (queryPath) {
           return queryPath;
@@ -383,10 +326,6 @@ export class SchemaCacheManager {
       }
       return table.tableName;
     });
-    console.log(
-      `[SchemaCache] getAllTablePaths for ${datasourceId}: ${paths.length} paths, sample: ${paths.slice(0, 3).join(', ')}`,
-    );
-    return paths;
   }
 
   /**
@@ -440,38 +379,11 @@ export class SchemaCacheManager {
    * Returns the query path if the display path has a mapping, otherwise returns the original path
    */
   getQueryPathForDisplayPath(displayPath: string): string | null {
-    console.log(
-      `[SchemaCache] getQueryPathForDisplayPath called with: ${displayPath}`,
-    );
-    console.log(`[SchemaCache] queryPathMap size: ${this.queryPathMap.size}`);
-    if (this.queryPathMap.size > 0) {
-      const entries = Array.from(this.queryPathMap.entries()).slice(0, 5);
-      console.log(
-        `[SchemaCache] queryPathMap entries (first 5): ${entries.map(([k, v]) => `${k}->${v}`).join(', ')}${this.queryPathMap.size > 5 ? '...' : ''}`,
-      );
-    }
-
     // Check if this display path has a query path mapping
     const queryPath = this.queryPathMap.get(displayPath);
     if (queryPath) {
-      console.log(
-        `[SchemaCache] ✓ Found mapping: ${displayPath} -> ${queryPath}`,
-      );
       return queryPath;
     }
-
-    console.log(`[SchemaCache] ✗ No mapping found for ${displayPath}`);
-    // If no mapping found, check if it's already a query path or doesn't need rewriting
-    // For ClickHouse, display paths have schema != 'main', query paths have schema == 'main'
-    const parts = displayPath.split('.');
-    if (parts.length === 3 && parts[1] !== 'main') {
-      // This is a display path but no mapping found - might not be ClickHouse
-      console.log(
-        `[SchemaCache] Path has schema '${parts[1]}' (not 'main'), but no mapping found`,
-      );
-      return null;
-    }
-
     return null;
   }
 
@@ -479,33 +391,17 @@ export class SchemaCacheManager {
    * Check if a datasource is cached
    */
   isCached(datasourceId: string): boolean {
-    const cached = this.cachedDatasources.has(datasourceId);
-    if (cached) {
-      const schemas = this.getSchemas(datasourceId);
-      const tables = this.getTables(datasourceId);
-      console.log(
-        `[SchemaCache] ✓ Cache HIT for datasource ${datasourceId}: ${schemas.length} schema(s), ${tables.length} table(s)`,
-      );
-    } else {
-      console.log(`[SchemaCache] ✗ Cache MISS for datasource ${datasourceId}`);
-    }
-    return cached;
+    return this.cachedDatasources.has(datasourceId);
   }
 
   /**
    * Invalidate cache for a datasource
    */
   invalidate(datasourceId: string): void {
-    const hadCache = this.cachedDatasources.has(datasourceId);
     this.cache.delete(datasourceId);
     this.cachedDatasources.delete(datasourceId);
     this.providerMap.delete(datasourceId);
     this.databaseNameMap.delete(datasourceId);
-    if (hadCache) {
-      console.log(
-        `[SchemaCache] ✓ Invalidated cache for datasource: ${datasourceId}`,
-      );
-    }
   }
 
   /**
@@ -588,14 +484,6 @@ export function getSchemaCache(conversationId: string): SchemaCacheManager {
   if (!cache) {
     cache = new SchemaCacheManager();
     conversationCaches.set(conversationId, cache);
-    console.log(
-      `[SchemaCache] Created new cache instance for conversation: ${conversationId}`,
-    );
-  } else {
-    const cachedCount = cache.getDatasources().length;
-    console.log(
-      `[SchemaCache] Using existing cache for conversation ${conversationId}: ${cachedCount} datasource(s) cached`,
-    );
   }
   return cache;
 }
@@ -606,11 +494,7 @@ export function getSchemaCache(conversationId: string): SchemaCacheManager {
 export function clearSchemaCache(conversationId: string): void {
   const cache = conversationCaches.get(conversationId);
   if (cache) {
-    const cachedCount = cache.getDatasources().length;
     cache.clear();
-    console.log(
-      `[SchemaCache] ✓ Cleared cache for conversation ${conversationId} (${cachedCount} datasource(s) removed)`,
-    );
   }
   conversationCaches.delete(conversationId);
 }

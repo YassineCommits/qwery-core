@@ -17,13 +17,14 @@ import type {
 } from '@qwery/domain/entities';
 import { selectChartType, generateChart } from '../tools/generate-chart';
 // deleteTable and renameTable are now methods on DuckDBQueryEngine
-import { loadBusinessContext } from '../../tools/utils/business-context.storage';
-import { buildReadDataAgentPrompt } from '../prompts/read-data-agent.prompt';
-import type { BusinessContext } from '../../tools/types/business-context.types';
-import { mergeBusinessContexts } from '../../tools/utils/business-context.storage';
-import { getConfig } from '../../tools/utils/business-context.config';
-import { buildBusinessContext } from '../../tools/build-business-context';
-import { enhanceBusinessContextInBackground } from './enhance-business-context.actor';
+import {
+  buildReadDataAgentPrompt,
+  type SemanticContext,
+} from '../prompts/read-data-agent.prompt';
+import {
+  semanticModelService,
+  semanticLearningService,
+} from '../../services/semantic';
 import type { Repositories } from '@qwery/domain/repositories';
 import { AbstractQueryEngine } from '@qwery/domain/ports';
 import { DuckDBQueryEngine } from '../../services/duckdb-query-engine.service';
@@ -35,8 +36,18 @@ import {
   storeQueryResult,
   getQueryResult,
 } from '../../tools/query-result-cache';
-import { extractTablePathsFromQuery } from '../../tools/validate-table-paths';
 import { datasourceOrchestrationService } from '../../tools/datasource-orchestration-service';
+import { queryValidator } from '../../services/query';
+import {
+  indexSchemasForConversation,
+  indexSemanticModelForConversation,
+  indexQueryPatternForConversation,
+  indexSchemaDiscoveryForConversation,
+  indexQueryResultForConversation,
+  retrieveRelevantContext,
+  buildOptimizedContext,
+} from '../../services/rag';
+import { FeatureFlags } from '../../services/feature-flags';
 
 /**
  * Extract datasource IDs from message metadata
@@ -59,9 +70,6 @@ function extractDatasourcesFromMessages(
         datasources.length > 0 &&
         datasources.every((ds) => typeof ds === 'string')
       ) {
-        console.log(
-          `[ReadDataAgent] Extracted ${datasources.length} datasource(s) from message metadata`,
-        );
         return datasources as string[];
       }
     }
@@ -90,19 +98,7 @@ export const readDataAgent = async (
   // Extract datasources from message metadata (prioritized)
   const metadataDatasources = extractDatasourcesFromMessages(messages);
 
-  console.log('[readDataAgent] Starting with context:', {
-    conversationId,
-    promptSource,
-    needSQL,
-    needChart,
-    intentNeedsSQL: intent?.needsSQL,
-    intentNeedsChart: intent?.needsChart,
-    messageCount: messages.length,
-    metadataDatasources: metadataDatasources?.length || 0,
-  });
-
   // Initialize engine and attach datasources if repositories are provided
-  const agentInitStartTime = performance.now();
   let orchestrationResult: Awaited<
     ReturnType<typeof datasourceOrchestrationService.orchestrate>
   > | null = null;
@@ -123,18 +119,126 @@ export const readDataAgent = async (
       );
     }
   }
-  const agentInitTime = performance.now() - agentInitStartTime;
-  if (agentInitTime > 50) {
-    console.log(
-      `[ReadDataAgent] [PERF] Agent initialization took ${agentInitTime.toFixed(2)}ms`,
-    );
-  }
 
   // Build prompt with attached datasources information
   // Use orchestration result if available
   const attachedDatasources: Datasource[] =
     orchestrationResult?.datasources.map((d) => d.datasource) || [];
-  const agentPrompt = buildReadDataAgentPrompt(attachedDatasources);
+
+  // Log feature flag status
+  const ragStatus = FeatureFlags.getStatus();
+  if (
+    ragStatus.schemaEmbedding ||
+    ragStatus.retrieval ||
+    ragStatus.optimizedPrompt ||
+    ragStatus.crag
+  ) {
+    console.log(
+      `[ReadDataAgent] RAG Features: embedding=${ragStatus.schemaEmbedding}, retrieval=${ragStatus.retrieval}, optimizedPrompt=${ragStatus.optimizedPrompt}, crag=${ragStatus.crag}`,
+    );
+  }
+
+  // Automatic RAG retrieval: Get relevant context for the user's query
+  let ragContext: string | undefined;
+  if (ragStatus.retrieval) {
+    // Extract user's query from last message (using reverse loop for ES2022 compatibility)
+    let lastUserMessage: (typeof messages)[number] | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.role === 'user') {
+        lastUserMessage = messages[i];
+        break;
+      }
+    }
+    if (lastUserMessage?.parts) {
+      const textPart = lastUserMessage.parts.find(
+        (p: { type: string }) => p.type === 'text',
+      );
+      if (textPart && 'text' in textPart) {
+        const userQuery = textPart.text;
+
+        // Strip context wrapper if present
+        const cleanQuery = userQuery
+          .replace(/__QWERY_CONTEXT__[\s\S]*?__QWERY_CONTEXT_END__/, '')
+          .trim();
+
+        if (cleanQuery) {
+          const retrievedDocs = await retrieveRelevantContext(
+            conversationId,
+            cleanQuery,
+            10,
+          );
+          if (retrievedDocs.length > 0) {
+            ragContext = buildOptimizedContext(retrievedDocs) ?? undefined;
+            console.log(
+              `[ReadDataAgent] RAG Retrieved ${retrievedDocs.length} docs for: "${cleanQuery.substring(0, 50)}..."`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // Build semantic context from cached model if available
+  let semanticContext: SemanticContext | undefined;
+  // Use metadata datasource ID, fall back to loaded datasource ID (fixes __QWERY_CONTEXT__ suggestions)
+  const loadedDatasourceId = attachedDatasources[0]?.id;
+  const primaryDatasourceId = metadataDatasources?.[0] ?? loadedDatasourceId;
+
+  if (primaryDatasourceId) {
+    const cachedModel = semanticModelService.getCached(primaryDatasourceId);
+    if (cachedModel) {
+      semanticContext = {
+        entities: Array.from(cachedModel.entityClasses.values())
+          .slice(0, 10)
+          .map((e) => ({
+            name: e.name,
+            table: e.sourceTable,
+            domain: e.domain,
+          })),
+        metrics: Array.from(cachedModel.metrics.values())
+          .slice(0, 5)
+          .map((m) => ({
+            name: m.name,
+            expression: m.expression,
+            description: m.description,
+          })),
+        dimensions: Array.from(cachedModel.dimensions.values())
+          .slice(0, 8)
+          .map((d) => ({
+            name: d.name,
+            column: d.column,
+            type: d.dimensionType ?? 'categorical',
+          })),
+        relationships: cachedModel.relationships.slice(0, 5).map((r) => ({
+          from: r.fromEntity,
+          to: r.toEntity,
+          joinCondition: r.joinCondition,
+        })),
+        vocabulary: Array.from(cachedModel.synonyms.entries())
+          .slice(0, 5)
+          .map(([term, synonyms]) => ({ term, synonyms })),
+      };
+      console.log(
+        `[ReadDataAgent] Using cached semantic context: ${semanticContext.entities.length} entities`,
+      );
+    }
+  }
+
+  const agentPrompt = buildReadDataAgentPrompt(
+    attachedDatasources,
+    ragContext,
+    semanticContext,
+  );
+
+  // Build dynamic tool descriptions based on semantic context
+  const dynamicDescriptions = {
+    getSchema: semanticContext?.entities.length
+      ? `Get schema info. Already discovered ${semanticContext.entities.length} tables: ${semanticContext.entities.map((e) => e.name).join(', ')}. Call to refresh or discover additional tables.`
+      : 'Get schema information (columns, data types, business context) for specific tables/views. Returns column names, types, and business context for the specified tables.',
+    runQuery: semanticContext?.entities.length
+      ? `Execute SQL query. Available tables: ${semanticContext.entities.map((e) => e.table).join(', ')}.${semanticContext.metrics.length ? ` Key metrics: ${semanticContext.metrics.map((m) => m.name).join(', ')}.` : ''}`
+      : 'Execute a SQL query against DuckDB. Call getSchema first if you need to discover available tables.',
+  };
 
   const result = new Agent({
     model: await resolveModel(model),
@@ -159,28 +263,18 @@ export const readDataAgent = async (
         },
       }),
       getSchema: tool({
-        description:
-          'Get schema information (columns, data types, business context) for specific tables/views. Returns column names, types, and business context for the specified tables. If viewName is provided, returns schema for that specific view/table. If viewNames (array) is provided, returns schemas for only those specific tables/views. If neither is provided, returns schemas for everything discovered in DuckDB. This updates the business context automatically.',
+        description: dynamicDescriptions.getSchema,
         inputSchema: z.object({
           viewName: z.string().optional(),
           viewNames: z.array(z.string()).optional(),
         }),
         execute: async ({ viewName, viewNames }) => {
-          const startTime = performance.now();
           // If both viewName and viewNames provided, prefer viewNames (array)
           const requestedViews = viewNames?.length
             ? viewNames
             : viewName
               ? [viewName]
               : undefined;
-
-          console.log(
-            `[ReadDataAgent] getSchema called${
-              requestedViews
-                ? ` for ${requestedViews.length} view(s): ${requestedViews.join(', ')}`
-                : ' (all views)'
-            }`,
-          );
 
           if (!queryEngine) {
             throw new Error('Query engine not available');
@@ -191,7 +285,6 @@ export const readDataAgent = async (
           }
 
           // Use orchestration service to ensure datasources are attached and cached
-          const syncStartTime = performance.now();
           const orchestration =
             await datasourceOrchestrationService.ensureAttachedAndCached(
               {
@@ -202,7 +295,6 @@ export const readDataAgent = async (
               },
               orchestrationResult || undefined,
             );
-          const syncTime = performance.now() - syncStartTime;
 
           const workspace = orchestration.workspace;
           const schemaCache = orchestration.schemaCache;
@@ -217,8 +309,6 @@ export const readDataAgent = async (
           );
 
           // Get metadata from cache or query engine
-          const schemaDiscoveryStartTime = performance.now();
-          let schemaDiscoveryTime = 0;
           let collectedSchemas: Map<string, SimpleSchema> = new Map();
 
           try {
@@ -230,22 +320,10 @@ export const readDataAgent = async (
               );
 
             if (allCached && allDatasources.length > 0) {
-              // Use cache - get all schemas (filtering by requestedViews happens below)
-              console.log(
-                `[ReadDataAgent] [CACHE] ✓ Using cached schema for ${allDatasources.length} datasource(s)`,
-              );
               collectedSchemas = schemaCache.toSimpleSchemas(
                 allDatasources.map((d) => d.datasource.id),
               );
-              schemaDiscoveryTime =
-                performance.now() - schemaDiscoveryStartTime;
-              console.log(
-                `[ReadDataAgent] [CACHE] ✓ Schema retrieved from cache in ${schemaDiscoveryTime.toFixed(2)}ms (${collectedSchemas.size} schema(s))`,
-              );
             } else {
-              console.log(
-                `[ReadDataAgent] [CACHE] ✗ Cache miss or fallback, querying DuckDB metadata...`,
-              );
               // Fallback to querying DuckDB (for main database or uncached datasources)
               // Build datasource database map and provider map for transformation
               const datasourceDatabaseMap = new Map<string, string>();
@@ -260,19 +338,13 @@ export const readDataAgent = async (
               }
 
               // Get metadata from query engine
-              const metadataStartTime = performance.now();
               const metadata = await queryEngine.metadata(
                 allDatasources.length > 0
                   ? allDatasources.map((d) => d.datasource)
                   : undefined,
               );
-              const metadataTime = performance.now() - metadataStartTime;
-              console.log(
-                `[ReadDataAgent] [PERF] queryEngine.metadata took ${metadataTime.toFixed(2)}ms`,
-              );
 
               // Transform metadata to SimpleSchema format using domain service
-              const transformStartTime = performance.now();
               const transformService =
                 new TransformMetadataToSimpleSchemaService();
               collectedSchemas = await transformService.execute({
@@ -280,10 +352,6 @@ export const readDataAgent = async (
                 datasourceDatabaseMap,
                 datasourceProviderMap,
               });
-              const transformTime = performance.now() - transformStartTime;
-              console.log(
-                `[ReadDataAgent] [PERF] transformMetadataToSimpleSchema took ${transformTime.toFixed(2)}ms`,
-              );
             }
 
             // Filter by requested views if provided
@@ -390,11 +458,6 @@ export const readDataAgent = async (
               }
               collectedSchemas = filteredSchemas;
             }
-
-            schemaDiscoveryTime = performance.now() - schemaDiscoveryStartTime;
-            console.log(
-              `[ReadDataAgent] [PERF] Total schema discovery took ${schemaDiscoveryTime.toFixed(2)}ms`,
-            );
           } catch (error) {
             const errorMsg =
               error instanceof Error ? error.message : String(error);
@@ -405,16 +468,10 @@ export const readDataAgent = async (
             throw error;
           }
 
-          // Get performance configuration
-          const perfConfigStartTime = performance.now();
-          const perfConfig = await getConfig(fileDir);
-          const perfConfigTime = performance.now() - perfConfigStartTime;
-          console.log(
-            `[ReadDataAgent] [PERF] getConfig took ${perfConfigTime.toFixed(2)}ms`,
-          );
-
-          // Build schemasMap with all collected schemas
-          const schemasMap = collectedSchemas;
+          // Limit configuration for semantic model extraction
+          const maxEntities = 20;
+          const maxRelationships = 30;
+          const maxVocabulary = 100;
 
           // If specific views requested, return those schemas
           // Otherwise, return ALL schemas combined
@@ -492,118 +549,44 @@ export const readDataAgent = async (
             };
           }
 
-          // Build fast context (synchronous, < 100ms)
-          const contextStartTime = performance.now();
-          let fastContext: BusinessContext;
-          if (
-            requestedViews &&
-            requestedViews.length > 0 &&
-            requestedViews.length === 1
-          ) {
-            // Single view - build fast context
-            const singleViewName = requestedViews[0];
-            if (singleViewName) {
-              const buildContextStartTime = performance.now();
-              fastContext = await buildBusinessContext({
-                conversationDir: fileDir,
-                viewName: singleViewName,
-                schema,
-              });
-              const buildContextTime =
-                performance.now() - buildContextStartTime;
-              console.log(
-                `[ReadDataAgent] [PERF] buildBusinessContext (single) took ${buildContextTime.toFixed(2)}ms`,
-              );
-
-              // Start enhancement in background (don't await)
-              enhanceBusinessContextInBackground({
-                conversationDir: fileDir,
-                viewName: singleViewName,
-                schema,
-                dbPath,
-              });
-            } else {
-              // Fallback to empty context
-              const { createEmptyContext } = await import(
-                '../../tools/utils/business-context.storage'
-              );
-              fastContext = createEmptyContext();
-            }
-          } else {
-            // Multiple views - build fast context for each
-            // Filter out system tables before processing
-            const { isSystemOrTempTable } = await import(
-              '../../tools/utils/business-context.utils'
-            );
-
-            const fastContexts: BusinessContext[] = [];
-            for (const [vName, vSchema] of schemasMap.entries()) {
-              // Skip system tables
-              if (isSystemOrTempTable(vName)) {
-                console.debug(
-                  `[ReadDataAgent] Skipping system table in context building: ${vName}`,
-                );
-                continue;
-              }
-
-              // Also check if schema has any valid tables
-              const hasValidTables = vSchema.tables.some(
-                (t) => !isSystemOrTempTable(t.tableName),
-              );
-              if (!hasValidTables) {
-                console.debug(
-                  `[ReadDataAgent] Skipping schema with no valid tables: ${vName}`,
-                );
-                continue;
-              }
-
-              const buildContextStartTime = performance.now();
-              const ctx = await buildBusinessContext({
-                conversationDir: fileDir,
-                viewName: vName,
-                schema: vSchema,
-              });
-              const buildContextTime =
-                performance.now() - buildContextStartTime;
-              console.log(
-                `[ReadDataAgent] [PERF] buildBusinessContext for ${vName} took ${buildContextTime.toFixed(2)}ms`,
-              );
-              fastContexts.push(ctx);
-
-              // Start enhancement in background for each view
-              enhanceBusinessContextInBackground({
-                conversationDir: fileDir,
-                viewName: vName,
-                schema: vSchema,
-                dbPath,
-              });
-            }
-            // Merge all fast contexts into one
-            const mergeStartTime = performance.now();
-            fastContext = mergeBusinessContexts(fastContexts);
-            const mergeTime = performance.now() - mergeStartTime;
-            console.log(
-              `[ReadDataAgent] [PERF] mergeBusinessContexts (${fastContexts.length} contexts) took ${mergeTime.toFixed(2)}ms`,
-            );
-          }
-          const contextTime = performance.now() - contextStartTime;
+          // Build semantic model from schema (with caching per datasource)
+          // Use the loaded datasource ID to ensure consistency with cache lookup
+          const primaryDatasourceId =
+            allDatasources[0]?.datasource.id ?? conversationId;
           console.log(
-            `[ReadDataAgent] [PERF] Total business context building took ${contextTime.toFixed(2)}ms`,
+            `[SemanticLayer] Building/caching for datasource: ${primaryDatasourceId}`,
+          );
+          const semanticModel = semanticModelService.getOrBuild(
+            primaryDatasourceId,
+            schema,
           );
 
-          // Use fast context for immediate response
-          const entities = Array.from(fastContext.entities.values()).slice(
-            0,
-            perfConfig.expectedViewCount * 2,
+          console.log(
+            `[SemanticLayer] Model ready: ${semanticModel.entityClasses.size} entities, ${semanticModel.relationships.length} relationships, ${semanticModel.metrics.size} metrics, ${semanticModel.dimensions.size} dimensions, confidence: ${semanticModel.confidenceScore.toFixed(2)}`,
           );
-          const relationships = fastContext.relationships.slice(
-            0,
-            perfConfig.expectedViewCount * 3,
-          );
+
+          // Extract semantic layer information for response
+          const entities = Array.from(semanticModel.entityClasses.values())
+            .slice(0, maxEntities)
+            .map((e) => ({
+              name: e.name,
+              sourceTable: e.sourceTable,
+              domain: e.domain,
+              properties: e.requiredProperties.concat(e.optionalProperties),
+            }));
+          const relationships = semanticModel.relationships
+            .slice(0, maxRelationships)
+            .map((r) => ({
+              from: r.fromEntity,
+              to: r.toEntity,
+              type: r.type,
+              joinCondition: r.joinCondition,
+            }));
           const vocabulary = Object.fromEntries(
-            Array.from(fastContext.vocabulary.entries())
-              .slice(0, perfConfig.expectedViewCount * 10)
-              .map(([key, entry]) => [key, entry]),
+            Array.from(semanticModel.synonyms.entries()).slice(
+              0,
+              maxVocabulary,
+            ),
           );
 
           // Include information about all discovered tables in the response
@@ -616,35 +599,123 @@ export const readDataAgent = async (
           }
           const tableCount = allTableNames.length;
 
-          const totalTime = performance.now() - startTime;
-          console.log(
-            `[ReadDataAgent] [PERF] getSchema TOTAL took ${totalTime.toFixed(2)}ms (sync: ${syncTime.toFixed(2)}ms, discovery: ${schemaDiscoveryTime.toFixed(2)}ms, context: ${contextTime.toFixed(2)}ms)`,
-          );
+          // Phase 1: Index schemas for RAG if enabled
+          if (FeatureFlags.useSchemaEmbedding) {
+            const datasourceIds = allDatasources.map((d) => d.datasource.id);
+            indexSchemasForConversation(
+              conversationId,
+              collectedSchemas,
+              datasourceIds,
+            ).catch(() => {
+              // Indexing runs in background, don't block
+            });
 
-          // Return schema and data insights (hide technical jargon)
+            // Index semantic model for RAG (replaces business context indexing)
+            if (datasourceIds[0]) {
+              console.log(`[SemanticLayer] Indexing semantic model for RAG...`);
+              indexSemanticModelForConversation(
+                conversationId,
+                datasourceIds[0],
+                semanticModel,
+              ).catch((err) => {
+                console.error(`[SemanticLayer] Failed to index: ${err}`);
+              });
+            }
+
+            // Index schema discovery for conversational context
+            const userContext =
+              messages[messages.length - 1]?.parts?.[0]?.type === 'text'
+                ? (
+                    messages[messages.length - 1]?.parts?.[0] as {
+                      text: string;
+                    }
+                  ).text
+                : 'schema exploration';
+            for (const table of schema.tables.slice(0, 5)) {
+              indexSchemaDiscoveryForConversation(
+                conversationId,
+                table.tableName,
+                table.columns.map((c) => ({
+                  name: c.columnName,
+                  type: c.columnType,
+                })),
+                userContext,
+              ).catch(() => {});
+            }
+          }
+
+          // Return schema and semantic layer insights
           return {
             schema: schema,
-            allTables: allTableNames, // Add this - list of all table/view names
-            tableCount: tableCount, // Add this - total count
+            allTables: allTableNames,
+            tableCount: tableCount,
             businessContext: {
-              domain: fastContext.domain.domain, // Just the domain name string
+              domain: semanticModel.domainClassification?.domain ?? 'general',
               entities: entities.map((e) => ({
                 name: e.name,
-                columns: e.columns,
-              })), // Simplified - just name and columns
+                columns: e.properties,
+              })),
               relationships: relationships.map((r) => ({
-                from: r.fromView,
-                to: r.toView,
+                from: r.from,
+                to: r.to,
                 join: r.joinCondition,
-              })), // Simplified - just connection info
-              vocabulary: vocabulary, // Keep for internal use but don't expose structure
+              })),
+              vocabulary: vocabulary,
             },
           };
         },
       }),
-      runQuery: tool({
+      retrieveContext: tool({
         description:
-          'Run a SQL query against the DuckDB instance (views from file-based datasources or attached database tables). Query views by name (e.g., "customers") or attached tables by datasource path (e.g., "datasourcename.tablename" or "datasourcename.schema.tablename"). DuckDB enables federated queries across PostgreSQL, MySQL, Google Sheets, and other datasources.',
+          "Retrieve relevant schema context for a query using semantic search. Use this before generating SQL to find the most relevant tables, columns, and relationships for the user's question. Returns optimized context that reduces token usage. Only available when retrieval is enabled.",
+        inputSchema: z.object({
+          query: z.string().describe('The user question or search query'),
+          topK: z
+            .number()
+            .optional()
+            .describe('Number of results to return (default: 10)'),
+        }),
+        execute: async ({ query, topK }) => {
+          if (!FeatureFlags.useRetrieval) {
+            return {
+              enabled: false,
+              message: 'Retrieval is not enabled. Use getSchema instead.',
+            };
+          }
+
+          const retrievedDocs = await retrieveRelevantContext(
+            conversationId,
+            query,
+            topK ?? 10,
+          );
+
+          if (retrievedDocs.length === 0) {
+            return {
+              enabled: true,
+              found: 0,
+              message:
+                'No relevant context found. Try getSchema for full schema.',
+            };
+          }
+
+          // Build optimized context if enabled
+          const optimizedContext = buildOptimizedContext(retrievedDocs);
+
+          return {
+            enabled: true,
+            found: retrievedDocs.length,
+            context:
+              optimizedContext ??
+              retrievedDocs.map((d) => ({
+                type: d.type,
+                path: d.path,
+                content: d.content,
+              })),
+          };
+        },
+      }),
+      runQuery: tool({
+        description: dynamicDescriptions.runQuery,
         inputSchema: z.object({
           query: z.string(),
         }),
@@ -661,21 +732,8 @@ export const readDataAgent = async (
             needSQL === true &&
             !isChartRequestInInlineMode;
 
-          console.log('[runQuery] Tool execution:', {
-            promptSource,
-            needSQL,
-            needChart,
-            isChartRequestInInlineMode,
-            shouldSkipExecution,
-            queryLength: query.length,
-            queryPreview: query.substring(0, 100),
-          });
-
           // If inline mode and needSQL is true (but NOT chart request), don't execute - return SQL for pasting
           if (shouldSkipExecution) {
-            console.log(
-              '[runQuery] Skipping execution - SQL will be pasted to notebook cell',
-            );
             return {
               result: null,
               shouldPaste: true,
@@ -683,18 +741,7 @@ export const readDataAgent = async (
             };
           }
 
-          // For chart requests in inline mode, we'll execute but still return SQL for pasting
-          if (isChartRequestInInlineMode) {
-            console.log(
-              '[runQuery] Executing query for chart generation (inline mode override)',
-            );
-          } else {
-            console.log('[runQuery] Executing query normally');
-          }
-
           // Normal execution path for chat mode or when needSQL is false
-          const startTime = performance.now();
-
           if (!queryEngine) {
             throw new Error('Query engine not available');
           }
@@ -715,245 +762,167 @@ export const readDataAgent = async (
               orchestrationResult || undefined,
             );
 
-          // Validate that query only references attached datasources
-          if (orchestration.datasources.length > 0) {
-            try {
-              // Get attached datasource database names
-              const attachedDbNames = new Set(
-                orchestration.datasources.map((d) =>
-                  getDatasourceDatabaseName(d.datasource),
-                ),
-              );
-
-              // Extract table references from SQL query using proper extraction function
-              const tablePaths = extractTablePathsFromQuery(query);
-              const referencedDatasources = new Set<string>();
-
-              for (const tablePath of tablePaths) {
-                // Extract datasource name (first part before dot)
-                // Handle both formats:
-                // - datasource.schema.table (3 parts)
-                // - datasource.table (2 parts)
-                // - table (1 part - main database, skip validation)
-                const parts = tablePath.split('.');
-                if (parts.length >= 2 && parts[0]) {
-                  // Only validate if table path has at least 2 parts (datasource.table or datasource.schema.table)
-                  // Simple table names without datasource prefix are in main database and don't need validation
-                  const datasourceName = parts[0];
-                  referencedDatasources.add(datasourceName);
-                }
-                // Skip simple table names (no dots) - they're in main database
-              }
-
-              // Check if all referenced datasources are attached
-              const invalidDatasources = Array.from(
-                referencedDatasources,
-              ).filter((dbName) => !attachedDbNames.has(dbName));
-
-              if (invalidDatasources.length > 0) {
-                throw new Error(
-                  `Query references unattached datasources: ${invalidDatasources.join(', ')}. Only these datasources are attached: ${Array.from(attachedDbNames).join(', ')}`,
-                );
-              }
-            } catch (error) {
-              // If validation fails, log but don't block execution (query engine will handle errors)
-              if (
-                error instanceof Error &&
-                error.message.includes('unattached datasources')
-              ) {
-                throw error; // Re-throw validation errors
-              }
-              console.warn(
-                '[runQuery] Datasource validation failed, continuing with query execution:',
-                error,
-              );
-            }
-          }
-
-          // Sync is handled by ensureAttachedAndCached above
-          const syncTime = 0; // Time is tracked in orchestration service
-
-          // Validate that all table paths in the query exist in attached datasources
-          // Note: We validate the original query paths (display format), not rewritten paths
-          // The rewriting happens after validation
-          try {
-            const schemaCache = orchestration.schemaCache;
-            const tablePaths = extractTablePathsFromQuery(query);
-            const allAvailablePaths =
-              schemaCache.getAllTablePathsFromAllDatasources();
-            const missingTables: string[] = [];
-
-            for (const tablePath of tablePaths) {
-              // Check if table exists in cache (handles both display and query paths)
-              // For ClickHouse, hasTablePath checks both datasource.default.table and datasource.main.table
-              if (
-                !schemaCache.hasTablePath(tablePath) &&
-                !allAvailablePaths.includes(tablePath)
-              ) {
-                // Also check if it's a simple table name that might be in main database
-                const isSimpleName = !tablePath.includes('.');
-                if (!isSimpleName) {
-                  missingTables.push(tablePath);
-                }
-              }
-            }
-
-            if (missingTables.length > 0) {
-              const availablePaths = allAvailablePaths.slice(0, 20).join(', ');
-              throw new Error(
-                `The following tables are not available in attached datasources: ${missingTables.join(', ')}. Available tables: ${availablePaths}${allAvailablePaths.length > 20 ? '...' : ''}. Please check the attached datasources list and use only tables that exist.`,
-              );
-            }
-          } catch (error) {
-            // If validation fails with our custom error, throw it
-            if (
-              error instanceof Error &&
-              error.message.includes('not available in attached datasources')
-            ) {
-              throw error;
-            }
-            // Otherwise, log warning but continue (might be a complex query we can't parse)
-            console.warn(
-              '[ReadDataAgent] Failed to validate table paths in query:',
-              error,
-            );
-          }
-
-          // Rewrite table paths for ClickHouse (convert default -> main) before execution
-          // For ClickHouse, agent generates queries with datasource.default.table
-          // but DuckDB needs datasource.main.table (SQLite attached databases only support 'main' schema)
-          console.log(
-            `[QueryRewrite] Starting rewrite for query: ${query.substring(0, 100)}...`,
-          );
-          let rewrittenQuery = query;
+          // Use QueryValidator service for comprehensive validation
           const schemaCache = orchestration.schemaCache;
-          const tablePaths = extractTablePathsFromQuery(query);
-          console.log(
-            `[QueryRewrite] Extracted ${tablePaths.length} table path(s): ${tablePaths.join(', ')}`,
+          const attachedDatasourceNames = orchestration.datasources.map((d) =>
+            getDatasourceDatabaseName(d.datasource),
           );
-          const replacements: Array<{ from: string; to: string }> = [];
 
-          for (const tablePath of tablePaths) {
-            console.log(`[QueryRewrite] Processing table path: ${tablePath}`);
-            // Check if this is a three-part path (datasource.schema.table)
-            const parts = tablePath.split('.');
-            if (parts.length === 3) {
-              const [datasourceName, schemaName, tableName] = parts;
-              console.log(
-                `[QueryRewrite] Parsed: datasource=${datasourceName}, schema=${schemaName}, table=${tableName}`,
-              );
+          const validationResult = queryValidator.validate(query, schemaCache, {
+            allowDestructive: false,
+            attachedDatasourceNames,
+          });
 
-              // For ClickHouse, if schema is not 'main', it's a display path that needs rewriting
-              if (schemaName !== 'main') {
-                console.log(
-                  `[QueryRewrite] Schema is not 'main', checking if display path exists in cache...`,
-                );
-                const hasPath = schemaCache.hasTablePath(tablePath);
-                console.log(
-                  `[QueryRewrite] hasTablePath(${tablePath}) = ${hasPath}`,
-                );
-
-                // Try to get the query path from the mapping first
-                const queryPath =
-                  schemaCache.getQueryPathForDisplayPath(tablePath);
-                console.log(
-                  `[QueryRewrite] getQueryPathForDisplayPath(${tablePath}) = ${queryPath || 'null'}`,
-                );
-
-                if (queryPath) {
-                  replacements.push({ from: tablePath, to: queryPath });
-                  console.log(
-                    `[QueryRewrite] ✓ Found mapping: ${tablePath} -> ${queryPath}`,
-                  );
-                } else {
-                  // Fallback: construct query path manually and verify it exists
-                  // This handles cases where mapping might not be set up correctly
-                  const constructedQueryPath = `${datasourceName}.main.${tableName}`;
-                  console.log(
-                    `[QueryRewrite] Trying fallback: constructed query path = ${constructedQueryPath}`,
-                  );
-                  const allPaths =
-                    schemaCache.getAllTablePathsFromAllDatasources();
-                  console.log(
-                    `[QueryRewrite] All available paths (${allPaths.length} total): ${allPaths.slice(0, 10).join(', ')}${allPaths.length > 10 ? '...' : ''}`,
-                  );
-                  const pathExists = allPaths.includes(constructedQueryPath);
-                  console.log(
-                    `[QueryRewrite] Path ${constructedQueryPath} exists in cache: ${pathExists}`,
-                  );
-
-                  if (pathExists) {
-                    replacements.push({
-                      from: tablePath,
-                      to: constructedQueryPath,
-                    });
-                    console.log(
-                      `[QueryRewrite] ✓ Using fallback: ${tablePath} -> ${constructedQueryPath}`,
-                    );
-                  } else {
-                    console.warn(
-                      `[QueryRewrite] ✗ Could not find query path for ${tablePath}`,
-                    );
-                    console.warn(
-                      `[QueryRewrite] Available paths: ${allPaths.slice(0, 10).join(', ')}${allPaths.length > 10 ? '...' : ''}`,
-                    );
-                  }
+          if (!validationResult.valid) {
+            const errorMessages = validationResult.errors
+              .map((e) => {
+                let msg = e.message;
+                if (e.details?.suggestion) {
+                  msg += ` ${e.details.suggestion}`;
                 }
-              } else {
-                console.log(
-                  `[QueryRewrite] Schema is 'main', no rewriting needed for ${tablePath}`,
-                );
+                return msg;
+              })
+              .join('; ');
+            throw new Error(`Query validation failed: ${errorMessages}`);
+          }
+
+          // Log warnings but don't block execution
+          for (const warning of validationResult.warnings) {
+            console.warn(`[runQuery] Validation warning: ${warning}`);
+          }
+
+          // Set path mappings on the query engine for automatic rewriting
+          // This handles ClickHouse path conversion (default -> main) transparently
+          if (queryEngine instanceof DuckDBQueryEngine) {
+            // Build path mappings from schema cache
+            const pathMappings = new Map<string, string>();
+            const allPaths = schemaCache.getAllTablePathsFromAllDatasources();
+
+            // Get all display paths and their corresponding query paths
+            for (const displayPath of schemaCache.getAllTablePathsFromAllDatasources()) {
+              const queryPath =
+                schemaCache.getQueryPathForDisplayPath(displayPath);
+              if (queryPath && queryPath !== displayPath) {
+                pathMappings.set(displayPath, queryPath);
               }
-            } else {
-              console.log(
-                `[QueryRewrite] Path has ${parts.length} parts, skipping (not three-part)`,
+            }
+
+            queryEngine.setPathMappings(pathMappings, allPaths);
+          }
+
+          // Execute query with CRAG error recovery
+          let result;
+          try {
+            result = await queryEngine.query(query);
+          } catch (queryError) {
+            const errorMsg =
+              queryError instanceof Error
+                ? queryError.message
+                : String(queryError);
+
+            // Learn from query failure
+            const failedEntities = validationResult.tablePaths.map(
+              (p) => p.split('.').pop() ?? p,
+            );
+            const cachedModel = primaryDatasourceId
+              ? semanticModelService.getCached(primaryDatasourceId)
+              : null;
+            if (cachedModel) {
+              semanticLearningService.learnFromFailure(
+                cachedModel,
+                messages[messages.length - 1]?.parts?.[0]?.type === 'text'
+                  ? (
+                      messages[messages.length - 1]?.parts?.[0] as {
+                        text: string;
+                      }
+                    ).text
+                  : '',
+                query,
+                errorMsg,
+                failedEntities,
               );
             }
-          }
 
-          // Apply all replacements
-          if (replacements.length > 0) {
-            for (const { from, to } of replacements) {
-              // Replace with word boundaries to avoid partial matches
-              // Handle both quoted and unquoted identifiers
-              const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const patterns = [
-                new RegExp(`\\b${escapedFrom}\\b`, 'g'), // Unquoted
-                new RegExp(`"${escapedFrom}"`, 'g'), // Double-quoted
-                new RegExp(`'${escapedFrom}'`, 'g'), // Single-quoted
-              ];
+            // CRAG: Corrective RAG for query error recovery
+            if (FeatureFlags.useCRAG) {
+              // Try to retrieve relevant context to suggest corrections
+              const corrections = await retrieveRelevantContext(
+                conversationId,
+                `${query} ${errorMsg}`,
+                5,
+              );
 
-              for (const pattern of patterns) {
-                rewrittenQuery = rewrittenQuery.replace(pattern, (match) => {
-                  // Preserve quote style
-                  if (match.startsWith('"') && match.endsWith('"')) {
-                    return `"${to}"`;
-                  }
-                  if (match.startsWith("'") && match.endsWith("'")) {
-                    return `'${to}'`;
-                  }
-                  return to;
-                });
+              if (corrections.length > 0) {
+                const suggestions = corrections
+                  .map((c) => c.content)
+                  .join('\n  - ');
+                throw new Error(
+                  `Query failed: ${errorMsg}\n\nCRAG Suggestions (relevant schema elements):\n  - ${suggestions}`,
+                );
               }
             }
-            console.log(
-              `[QueryRewrite] Rewrote ${replacements.length} table path(s) for ClickHouse:`,
-              replacements.map((r) => `${r.from} -> ${r.to}`).join(', '),
-            );
+            throw queryError;
           }
 
-          const queryStartTime = performance.now();
-          const result = await queryEngine.query(rewrittenQuery);
-          const queryTime = performance.now() - queryStartTime;
-          const totalTime = performance.now() - startTime;
-          console.log(
-            `[ReadDataAgent] [PERF] runQuery TOTAL took ${totalTime.toFixed(2)}ms (sync: ${syncTime.toFixed(2)}ms, query: ${queryTime.toFixed(2)}ms, rows: ${result.rows.length})`,
+          // Learn from successful query execution
+          const usedEntities = validationResult.tablePaths.map(
+            (p) => p.split('.').pop() ?? p,
           );
+          const userQueryText =
+            messages[messages.length - 1]?.parts?.[0]?.type === 'text'
+              ? (messages[messages.length - 1]?.parts?.[0] as { text: string })
+                  .text
+              : '';
+          const cachedModel = primaryDatasourceId
+            ? semanticModelService.getCached(primaryDatasourceId)
+            : null;
+          if (cachedModel && result.rows.length > 0) {
+            semanticLearningService.learnFromSuccess(
+              cachedModel,
+              userQueryText,
+              query,
+              usedEntities,
+            );
+            // Persist the model to save learning
+            semanticModelService.persistModel(primaryDatasourceId!);
+            // Index query pattern for RAG boost
+            indexQueryPatternForConversation(
+              conversationId,
+              userQueryText,
+              query,
+              usedEntities,
+            ).catch(() => {}); // Non-blocking
+          }
 
-          // Store full results in cache to avoid injecting into agent context
+          // Index successful query result for conversational RAG
           const columnNames = result.columns.map((col) =>
             typeof col === 'string' ? col : col.name || String(col),
           );
+          // Extract sample values from first few rows for context
+          const sampleValues: Record<string, string[]> = {};
+          for (const colName of columnNames.slice(0, 5)) {
+            sampleValues[colName] = result.rows
+              .slice(0, 3)
+              .map((row) => String(row[colName] ?? ''))
+              .filter((v) => v.length > 0 && v.length < 50);
+          }
+          // Detect aggregations from SQL
+          const aggregations = (
+            query.match(/\b(SUM|COUNT|AVG|MIN|MAX|GROUP BY)\b/gi) ?? []
+          ).map((a) => a.toUpperCase());
+
+          indexQueryResultForConversation(
+            conversationId,
+            query,
+            {
+              rowCount: result.rows.length,
+              columns: columnNames,
+              sampleValues,
+              aggregations: [...new Set(aggregations)],
+            },
+            userQueryText,
+          ).catch(() => {}); // Non-blocking
+
           // Store original query (not rewritten) for display
           const queryId = storeQueryResult(
             conversationId,
@@ -1076,27 +1045,11 @@ export const readDataAgent = async (
           if (!fullQueryResults) {
             throw new Error('Either queryId or queryResults must be provided');
           }
-          const workspace =
-            orchestrationResult?.workspace ||
-            (() => {
-              throw new Error('WORKSPACE environment variable is not set');
-            })();
-          const { join } = await import('node:path');
-          const fileDir = join(workspace, conversationId);
-
-          // Load business context if available
-          let businessContext: BusinessContext | null = null;
-          try {
-            businessContext = await loadBusinessContext(fileDir);
-          } catch {
-            // Business context not available, continue without it
-          }
-
+          // Semantic model provides context via RAG, no need for businessContext param
           const result = await selectChartType(
             fullQueryResults,
             sqlQuery,
             userInput,
-            businessContext,
           );
           return result;
         },
@@ -1151,43 +1104,13 @@ export const readDataAgent = async (
           if (!fullQueryResults) {
             throw new Error('Either queryId or queryResults must be provided');
           }
-          const startTime = performance.now();
-          const workspace =
-            orchestrationResult?.workspace ||
-            (() => {
-              throw new Error('WORKSPACE environment variable is not set');
-            })();
-          const { join } = await import('node:path');
-          const fileDir = join(workspace, conversationId);
-
-          // Load business context if available
-          const contextStartTime = performance.now();
-          let businessContext: BusinessContext | null = null;
-          try {
-            businessContext = await loadBusinessContext(fileDir);
-          } catch {
-            // Business context not available, continue without it
-          }
-          const contextTime = performance.now() - contextStartTime;
-          if (contextTime > 10) {
-            console.log(
-              `[ReadDataAgent] [PERF] generateChart loadBusinessContext took ${contextTime.toFixed(2)}ms`,
-            );
-          }
-
-          const generateStartTime = performance.now();
+          // Semantic model provides context via RAG, no need for businessContext param
           const result = await generateChart({
             chartType,
             queryResults: fullQueryResults,
             sqlQuery,
             userInput,
-            businessContext,
           });
-          const generateTime = performance.now() - generateStartTime;
-          const totalTime = performance.now() - startTime;
-          console.log(
-            `[ReadDataAgent] [PERF] generateChart TOTAL took ${totalTime.toFixed(2)}ms (context: ${contextTime.toFixed(2)}ms, generate: ${generateTime.toFixed(2)}ms)`,
-          );
           return result;
         },
       }),
