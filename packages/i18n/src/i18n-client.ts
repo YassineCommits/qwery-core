@@ -74,15 +74,17 @@ export async function initializeI18nClient(
     return i18next;
   }
 
-  // keep component from rendering if no languages or namespaces are loaded
+  // If no namespaces loaded, still return the instance to prevent React errors
+  // The instance will work with fallback keys
   if (loadedNamespaces.size === 0) {
     iteration++;
 
-    console.debug(
-      `Keeping component from rendering if no languages or namespaces are loaded. Iteration: ${iteration}. Will stop after ${MAX_ITERATIONS} iterations.`,
+    console.warn(
+      `No languages or namespaces loaded. Iteration: ${iteration}. Will stop after ${MAX_ITERATIONS} iterations. Using fallback i18n instance.`,
     );
 
-    throw new Error('No languages or namespaces loaded');
+    // Don't throw - return the instance anyway so React doesn't error
+    // The instance will use fallback behavior
   }
 
   return i18next;

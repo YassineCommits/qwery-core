@@ -75,7 +75,8 @@ export function useTestConnection(
         throw new Error(error.error || 'Failed to test connection');
       }
 
-      return response.json();
+      const result = await response.json();
+      return result;
     },
     onSuccess,
     onError,

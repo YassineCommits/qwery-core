@@ -10,7 +10,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import { Pencil } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { toast } from '@qwery/ui/sonner';
 
 import { Datasource, DatasourceKind } from '@qwery/domain/entities';
 import { GetProjectBySlugService } from '@qwery/domain/services';
@@ -80,39 +80,30 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
   const testConnectionMutation = useTestConnection(
     (result) => {
       if (result.success && result.data?.connected) {
-        toast.success(<Trans i18nKey="datasources:connectionTestSuccess" />);
+        toast.success(t('connectionTestSuccess'));
       } else {
-        toast.error(
-          result.error || <Trans i18nKey="datasources:connectionTestFailed" />,
-        );
+        const errorMsg = result.error || t('connectionTestFailed');
+        toast.error(errorMsg);
       }
     },
     (error) => {
-      toast.error(
-        error instanceof Error ? (
-          error.message
-        ) : (
-          <Trans i18nKey="datasources:connectionTestError" />
-        ),
-      );
+      const errorMsg = error instanceof Error ? error.message : t('connectionTestFailed');
+      toast.error(errorMsg);
     },
   );
 
   const createDatasourceMutation = useCreateDatasource(
     datasourceRepository,
     (_datasource) => {
-      toast.success(<Trans i18nKey="datasources:saveSuccess" />);
+      toast.success(t('saveSuccess'));
       navigate(createPath(pathsConfig.app.projectDatasources, project_id), {
         replace: true,
       });
     },
     (error) => {
-      const errorMessage =
-        error instanceof Error ? (
-          error.message
-        ) : (
-          <Trans i18nKey="datasources:saveFailed" />
-        );
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : t('saveFailed');
       toast.error(errorMessage);
       console.error(error);
     },
@@ -263,7 +254,7 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
 
   const handleSubmit = async (values: unknown) => {
     if (!extension?.data) {
-      toast.error(<Trans i18nKey="datasources:notFoundError" />);
+      toast.error(t('notFoundError'));
       return;
     }
 
@@ -327,7 +318,7 @@ export default function DatasourcesPage({ loaderData }: Route.ComponentProps) {
     if (!extension?.data) return;
 
     if (!formValues) {
-      toast.error(<Trans i18nKey="datasources:formNotReady" />);
+      toast.error(t('formNotReady'));
       return;
     }
 

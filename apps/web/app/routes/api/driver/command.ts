@@ -17,6 +17,7 @@ export async function action({ request }: { request: Request }) {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
   }
 
+
   try {
     const body = (await request.json()) as DriverActionRequest;
     const { action, datasourceProvider, driverId, config, sql } = body;
