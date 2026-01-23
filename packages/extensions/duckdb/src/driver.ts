@@ -1,4 +1,4 @@
-import * as duckdb from '@duckdb/node-api';
+import { DuckDBInstance } from '@duckdb/node-api';
 import { z } from 'zod';
 
 import type {
@@ -15,18 +15,22 @@ const ConfigSchema = z.object({
 
 type DriverConfig = z.infer<typeof ConfigSchema>;
 
-interface DuckDBInstance {
-  instance: duckdb.DuckDBInstance;
-  connection: duckdb.DuckDBConnection;
+const createDuckDbInstance = async (path?: string) => {
+  return await DuckDBInstance.create(path);
+};
+
+interface DuckDBDriverInstance {
+  instance: Awaited<ReturnType<typeof createDuckDbInstance>>;
+  connection: Awaited<ReturnType<Awaited<ReturnType<typeof createDuckDbInstance>>['connect']>>;
 }
 
 export function makeDuckDBDriver(context: DriverContext): IDataSourceDriver {
-  const instanceMap = new Map<string, DuckDBInstance>();
+  const instanceMap = new Map<string, DuckDBDriverInstance>();
 
-  const getInstance = async (config: DriverConfig): Promise<DuckDBInstance> => {
+  const getInstance = async (config: DriverConfig): Promise<DuckDBDriverInstance> => {
     const key = config.database || ':memory:';
     if (!instanceMap.has(key)) {
-      const instance = await duckdb.DuckDBInstance.create(
+      const instance = await createDuckDbInstance(
         key === ':memory:' ? undefined : key,
       );
       const connection = await instance.connect();
