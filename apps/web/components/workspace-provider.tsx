@@ -99,9 +99,8 @@ export function WorkspaceProvider(props: React.PropsWithChildren) {
         let projectId = currentStored.projectId;
 
         if (organizationId) {
-          const organization = await repositories.organization.findById(
-            organizationId,
-          );
+          const organization =
+            await repositories.organization.findById(organizationId);
           if (!organization) {
             organizationId = undefined;
             projectId = undefined;

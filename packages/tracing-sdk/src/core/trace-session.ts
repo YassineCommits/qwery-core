@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type { TracingHttpClient } from '../client/tracing-http-client';
 import type { FlushWorker } from './flush-worker';
 import type {
-  StepType,
   TokenUsage,
   AddStepPayload,
   CompleteTracePayload,
@@ -110,9 +109,7 @@ export class TraceSession {
   /** Mark trace as failed. Non-blocking. */
   fail(payload: FailTracePayload): void {
     this.options.worker.enqueue(() =>
-      this.options.client
-        .failTrace(this.traceId, payload)
-        .then(() => void 0),
+      this.options.client.failTrace(this.traceId, payload).then(() => void 0),
     );
   }
 }

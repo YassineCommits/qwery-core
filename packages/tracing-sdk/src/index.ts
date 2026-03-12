@@ -4,7 +4,10 @@ export { TraceSession } from './core/trace-session';
 export { FlushWorker } from './core/flush-worker';
 
 // ─── Client ───────────────────────────────────────────────────────────────────
-export { TracingHttpClient, TracingClientError } from './client/tracing-http-client';
+export {
+  TracingHttpClient,
+  TracingClientError,
+} from './client/tracing-http-client';
 
 // ─── Wrappers ─────────────────────────────────────────────────────────────────
 export { tracedLLM } from './wrappers/traced-llm';

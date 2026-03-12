@@ -480,7 +480,11 @@ export async function loop(input: AgentSessionPromptInput): Promise<Response> {
         ? `${systemPromptForLlm}\n\nSUGGESTIONS - Capabilities: When using {{suggestion: ...}}, only suggest actions you can perform with your tools: ${capabilityIds.join(', ')}. Do not suggest CSV/PDF export, file download, or other actions you cannot perform.`
         : systemPromptForLlm;
 
-    if (traceSession && promptBuildStartedAt && promptBuildStartedAtMs !== null) {
+    if (
+      traceSession &&
+      promptBuildStartedAt &&
+      promptBuildStartedAtMs !== null
+    ) {
       const promptBuildEndedAt = new Date();
       traceSession.addStep({
         type: 'custom',
@@ -569,12 +573,15 @@ export async function loop(input: AgentSessionPromptInput): Promise<Response> {
             type: 'custom',
             name: `final_answer: ${typeof model === 'string' ? model : providerModel.id}`,
             input: null,
-            output: [...messagesWithToolExecution]
-              .reverse()
-              .find((m) => m.role === 'assistant') ?? null,
+            output:
+              [...messagesWithToolExecution]
+                .reverse()
+                .find((m) => m.role === 'assistant') ?? null,
             tokenUsage,
             error: null,
-            latencyMs: Math.round(endedAt.getTime() - finalAnswerStart.getTime()),
+            latencyMs: Math.round(
+              endedAt.getTime() - finalAnswerStart.getTime(),
+            ),
             startedAt: finalAnswerStart,
             endedAt,
             metadata: { agentId, conversationSlug },
@@ -881,7 +888,11 @@ export async function loop(input: AgentSessionPromptInput): Promise<Response> {
     break;
   }
 
-  await SessionCompaction.prune({ conversationSlug, repositories, traceSession });
+  await SessionCompaction.prune({
+    conversationSlug,
+    repositories,
+    traceSession,
+  });
 
   if (responseToReturn !== null) return responseToReturn;
   return new Response(null, { status: 204 });

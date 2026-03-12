@@ -43,14 +43,20 @@ function extractArtifacts(toolId: string, output: unknown): Artifact[] {
       });
     }
     // Table artifact from result
-    const result = out['result'] as { columns?: string[]; rows?: unknown[] } | undefined;
+    const result = out['result'] as
+      | { columns?: string[]; rows?: unknown[] }
+      | undefined;
     if (result?.rows && Array.isArray(result.rows) && result.rows.length > 0) {
-      const filename = (out['exportFilename'] as string | undefined) ?? 'query-results';
+      const filename =
+        (out['exportFilename'] as string | undefined) ?? 'query-results';
       artifacts.push({
         name: `${filename}.json`,
         type: 'table',
         mimeType: 'application/json',
-        data: JSON.stringify({ columns: result.columns ?? [], rows: result.rows }),
+        data: JSON.stringify({
+          columns: result.columns ?? [],
+          rows: result.rows,
+        }),
         encoding: 'utf8',
       });
     }
@@ -59,7 +65,8 @@ function extractArtifacts(toolId: string, output: unknown): Artifact[] {
   if (toolId === 'generateChart') {
     const out = output as Record<string, unknown>;
     const chartType = (out['chartType'] as string | undefined) ?? 'bar';
-    const data = (out['data'] as Array<Record<string, unknown>> | undefined) ?? [];
+    const data =
+      (out['data'] as Array<Record<string, unknown>> | undefined) ?? [];
     const config = (out['config'] as Record<string, unknown> | undefined) ?? {};
     const svg = renderChartSvg(chartType, data, config);
     artifacts.push({
@@ -81,8 +88,6 @@ const TASK_COMPLETING_TOOL_IDS = new Set([
   'generateChart',
   'selectChartType',
 ]);
-
-const RETRIEVAL_TOOL_IDS = new Set<string>();
 
 const TODO_REMINDER =
   '\n\n<system-reminder>You completed a task. Call todowrite to set that todo to completed and continue with the next one.</system-reminder>';
@@ -357,7 +362,9 @@ export const Registry = {
                   finalStr += TODO_REMINDER;
                 }
               }
-              const traceOutput = returnAsOutput ? { output: finalStr } : finalStr;
+              const traceOutput = returnAsOutput
+                ? { output: finalStr }
+                : finalStr;
               const endedAt = new Date();
               const latencyMs = Math.round(performance.now() - startedAtMs);
               if (traceSession) {
@@ -370,7 +377,8 @@ export const Registry = {
                   startedAt,
                   endedAt,
                   metadata: traceMetadata,
-                  artifacts: toolArtifacts.length > 0 ? toolArtifacts : undefined,
+                  artifacts:
+                    toolArtifacts.length > 0 ? toolArtifacts : undefined,
                 });
               }
               return traceOutput;

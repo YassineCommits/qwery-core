@@ -20,7 +20,7 @@ if (cmd === 'run') {
   const target = pathArg ?? '__evals__';
 
   execSync(
-    `npx tsx "${runScript}"`,
+    `node --import tsx "${runScript}"`,
     {
       stdio: 'inherit',
       cwd: projectCwd,

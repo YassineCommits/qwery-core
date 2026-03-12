@@ -82,7 +82,11 @@ export class TracingHttpClient {
     try {
       return JSON.parse(text) as T;
     } catch {
-      throw new TracingClientError(res.status, `Invalid JSON: ${text}`, res.url);
+      throw new TracingClientError(
+        res.status,
+        `Invalid JSON: ${text}`,
+        res.url,
+      );
     }
   }
 }

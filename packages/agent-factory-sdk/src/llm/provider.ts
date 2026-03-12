@@ -198,7 +198,8 @@ function getModel(providerID: string, modelID: string): Model {
   const provider = getProvider(providerID);
   if (!provider) {
     if (normalizedProviderId.startsWith('ollama')) {
-      const rawBaseUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+      const rawBaseUrl =
+        process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
       const normalizedBaseUrl = rawBaseUrl.endsWith('/v1')
         ? rawBaseUrl
         : `${rawBaseUrl.replace(/\/$/, '')}/v1`;

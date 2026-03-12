@@ -107,6 +107,7 @@
     "prettier-plugin-tailwindcss": "^0.7.1",
     "semver": "^7.7.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "turbo": "^2.6.0",
     "typescript": "catalog:"
   },

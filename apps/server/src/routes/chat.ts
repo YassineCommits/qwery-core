@@ -17,6 +17,7 @@ import { getTelemetry } from '../lib/telemetry';
 import { resolveChatDatasources } from '../helpers/chat-helper';
 import { handleDomainException } from '../lib/http-utils';
 import { getTracingSdk } from '../lib/tracing';
+import { buildInteractionFromTraceAndSend } from '../infra/evals/eval-client';
 
 const chatBodySchema = z.object({
   messages: z.array(z.unknown()),
@@ -171,6 +172,7 @@ User request: ${cleanText}`;
           }
           return JSON.stringify(msg);
         };
+        const turnStartedAt = Date.now();
         const traceSession = tracing
           ? await tracing.startTrace({
               projectId: slug,
@@ -179,6 +181,126 @@ User request: ${cleanText}`;
               input: extractText(lastUserMessage),
               metadata: { conversationSlug: slug, trigger: body.trigger },
             })
+          : undefined;
+
+        type TraceSessionCompletePayload = {
+          output: unknown;
+          metadata?: Record<string, unknown>;
+        };
+
+        type EvalTraceSession = {
+          complete?: (payload: TraceSessionCompletePayload) => void;
+          id?: string;
+          addStep: (params: {
+            type:
+              | 'llm_call'
+              | 'tool_call'
+              | 'retrieval'
+              | 'reasoning'
+              | 'custom';
+            name: string;
+            input: unknown;
+            output: unknown;
+            tokenUsage?: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } | null;
+            error?: string | null;
+            latencyMs: number;
+            startedAt: Date;
+            endedAt: Date;
+            metadata?: Record<string, unknown>;
+            artifacts?: Array<{
+              name: string;
+              type: 'table' | 'chart' | 'image' | 'sql' | 'text';
+              mimeType: string;
+              data: string;
+              encoding: 'utf8' | 'base64';
+            }>;
+          }) => void;
+          addLlmStep: (params: {
+            name: string;
+            input: unknown;
+            output: unknown;
+            tokenUsage?: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            } | null;
+            error?: string | null;
+            latencyMs: number;
+            startedAt: Date;
+            endedAt: Date;
+            metadata?: Record<string, unknown>;
+          }) => void;
+          addToolStep: (params: {
+            name: string;
+            input: unknown;
+            output: unknown;
+            error?: string | null;
+            latencyMs: number;
+            startedAt: Date;
+            endedAt: Date;
+            metadata?: Record<string, unknown>;
+            artifacts?: Array<{
+              name: string;
+              type: 'table' | 'chart' | 'image' | 'sql' | 'text';
+              mimeType: string;
+              data: string;
+              encoding: 'utf8' | 'base64';
+            }>;
+          }) => void;
+          addRetrievalStep: (params: {
+            name: string;
+            input: unknown;
+            output: unknown;
+            error?: string | null;
+            latencyMs: number;
+            startedAt: Date;
+            endedAt: Date;
+            metadata?: Record<string, unknown>;
+          }) => void;
+        };
+
+        let hasCompletedTrace = false;
+
+        const evalTraceSession: EvalTraceSession | undefined = traceSession
+          ? {
+              addStep: traceSession.addStep.bind(traceSession),
+              addLlmStep: traceSession.addLlmStep.bind(traceSession),
+              addToolStep: traceSession.addToolStep.bind(traceSession),
+              addRetrievalStep:
+                traceSession.addRetrievalStep.bind(traceSession),
+              id: traceSession.id,
+              complete: (payload: TraceSessionCompletePayload) => {
+                if (hasCompletedTrace) {
+                  return;
+                }
+
+                hasCompletedTrace = true;
+                traceSession.complete(payload);
+
+                void (async () => {
+                  const userTurnIndex = messages.filter(
+                    (m) => normalizeUIRole(m.role) === 'user',
+                  ).length;
+
+                  await buildInteractionFromTraceAndSend({
+                    traceId: traceSession.id,
+                    app: 'web',
+                    env: process.env.NODE_ENV ?? 'dev',
+                    sessionId: slug,
+                    turnIndex: userTurnIndex,
+                    agentName: 'query',
+                    agentVersion: '1',
+                    modelName:
+                      typeof model === 'string' ? model : String(model),
+                    taskType: 'code_help',
+                  });
+                })();
+              },
+            }
           : undefined;
 
         const response = await prompt({
@@ -190,7 +312,7 @@ User request: ${cleanText}`;
           telemetry,
           generateTitle: true,
           mcpServerUrl,
-          traceSession,
+          traceSession: evalTraceSession,
         }).catch((err: unknown) => {
           traceSession?.fail({
             error: err instanceof Error ? err.message : String(err),
@@ -198,6 +320,8 @@ User request: ${cleanText}`;
           void tracing?.flush();
           throw err;
         });
+
+        const latencyMs = Date.now() - turnStartedAt;
 
         await tracing?.flush();
 
