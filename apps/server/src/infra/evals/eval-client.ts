@@ -411,10 +411,47 @@ export async function buildInteractionFromTraceAndSend(options: {
 
     const payload = extractEvalPayloadFromTrace(trace);
     if (!payload) {
+      const customSteps = trace.steps.filter((s) => s.type === 'custom');
+      const toolSteps = trace.steps.filter((s) => s.type === 'tool_call');
+      const hasFinalAnswerStep = customSteps.some(
+        (s) => typeof s.name === 'string' && s.name.startsWith('final_answer:'),
+      );
+      const outMessageSteps = customSteps.filter(
+        (s) => s.name === 'messages' && s.metadata?.direction === 'out',
+      );
+      const lastCustomStepNames = customSteps
+        .slice(-5)
+        .map((s) => s.name)
+        .filter((name) => typeof name === 'string') as string[];
+
+      const outMessagesSummary = outMessageSteps.slice(-2).map((s) => {
+        const output = s.output as unknown;
+        const hasOutput = output !== null && output !== undefined;
+        const hasContentParts =
+          typeof output === 'object' &&
+          output !== null &&
+          'content' in (output as { content?: unknown }) &&
+          Array.isArray(
+            (output as { content?: { parts?: unknown[] } }).content?.parts,
+          );
+        return {
+          name: s.name,
+          hasOutput,
+          hasContentParts,
+        };
+      });
+
       logger.debug(
         {
           traceId: trace.id,
           status: trace.status,
+          totalSteps: trace.steps.length,
+          customStepCount: customSteps.length,
+          toolCallStepCount: toolSteps.length,
+          hasFinalAnswerStep,
+          outMessagesStepCount: outMessageSteps.length,
+          lastCustomStepNames,
+          outMessagesSummary,
         },
         '[Evals] Skipping interaction, no assistant message found in trace',
       );
