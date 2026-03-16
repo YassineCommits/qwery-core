@@ -37,9 +37,13 @@ const ChartWrapper = lazy(() =>
 const ChartColorEditor = lazy(() =>
   import('./chart-color-editor').then((m) => ({ default: m.ChartColorEditor })),
 );
+const VegaLiteChart = lazy(() =>
+  import('./vega/VegaLiteChart').then((m) => ({ default: m.VegaLiteChart })),
+);
 
 // Import type only (no runtime import)
 import type { ChartType } from './chart-type-selector';
+import { VegaLiteSpecFactory } from './vega/spec-factory';
 
 export interface ChartConfig {
   chartType: ChartType;
@@ -188,9 +192,20 @@ export function ChartRenderer({ chartConfig }: ChartRendererProps) {
     [chartConfig, trimmedCustomColors],
   );
 
+  const useVegaLiteForBar = true;
+  const vegaFactory = useMemo(() => new VegaLiteSpecFactory(), []);
+
   const chartComponent = (() => {
     switch (chartType) {
       case 'bar':
+        if (useVegaLiteForBar) {
+          const spec = vegaFactory.createSpec(modifiedChartConfig);
+          return (
+            <Suspense fallback={<LoadingState />}>
+              <VegaLiteChart spec={spec} />
+            </Suspense>
+          );
+        }
         return (
           <Suspense fallback={<LoadingState />}>
             <BarChart

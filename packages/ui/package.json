@@ -55,6 +55,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.552.0",
     "motion": "^12.23.24",
+    "mustache": "^4.2.0",
     "nanoid": "^5.1.6",
     "radix-ui": "1.4.3",
     "react-markdown": "^10.1.0",
@@ -69,6 +70,8 @@
     "tailwind-merge": "^3.3.1",
     "use-stick-to-bottom": "^1.1.1",
     "vaul": "^1.1.2",
+    "vega-embed": "^6.26.0",
+    "vega-lite": "^5.20.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

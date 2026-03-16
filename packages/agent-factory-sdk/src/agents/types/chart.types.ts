@@ -37,6 +37,8 @@ export const ChartConfigSchema = z.object({
     nameKey: z.string().optional(),
     valueKey: z.string().optional(),
   }),
+  renderEngine: z.enum(['recharts', 'vega-lite']).optional(),
+  vegaLiteSpec: z.unknown().optional(),
 });
 
 export type ChartConfig = z.infer<typeof ChartConfigSchema>;

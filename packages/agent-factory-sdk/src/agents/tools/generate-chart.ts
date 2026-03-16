@@ -5,6 +5,7 @@ import {
   ChartConfigSchema,
   ChartConfigTemplateSchema,
   type ChartType,
+  type ChartConfig,
   type ChartConfigTemplate,
 } from '../types/chart.types';
 import { SELECT_CHART_TYPE_PROMPT } from '../prompts/select-chart-type.prompt';
@@ -108,18 +109,9 @@ export async function generateChartConfig(
  * Main function: Generate chart from query results
  * This is the entry point called by the generateChart tool
  */
-export async function generateChart(input: GenerateChartInput): Promise<{
-  chartType: ChartType;
-  data: Array<Record<string, unknown>>;
-  config: {
-    colors: string[];
-    labels?: Record<string, string>;
-    xKey?: string;
-    yKey?: string;
-    nameKey?: string;
-    valueKey?: string;
-  };
-}> {
+export async function generateChart(
+  input: GenerateChartInput,
+): Promise<ChartConfig> {
   // Step 1: Always select chart type to get reasoning for UI
   // Even if chartType is provided, we still call selectChartType to get the reasoning
   // This ensures the UI always has the selection data to display
@@ -148,6 +140,7 @@ export async function generateChart(input: GenerateChartInput): Promise<{
     title: template.title,
     data,
     config: template.config,
+    renderEngine: 'recharts',
   });
 
   const [firstRow] = chartConfig.data;
