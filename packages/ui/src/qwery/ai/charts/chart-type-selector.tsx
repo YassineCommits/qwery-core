@@ -10,7 +10,17 @@ import {
   Check,
 } from 'lucide-react';
 
-export type ChartType = 'bar' | 'line' | 'pie';
+export type ChartType =
+  | 'bar'
+  | 'line'
+  | 'pie'
+  | 'scatter'
+  | 'histogram'
+  | 'heatmap'
+  | 'stacked_bar'
+  | 'grouped_bar'
+  | 'area'
+  | 'donut';
 
 export interface ChartTypeSelection {
   chartType: ChartType;
@@ -36,6 +46,22 @@ const CHART_TYPE_CARDS: ChartTypeCard[] = [
     bgColor: 'bg-blue-500/10',
   },
   {
+    type: 'grouped_bar',
+    label: 'Grouped Bar',
+    description: 'Compare multiple series per category',
+    icon: BarChart3,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-500/10',
+  },
+  {
+    type: 'stacked_bar',
+    label: 'Stacked Bar',
+    description: 'Show composition per category',
+    icon: BarChart3,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-500/10',
+  },
+  {
     type: 'line',
     label: 'Line Chart',
     description: 'Best for trends over time',
@@ -44,9 +70,49 @@ const CHART_TYPE_CARDS: ChartTypeCard[] = [
     bgColor: 'bg-emerald-500/10',
   },
   {
+    type: 'area',
+    label: 'Area Chart',
+    description: 'Trends with filled area emphasis',
+    icon: TrendingUp,
+    color: 'text-emerald-500',
+    bgColor: 'bg-emerald-500/10',
+  },
+  {
+    type: 'scatter',
+    label: 'Scatter Plot',
+    description: 'Relationship between 2 measures',
+    icon: TrendingUp,
+    color: 'text-emerald-500',
+    bgColor: 'bg-emerald-500/10',
+  },
+  {
+    type: 'histogram',
+    label: 'Histogram',
+    description: 'Distribution of a numeric field',
+    icon: BarChart3,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-500/10',
+  },
+  {
+    type: 'heatmap',
+    label: 'Heatmap',
+    description: '2D intensity across dimensions',
+    icon: BarChart3,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-500/10',
+  },
+  {
     type: 'pie',
     label: 'Pie Chart',
     description: 'Best for part-to-whole',
+    icon: PieChartIcon,
+    color: 'text-amber-500',
+    bgColor: 'bg-amber-500/10',
+  },
+  {
+    type: 'donut',
+    label: 'Donut Chart',
+    description: 'Part-to-whole with better readability',
     icon: PieChartIcon,
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',

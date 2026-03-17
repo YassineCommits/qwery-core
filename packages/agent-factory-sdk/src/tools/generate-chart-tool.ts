@@ -14,7 +14,20 @@ const queryResultsSchema = z.object({
 export const GenerateChartTool = Tool.define('generateChart', {
   description: DESCRIPTION,
   parameters: z.object({
-    chartType: z.enum(['bar', 'line', 'pie']).optional(),
+    chartType: z
+      .enum([
+        'bar',
+        'line',
+        'pie',
+        'scatter',
+        'histogram',
+        'heatmap',
+        'stacked_bar',
+        'grouped_bar',
+        'area',
+        'donut',
+      ])
+      .optional(),
     queryId: z
       .string()
       .optional()

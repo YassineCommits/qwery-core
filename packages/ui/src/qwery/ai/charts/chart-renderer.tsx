@@ -54,6 +54,7 @@ export interface ChartConfig {
     labels?: Record<string, string>;
     xKey?: string;
     yKey?: string;
+    seriesKey?: string;
     nameKey?: string;
     valueKey?: string;
   };
@@ -262,6 +263,20 @@ export function ChartRenderer({ chartConfig }: ChartRendererProps) {
             />
           </Suspense>
         );
+      case 'scatter':
+      case 'histogram':
+      case 'heatmap':
+      case 'stacked_bar':
+      case 'grouped_bar':
+      case 'area':
+      case 'donut': {
+        const spec = vegaFactory.createSpec(modifiedChartConfig);
+        return (
+          <Suspense fallback={<LoadingState />}>
+            <VegaLiteChart spec={spec} />
+          </Suspense>
+        );
+      }
       default:
         return (
           <div className="text-muted-foreground p-4 text-sm">

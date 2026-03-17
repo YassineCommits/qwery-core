@@ -40,6 +40,12 @@ export const CHART_COLORS: Record<ChartType, ChartColorConfig> = {
       },
     ],
   },
+  grouped_bar: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
+  stacked_bar: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
   line: {
     defaultColors: [
       '#8884d8', // Blue
@@ -61,6 +67,18 @@ export const CHART_COLORS: Record<ChartType, ChartColorConfig> = {
       },
     ],
   },
+  area: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
+  scatter: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
+  histogram: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
+  heatmap: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
+  },
   pie: {
     defaultColors: [
       '#8884d8', // Blue
@@ -81,6 +99,9 @@ export const CHART_COLORS: Record<ChartType, ChartColorConfig> = {
         ],
       },
     ],
+  },
+  donut: {
+    defaultColors: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'],
   },
 };
 

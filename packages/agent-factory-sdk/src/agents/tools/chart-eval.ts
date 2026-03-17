@@ -4,6 +4,7 @@ import type { QueryResults } from './generate-chart';
 type ChartEvalConfig = {
   xKey?: string;
   yKey?: string;
+  seriesKey?: string;
   nameKey?: string;
   valueKey?: string;
 };
@@ -50,7 +51,12 @@ export function evaluateChartData(
     return [];
   }
 
-  if (chartType === 'bar' || chartType === 'line') {
+  if (
+    chartType === 'bar' ||
+    chartType === 'line' ||
+    chartType === 'scatter' ||
+    chartType === 'area'
+  ) {
     let xKey = config.xKey;
     let yKey = config.yKey;
 
@@ -74,7 +80,105 @@ export function evaluateChartData(
     });
   }
 
-  if (chartType === 'pie') {
+  if (chartType === 'grouped_bar' || chartType === 'stacked_bar') {
+    let xKey = config.xKey;
+    let yKey = config.yKey;
+    let seriesKey = config.seriesKey;
+
+    if (!xKey || !yKey || !seriesKey) {
+      const guessedX = guessCategoryKey(columns);
+      const guessedY = guessValueKey(columns, guessedX);
+      const guessedSeries =
+        columns.find((key) => {
+          const lower = key.toLowerCase();
+          return (
+            key !== guessedX &&
+            key !== guessedY &&
+            (lower.includes('series') ||
+              lower.includes('group') ||
+              lower.includes('type') ||
+              lower.includes('segment'))
+          );
+        }) ?? columns.find((key) => key !== guessedX && key !== guessedY);
+
+      xKey = xKey ?? guessedX;
+      yKey = yKey ?? guessedY;
+      seriesKey = seriesKey ?? guessedSeries;
+    }
+
+    if (!xKey || !yKey || !seriesKey) {
+      return [];
+    }
+
+    return rows.map((row) => {
+      const record: Record<string, unknown> = {};
+      const typedRow = row as Record<string, unknown>;
+      record[xKey as string] = typedRow[xKey];
+      record[yKey as string] = typedRow[yKey];
+      record[seriesKey as string] = typedRow[seriesKey];
+      return record;
+    });
+  }
+
+  if (chartType === 'histogram') {
+    let xKey = config.xKey;
+    if (!xKey) {
+      xKey =
+        columns.find((key) => {
+          const lower = key.toLowerCase();
+          return (
+            lower.includes('value') ||
+            lower.includes('amount') ||
+            lower.includes('price') ||
+            lower.includes('score') ||
+            lower.includes('age') ||
+            lower.includes('duration')
+          );
+        }) ?? columns[0];
+    }
+
+    if (!xKey) {
+      return [];
+    }
+
+    return rows.map((row) => {
+      const record: Record<string, unknown> = {};
+      const typedRow = row as Record<string, unknown>;
+      record[xKey as string] = typedRow[xKey];
+      return record;
+    });
+  }
+
+  if (chartType === 'heatmap') {
+    let xKey = config.xKey;
+    let yKey = config.yKey;
+    let valueKey = config.valueKey;
+
+    if (!xKey || !yKey || !valueKey) {
+      const guessedX = guessCategoryKey(columns);
+      const guessedY =
+        columns.find((key) => key !== guessedX) ?? columns[1] ?? columns[0];
+      const guessedValue = guessValueKey(columns, guessedY);
+      xKey = xKey ?? guessedX;
+      yKey = yKey ?? guessedY;
+      valueKey = valueKey ?? guessedValue;
+    }
+
+    if (!xKey || !yKey || !valueKey) {
+      return [];
+    }
+
+    return rows.map((row) => {
+      const record: Record<string, unknown> = {};
+      const typedRow = row as Record<string, unknown>;
+      record[xKey as string] = typedRow[xKey];
+      record[yKey as string] = typedRow[yKey];
+      record[valueKey as string] = typedRow[valueKey];
+      return record;
+    });
+  }
+
+  if (chartType === 'pie' || chartType === 'donut') {
     let nameKey = config.nameKey;
     let valueKey = config.valueKey;
 

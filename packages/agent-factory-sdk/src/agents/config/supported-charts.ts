@@ -65,6 +65,58 @@ export const SUPPORTED_CHARTS: Record<ChartType, ChartDefinition> = {
 - yKey: Column name for values (Y-axis)
 - data format: [{ name: "Category", value: number }]`,
   },
+  grouped_bar: {
+    type: 'grouped_bar',
+    description: 'Grouped bar charts compare multiple series per category',
+    indicators: [
+      'Categorical comparisons with multiple groups/series',
+      'Multiple metrics or segments per category',
+      'Need side-by-side bars for each category',
+    ],
+    dataFormat: {
+      description:
+        'Array of objects with category (xKey), series (seriesKey), and value (yKey)',
+      example: [{ category: 'A', series: 'S1', value: 10 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey', 'yKey', 'seriesKey'],
+      keyDescriptions: {
+        xKey: 'Column name for categories (X-axis)',
+        yKey: 'Column name for values (Y-axis)',
+        seriesKey: 'Column name for series/group (color legend)',
+      },
+      dataFormatTemplate:
+        '[{ category: string, series: string, value: number }]',
+    },
+    selectionPrompt: `**grouped_bar**: Best for comparing multiple series per category.\n   - Use when: you have categories plus a series/group column and want side-by-side bars.`,
+    generationPrompt: `**Grouped Bar Chart Requirements:**\n- xKey: category column\n- yKey: value column\n- seriesKey: series/group column\n- data format: [{ <xKey>: string, <seriesKey>: string, <yKey>: number }]`,
+  },
+  stacked_bar: {
+    type: 'stacked_bar',
+    description: 'Stacked bar charts show composition of totals by category',
+    indicators: [
+      'Part-to-whole within each category',
+      'Totals split by segment',
+      'Stacked contributions per category',
+    ],
+    dataFormat: {
+      description:
+        'Array of objects with category (xKey), series (seriesKey), and value (yKey)',
+      example: [{ category: 'A', series: 'S1', value: 10 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey', 'yKey', 'seriesKey'],
+      keyDescriptions: {
+        xKey: 'Column name for categories (X-axis)',
+        yKey: 'Column name for values (Y-axis)',
+        seriesKey: 'Column name for series/segment (stack segments)',
+      },
+      dataFormatTemplate:
+        '[{ category: string, series: string, value: number }]',
+    },
+    selectionPrompt: `**stacked_bar**: Best for composition (parts of total) by category.\n   - Use when: categories have segments that sum to a total and you want stacked bars.`,
+    generationPrompt: `**Stacked Bar Chart Requirements:**\n- xKey: category column\n- yKey: value column\n- seriesKey: segment column\n- data format: [{ <xKey>: string, <seriesKey>: string, <yKey>: number }]`,
+  },
   line: {
     type: 'line',
     description:
@@ -95,6 +147,102 @@ export const SUPPORTED_CHARTS: Record<ChartType, ChartDefinition> = {
 - yKey: Column name for values (Y-axis)
 - data format: [{ name: "Time/Category", value: number }]`,
   },
+  area: {
+    type: 'area',
+    description: 'Area charts show trends over time with filled area emphasis',
+    indicators: [
+      'Time series trends with emphasis on magnitude',
+      'Continuous data over time where area fill is helpful',
+    ],
+    dataFormat: {
+      description:
+        'Array of objects with time/category (xKey) and value (yKey)',
+      example: [{ date: '2024-01', value: 100 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey', 'yKey'],
+      keyDescriptions: {
+        xKey: 'Column name for time/categories (X-axis)',
+        yKey: 'Column name for values (Y-axis)',
+      },
+      dataFormatTemplate: '[{ time: string, value: number }]',
+    },
+    selectionPrompt: `**area**: Best for time series trends with filled area.\n   - Use when: time series + you want emphasis on magnitude.`,
+    generationPrompt: `**Area Chart Requirements:**\n- xKey: time/category column\n- yKey: value column\n- data format: [{ <xKey>: string, <yKey>: number }]`,
+  },
+  scatter: {
+    type: 'scatter',
+    description:
+      'Scatter plots show relationships between two quantitative fields',
+    indicators: [
+      'Two quantitative columns (x and y)',
+      'Correlation/relationship analysis',
+      'Outliers and clusters',
+    ],
+    dataFormat: {
+      description:
+        'Array of objects with xKey (quantitative) and yKey (quantitative)',
+      example: [{ x: 10, y: 20 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey', 'yKey'],
+      keyDescriptions: {
+        xKey: 'Column name for X values (quantitative)',
+        yKey: 'Column name for Y values (quantitative)',
+      },
+      dataFormatTemplate: '[{ x: number, y: number }]',
+    },
+    selectionPrompt: `**scatter**: Best for two quantitative columns.\n   - Use when: relationship/correlation between two numeric measures.`,
+    generationPrompt: `**Scatter Plot Requirements:**\n- xKey: quantitative X column\n- yKey: quantitative Y column\n- data format: [{ <xKey>: number, <yKey>: number }]`,
+  },
+  histogram: {
+    type: 'histogram',
+    description: 'Histograms show distributions of a single quantitative field',
+    indicators: [
+      'Distribution of numeric values',
+      'Single quantitative measure (price, duration, score, age)',
+      'Need binning/counts',
+    ],
+    dataFormat: {
+      description: 'Array of objects with a single measure (xKey)',
+      example: [{ value: 10 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey'],
+      keyDescriptions: {
+        xKey: 'Column name for the numeric field to bin',
+      },
+      dataFormatTemplate: '[{ <xKey>: number }]',
+    },
+    selectionPrompt: `**histogram**: Best for distributions of one numeric field.\n   - Use when: you want to see counts across bins.`,
+    generationPrompt: `**Histogram Requirements:**\n- xKey: numeric field to bin\n- data format: [{ <xKey>: number }]`,
+  },
+  heatmap: {
+    type: 'heatmap',
+    description: 'Heatmaps show intensity across two dimensions',
+    indicators: [
+      'Two dimensions (categories or binned numeric axes)',
+      'A measure to encode by color (count, sum, avg)',
+      '2D matrix-like summaries',
+    ],
+    dataFormat: {
+      description:
+        'Array of objects with xKey, yKey, and valueKey (quantitative intensity)',
+      example: [{ x: 'A', y: 'B', value: 12 }],
+    },
+    requirements: {
+      requiredKeys: ['xKey', 'yKey', 'valueKey'],
+      keyDescriptions: {
+        xKey: 'Column name for X dimension',
+        yKey: 'Column name for Y dimension',
+        valueKey: 'Column name for intensity value (color)',
+      },
+      dataFormatTemplate:
+        '[{ x: string|number, y: string|number, value: number }]',
+    },
+    selectionPrompt: `**heatmap**: Best for 2D intensity patterns.\n   - Use when: two dimensions + a measure for color intensity.`,
+    generationPrompt: `**Heatmap Requirements:**\n- xKey: X dimension\n- yKey: Y dimension\n- valueKey: intensity measure\n- data format: [{ <xKey>: string|number, <yKey>: string|number, <valueKey>: number }]`,
+  },
   pie: {
     type: 'pie',
     description:
@@ -123,6 +271,30 @@ export const SUPPORTED_CHARTS: Record<ChartType, ChartDefinition> = {
 - nameKey: Column name for labels
 - valueKey: Column name for values
 - data format: [{ name: "Label", value: number }]`,
+  },
+  donut: {
+    type: 'donut',
+    description:
+      'Donut charts are like pie charts but with a hole for readability and labels',
+    indicators: [
+      'Proportions or percentages',
+      'Part-to-whole relationships',
+      'Many categories where donut improves readability',
+    ],
+    dataFormat: {
+      description: 'Array of objects with name (nameKey) and value (valueKey)',
+      example: [{ name: 'Category A', value: 100 }],
+    },
+    requirements: {
+      requiredKeys: ['nameKey', 'valueKey'],
+      keyDescriptions: {
+        nameKey: 'Column name for labels',
+        valueKey: 'Column name for values',
+      },
+      dataFormatTemplate: '[{ name: "Label", value: number }]',
+    },
+    selectionPrompt: `**donut**: Best for part-to-whole with improved readability.\n   - Use when: proportions + you want donut style.`,
+    generationPrompt: `**Donut Chart Requirements:**\n- nameKey: label column\n- valueKey: value column\n- data format: [{ <nameKey>: string, <valueKey>: number }]`,
   },
 };
 
