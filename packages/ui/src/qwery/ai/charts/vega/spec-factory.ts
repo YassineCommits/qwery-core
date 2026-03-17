@@ -1,6 +1,6 @@
 import { resolveChartKeys, DEFAULT_CHART_COLORS } from '../chart-utils';
-import type { ChartConfig } from './types';
 import type { VegaLiteSpec } from './types';
+import type { VegaChartInput } from './types';
 import { renderTemplate } from './mustache-engine';
 import {
   BAR_CHART_SPEC_TEMPLATE,
@@ -16,7 +16,7 @@ import {
   STACKED_BAR_SPEC_TEMPLATE,
 } from './templates';
 
-type ChartType = ChartConfig['chartType'];
+type ChartType = VegaChartInput['chartType'];
 
 type PieLikeChartType = 'pie' | 'donut';
 type BarLikeChartType = 'bar' | 'line' | 'area';
@@ -34,7 +34,7 @@ function getColorsOrDefault(colors: string[] | undefined): string[] {
 }
 
 function buildBarLikeSpec(
-  config: ChartConfig,
+  config: VegaChartInput,
   chartType: BarLikeChartType,
 ): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
@@ -90,7 +90,7 @@ function buildBarLikeSpec(
 }
 
 function buildPieSpec(
-  config: ChartConfig & { chartType: PieLikeChartType },
+  config: VegaChartInput & { chartType: PieLikeChartType },
 ): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
   const colors = getColorsOrDefault(rawConfig.colors);
@@ -126,7 +126,7 @@ function buildPieSpec(
   return JSON.parse(rendered) as VegaLiteSpec;
 }
 
-function buildScatterSpec(config: ChartConfig): VegaLiteSpec {
+function buildScatterSpec(config: VegaChartInput): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
   const colors = getColorsOrDefault(rawConfig.colors);
   const labels = rawConfig.labels ?? {};
@@ -164,7 +164,7 @@ function buildScatterSpec(config: ChartConfig): VegaLiteSpec {
   return JSON.parse(renderTemplate(template, context)) as VegaLiteSpec;
 }
 
-function buildHistogramSpec(config: ChartConfig): VegaLiteSpec {
+function buildHistogramSpec(config: VegaChartInput): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
   const colors = getColorsOrDefault(rawConfig.colors);
   const labels = rawConfig.labels ?? {};
@@ -196,7 +196,7 @@ function inferVegaType(value: unknown): 'nominal' | 'quantitative' {
   return typeof value === 'number' ? 'quantitative' : 'nominal';
 }
 
-function buildHeatmapSpec(config: ChartConfig): VegaLiteSpec {
+function buildHeatmapSpec(config: VegaChartInput): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
   const labels = rawConfig.labels ?? {};
 
@@ -229,7 +229,7 @@ function buildHeatmapSpec(config: ChartConfig): VegaLiteSpec {
 }
 
 function buildMultiSeriesBarSpec(
-  config: ChartConfig & { chartType: MultiSeriesBarChartType },
+  config: VegaChartInput & { chartType: MultiSeriesBarChartType },
 ): VegaLiteSpec {
   const { data, title, config: rawConfig } = config;
   const labels = rawConfig.labels ?? {};
@@ -261,7 +261,7 @@ function buildMultiSeriesBarSpec(
 }
 
 export class VegaLiteSpecFactory {
-  createSpec(config: ChartConfig): VegaLiteSpec {
+  createSpec(config: VegaChartInput): VegaLiteSpec {
     const chartType: ChartType = config.chartType;
 
     if (!Array.isArray(config.data) || config.data.length === 0) {
@@ -280,9 +280,9 @@ export class VegaLiteSpecFactory {
       case 'area':
         return buildBarLikeSpec(config, 'area');
       case 'pie':
-        return buildPieSpec(config as ChartConfig & { chartType: 'pie' });
+        return buildPieSpec(config as VegaChartInput & { chartType: 'pie' });
       case 'donut':
-        return buildPieSpec(config as ChartConfig & { chartType: 'donut' });
+        return buildPieSpec(config as VegaChartInput & { chartType: 'donut' });
       case 'scatter':
         return buildScatterSpec(config);
       case 'histogram':
@@ -292,7 +292,9 @@ export class VegaLiteSpecFactory {
       case 'grouped_bar':
       case 'stacked_bar':
         return buildMultiSeriesBarSpec(
-          config as ChartConfig & { chartType: 'grouped_bar' | 'stacked_bar' },
+          config as VegaChartInput & {
+            chartType: 'grouped_bar' | 'stacked_bar';
+          },
         );
       default:
         return {

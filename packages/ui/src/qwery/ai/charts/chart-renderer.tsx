@@ -42,8 +42,10 @@ const VegaLiteChart = lazy(() =>
 );
 
 // Import type only (no runtime import)
-import type { ChartType } from './chart-type-selector';
+import type { ChartType } from './types';
 import { VegaLiteSpecFactory } from './vega/spec-factory';
+import { fromChartRendererConfig } from './vega/adapters/from-chart-renderer';
+import { decideRenderEngine } from './render-engine';
 
 export interface ChartConfig {
   chartType: ChartType;
@@ -193,20 +195,24 @@ export function ChartRenderer({ chartConfig }: ChartRendererProps) {
     [chartConfig, trimmedCustomColors],
   );
 
-  const useVegaLiteForBar = true;
   const vegaFactory = useMemo(() => new VegaLiteSpecFactory(), []);
 
   const chartComponent = (() => {
+    const engine = decideRenderEngine(chartConfig);
+
+    if (engine === 'vega-lite') {
+      const spec = vegaFactory.createSpec(
+        fromChartRendererConfig(modifiedChartConfig),
+      );
+      return (
+        <Suspense fallback={<LoadingState />}>
+          <VegaLiteChart spec={spec} />
+        </Suspense>
+      );
+    }
+
     switch (chartType) {
       case 'bar':
-        if (useVegaLiteForBar) {
-          const spec = vegaFactory.createSpec(modifiedChartConfig);
-          return (
-            <Suspense fallback={<LoadingState />}>
-              <VegaLiteChart spec={spec} />
-            </Suspense>
-          );
-        }
         return (
           <Suspense fallback={<LoadingState />}>
             <BarChart
@@ -263,20 +269,6 @@ export function ChartRenderer({ chartConfig }: ChartRendererProps) {
             />
           </Suspense>
         );
-      case 'scatter':
-      case 'histogram':
-      case 'heatmap':
-      case 'stacked_bar':
-      case 'grouped_bar':
-      case 'area':
-      case 'donut': {
-        const spec = vegaFactory.createSpec(modifiedChartConfig);
-        return (
-          <Suspense fallback={<LoadingState />}>
-            <VegaLiteChart spec={spec} />
-          </Suspense>
-        );
-      }
       default:
         return (
           <div className="text-muted-foreground p-4 text-sm">

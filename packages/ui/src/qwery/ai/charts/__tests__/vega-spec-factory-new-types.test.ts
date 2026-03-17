@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { VegaLiteSpecFactory } from '../vega/spec-factory';
-import type { ChartConfig } from '../vega/types';
+import type { VegaChartInput } from '../vega/types';
 
 describe('VegaLiteSpecFactory (new chart types)', () => {
   const factory = new VegaLiteSpecFactory();
 
   it('builds a scatter spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'scatter',
       title: 'X vs Y',
       data: [
@@ -32,7 +32,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds a histogram spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'histogram',
       title: 'Value distribution',
       data: [{ value: 1 }, { value: 2 }, { value: 2 }, { value: 3 }],
@@ -55,7 +55,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds a heatmap spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'heatmap',
       title: 'Heat',
       data: [
@@ -84,7 +84,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds a grouped_bar spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'grouped_bar',
       title: 'Grouped',
       data: [
@@ -113,7 +113,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds a stacked_bar spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'stacked_bar',
       title: 'Stacked',
       data: [
@@ -140,7 +140,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds an area spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'area',
       title: 'Area',
       data: [
@@ -166,7 +166,7 @@ describe('VegaLiteSpecFactory (new chart types)', () => {
   });
 
   it('builds a donut spec', () => {
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'donut',
       title: 'Donut',
       data: [

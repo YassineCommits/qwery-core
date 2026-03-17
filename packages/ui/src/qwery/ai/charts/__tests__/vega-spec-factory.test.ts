@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { VegaLiteSpecFactory } from '../vega/spec-factory';
-import type { ChartConfig } from '../vega/types';
+import type { VegaChartInput } from '../vega/types';
 
 describe('VegaLiteSpecFactory', () => {
   it('builds a bar chart spec for product/sales example', () => {
     const factory = new VegaLiteSpecFactory();
 
-    const chartConfig: ChartConfig = {
+    const chartConfig: VegaChartInput = {
       chartType: 'bar',
       title: 'Sales per Product',
       data: [

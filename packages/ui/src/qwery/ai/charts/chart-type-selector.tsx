@@ -10,17 +10,8 @@ import {
   Check,
 } from 'lucide-react';
 
-export type ChartType =
-  | 'bar'
-  | 'line'
-  | 'pie'
-  | 'scatter'
-  | 'histogram'
-  | 'heatmap'
-  | 'stacked_bar'
-  | 'grouped_bar'
-  | 'area'
-  | 'donut';
+import type { ChartType } from './types';
+export type { ChartType } from './types';
 
 export interface ChartTypeSelection {
   chartType: ChartType;
