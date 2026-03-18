@@ -33,6 +33,16 @@ export const SelectChartTypeTool = Tool.define('selectChartType', {
       userInput: params.userInput,
     });
     let fullQueryResults = params.queryResults;
+    const lastUserMessage = ctx.messages.findLast((m) => m.role === 'user');
+    const consent = (
+      lastUserMessage?.metadata as { dataAnalysisConsent?: unknown } | undefined
+    )?.dataAnalysisConsent as
+      | { approved?: boolean; limit?: number }
+      | undefined;
+    const analysisConsent =
+      consent && typeof consent.approved === 'boolean'
+        ? { approved: consent.approved, limit: consent.limit }
+        : undefined;
 
     if (!fullQueryResults || (fullQueryResults.rows?.length ?? 0) === 0) {
       const extra = ctx.extra as {
@@ -58,6 +68,7 @@ export const SelectChartTypeTool = Tool.define('selectChartType', {
       fullQueryResults,
       params.sqlQuery ?? '',
       params.userInput ?? '',
+      analysisConsent,
     );
     return result;
   },

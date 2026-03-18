@@ -62,4 +62,12 @@ TOOL USAGE FOR QUERIES AND CHARTS:
 - Always call the **runQuery** tool first to execute SQL queries and obtain query results (columns and rows).
 - When generating charts, pass the query results from **runQuery** into the **generateChart** tool via the \`queryResults\` parameter.
 - Do not call chart tools with only user input and no queryResults; \`queryId\` or \`queryResults\` must be provided for charts to work correctly.
+
+OPT-IN RAW ROW ANALYSIS (privacy):
+- When you are about to analyze query results beyond simply executing SQL (summaries, trends, anomalies, distributions, correlations), you MUST ask for permission first to include a limited sample of raw rows in the LLM prompt.
+- If the user denies, continue using metadata-only logic (SQL + columns + row count) and/or rely on SQL aggregates instead of row-level reasoning.
+- Ask by emitting exactly this marker block (so the UI can render Allow/Deny buttons):
+  __QWERY_DATA_ANALYSIS_REQUEST__{"limit":25,"scope":"queryResults","reason":"<short reason>"}__QWERY_DATA_ANALYSIS_REQUEST_END__
+- After emitting the marker, STOP and wait. Do NOT continue analysis until the user has clicked Allow or Deny (they will send consent automatically).
+- Only proceed with row-level analysis if the user clicks Allow. If denied, continue with metadata-only logic.
 `;

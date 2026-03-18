@@ -20,6 +20,11 @@ Query Results:
 - Columns: {{columnsJson}}
 - Total rows: {{rowCount}}
 - Note: You do NOT see full row-level data. Base your decisions only on the column names, row counts, chart definitions, and business context.
+{{#sampleRowsJson}}
+
+Sample rows (first N):
+{{sampleRowsJson}}
+{{/sampleRowsJson}}
 
 Chart Configuration Guidelines:
 
@@ -111,6 +116,9 @@ export const GENERATE_CHART_CONFIG_PROMPT = (
   },
   sqlQuery: string,
   businessContext?: BusinessContextForPrompt | null,
+  options?: {
+    sampleRowsJson?: string;
+  },
 ) => {
   const chartDef = getChartDefinition(chartType);
   if (!chartDef) {
@@ -152,6 +160,7 @@ export const GENERATE_CHART_CONFIG_PROMPT = (
     sqlQuery,
     columnsJson: JSON.stringify(metadata.columns),
     rowCount: metadata.rowCount,
+    sampleRowsJson: options?.sampleRowsJson,
     chartGenerationPrompt: getChartGenerationPrompt(chartType),
     axesGuidelines: getAxesLabelsPrecisionGuidelines(),
     requiredKeysList: chartDef.requirements.requiredKeys.join(', '),

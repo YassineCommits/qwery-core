@@ -18,6 +18,44 @@ import { getTelemetry } from '../lib/telemetry';
 import { resolveChatDatasources } from '../helpers/chat-helper';
 import { handleDomainException } from '../lib/http-utils';
 
+const DATA_ANALYSIS_CONSENT_START = '__QWERY_DATA_ANALYSIS_CONSENT__';
+const DATA_ANALYSIS_CONSENT_END = '__QWERY_DATA_ANALYSIS_CONSENT_END__';
+
+function extractDataAnalysisConsentFromText(text: string): {
+  cleanedText: string;
+  consent?: { approved: boolean; limit?: number };
+} {
+  const start = text.indexOf(DATA_ANALYSIS_CONSENT_START);
+  if (start === -1) return { cleanedText: text };
+  const jsonStart = start + DATA_ANALYSIS_CONSENT_START.length;
+  const end = text.indexOf(DATA_ANALYSIS_CONSENT_END, jsonStart);
+  if (end === -1) return { cleanedText: text };
+
+  const rawJson = text.slice(jsonStart, end).trim();
+  try {
+    const parsed = JSON.parse(rawJson) as {
+      approved?: unknown;
+      limit?: unknown;
+    };
+    if (typeof parsed?.approved !== 'boolean') {
+      return { cleanedText: text };
+    }
+    const cleanedText = (
+      text.slice(0, start) + text.slice(end + DATA_ANALYSIS_CONSENT_END.length)
+    ).trim();
+    const limit =
+      typeof parsed.limit === 'number' && Number.isFinite(parsed.limit)
+        ? Math.floor(parsed.limit)
+        : undefined;
+    return {
+      cleanedText,
+      consent: { approved: parsed.approved, ...(limit ? { limit } : {}) },
+    };
+  } catch {
+    return { cleanedText: text };
+  }
+}
+
 const chatBodySchema = z.object({
   messages: z.array(z.unknown()),
   model: z.string().optional(),
@@ -98,10 +136,29 @@ export function createChatRoutes() {
               const cleanMetadata = { ...messageMetadata };
               delete (cleanMetadata as Record<string, unknown>).source;
 
+              const textPart = message.parts?.find(
+                (p): p is { type: 'text'; text: string } =>
+                  p.type === 'text' && 'text' in p,
+              );
+              const extracted = textPart
+                ? extractDataAnalysisConsentFromText(textPart.text)
+                : null;
+
               return {
                 ...message,
+                parts: extracted
+                  ? message.parts?.map((part) => {
+                      if (part.type === 'text' && 'text' in part) {
+                        return { ...part, text: extracted.cleanedText };
+                      }
+                      return part;
+                    })
+                  : message.parts,
                 metadata: {
                   ...cleanMetadata,
+                  ...(extracted?.consent
+                    ? { dataAnalysisConsent: extracted.consent }
+                    : {}),
                   promptSource,
                   needSQL,
                   ...(notebookCellType ? { notebookCellType } : {}),
@@ -118,7 +175,10 @@ export function createChatRoutes() {
                   p.type === 'text' && 'text' in p,
               );
               if (textPart) {
-                const text = textPart.text;
+                const extracted = extractDataAnalysisConsentFromText(
+                  textPart.text,
+                );
+                const text = extracted.cleanedText;
                 const guidanceMarker = '__QWERY_SUGGESTION_GUIDANCE__';
                 const guidanceEndMarker = '__QWERY_SUGGESTION_GUIDANCE_END__';
 
@@ -146,8 +206,30 @@ User request: ${cleanText}`;
                         }
                         return part;
                       }),
+                      metadata: {
+                        ...(message.metadata ?? {}),
+                        ...(extracted.consent
+                          ? { dataAnalysisConsent: extracted.consent }
+                          : {}),
+                      },
                     };
                   }
+                }
+
+                if (extracted.consent) {
+                  return {
+                    ...message,
+                    parts: message.parts?.map((part) => {
+                      if (part.type === 'text' && 'text' in part) {
+                        return { ...part, text: extracted.cleanedText };
+                      }
+                      return part;
+                    }),
+                    metadata: {
+                      ...(message.metadata ?? {}),
+                      dataAnalysisConsent: extracted.consent,
+                    },
+                  };
                 }
               }
             }

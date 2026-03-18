@@ -5,6 +5,10 @@ export type SelectChartTypeInput = {
   queryResults: QueryResults;
   sqlQuery: string;
   userInput: string;
+  analysisConsent?: {
+    approved: boolean;
+    limit?: number;
+  };
 };
 
 export type SelectChartTypeOutput = {
@@ -20,6 +24,10 @@ export type GenerateChartConfigTemplateInput = {
   chartType: ChartType;
   queryResults: QueryResults;
   sqlQuery: string;
+  analysisConsent?: {
+    approved: boolean;
+    limit?: number;
+  };
 };
 
 export interface ChartConfigTemplateGeneratorPort {

@@ -44,6 +44,11 @@ Query Results:
 - Columns: {{columnsJson}}
 - Total rows: {{rowCount}}
 - Note: You only see column names and row counts, not full row-level data. Use this metadata to understand structure and types.
+{{#sampleRowsJson}}
+
+Sample rows (first N):
+{{sampleRowsJson}}
+{{/sampleRowsJson}}
 
 **IMPORTANT**: Use the actual SQL query, user input, and query results data provided above to make your selection. Do not say "No SQL query or result data was provided" - the data is provided above.
 
@@ -78,6 +83,9 @@ export const SELECT_CHART_TYPE_PROMPT = (
     rowCount: number;
   },
   businessContext?: BusinessContext | null,
+  options?: {
+    sampleRowsJson?: string;
+  },
 ) => {
   const businessContextForTemplate =
     businessContext && businessContext.entities.length > 0
@@ -105,6 +113,7 @@ export const SELECT_CHART_TYPE_PROMPT = (
     chartTypesUnion: getChartTypesUnionString(),
     columnsJson: JSON.stringify(metadata.columns),
     rowCount: metadata.rowCount,
+    sampleRowsJson: options?.sampleRowsJson,
     businessContext: businessContextForTemplate,
     currentDate: new Date().toISOString(),
   };

@@ -16,6 +16,7 @@ import type {
   SelectChartTypeOutput,
 } from '../ports';
 import { getLogger } from '@qwery/shared/logger';
+import { getDataAnalysisConfig } from '../data-analysis-config';
 
 export class AiSdkChartTypeSelector implements ChartTypeSelectorPort {
   async select(input: SelectChartTypeInput): Promise<SelectChartTypeOutput> {
@@ -28,6 +29,16 @@ export class AiSdkChartTypeSelector implements ChartTypeSelectorPort {
     });
 
     const metadata = buildChartMetadata(input.queryResults);
+    const { enabled, rowLimit } = getDataAnalysisConfig();
+    const sampleRowsJson =
+      enabled && input.analysisConsent?.approved === true
+        ? JSON.stringify(
+            input.queryResults.rows.slice(
+              0,
+              Math.max(1, Math.floor(input.analysisConsent.limit ?? rowLimit)),
+            ),
+          )
+        : undefined;
     const generatePromise = generateObject({
       model: await resolveModel(getDefaultModel()),
       schema: ChartTypeSelectionSchema,
@@ -35,6 +46,8 @@ export class AiSdkChartTypeSelector implements ChartTypeSelectorPort {
         input.userInput,
         input.sqlQuery,
         metadata,
+        undefined,
+        { sampleRowsJson },
       ),
     });
 
@@ -64,6 +77,16 @@ export class AiSdkChartConfigTemplateGenerator
     });
 
     const metadata = buildChartMetadata(input.queryResults);
+    const { enabled, rowLimit } = getDataAnalysisConfig();
+    const sampleRowsJson =
+      enabled && input.analysisConsent?.approved === true
+        ? JSON.stringify(
+            input.queryResults.rows.slice(
+              0,
+              Math.max(1, Math.floor(input.analysisConsent.limit ?? rowLimit)),
+            ),
+          )
+        : undefined;
     const generatePromise = generateObject({
       model: await resolveModel(getDefaultModel()),
       schema: ChartConfigTemplateSchema,
@@ -71,6 +94,8 @@ export class AiSdkChartConfigTemplateGenerator
         input.chartType,
         metadata,
         input.sqlQuery,
+        undefined,
+        { sampleRowsJson },
       ),
     });
 

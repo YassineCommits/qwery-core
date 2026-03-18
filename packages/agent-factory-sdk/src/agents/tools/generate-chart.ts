@@ -21,6 +21,10 @@ export interface GenerateChartInput {
   sqlQuery: string;
   userInput: string;
   chartType?: ChartType; // Optional: if provided, skip selection step
+  analysisConsent?: {
+    approved: boolean;
+    limit?: number;
+  };
 }
 
 const chartTypeSelector = new AiSdkChartTypeSelector();
@@ -35,12 +39,14 @@ export async function selectChartType(
   queryResults: QueryResults,
   sqlQuery: string,
   userInput: string,
+  analysisConsent?: { approved: boolean; limit?: number },
 ): Promise<{ chartType: ChartType; reasoningText: string }> {
   try {
     return await chartTypeSelector.select({
       queryResults,
       sqlQuery,
       userInput,
+      analysisConsent,
     });
   } catch (error) {
     const logger = await getLogger();
@@ -58,12 +64,14 @@ export async function generateChartConfig(
   chartType: ChartType,
   queryResults: QueryResults,
   sqlQuery: string,
+  analysisConsent?: { approved: boolean; limit?: number },
 ): Promise<ChartConfigTemplate> {
   try {
     return await chartConfigTemplateGenerator.generateTemplate({
       chartType,
       queryResults,
       sqlQuery,
+      analysisConsent,
     });
   } catch (error) {
     const logger = await getLogger();
@@ -88,5 +96,6 @@ export async function generateChart(
     sqlQuery: input.sqlQuery,
     userInput: input.userInput,
     chartType: input.chartType,
+    analysisConsent: input.analysisConsent,
   });
 }

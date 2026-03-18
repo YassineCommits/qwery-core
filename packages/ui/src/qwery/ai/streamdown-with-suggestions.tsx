@@ -14,6 +14,12 @@ import {
   preprocessSuggestionsForRendering,
   type SuggestionMetadata,
 } from './utils/suggestion-pattern';
+import {
+  extractDataAnalysisRequests,
+  DATA_ANALYSIS_CONSENT_END,
+  DATA_ANALYSIS_CONSENT_START,
+  type DataAnalysisRequest,
+} from './utils/data-analysis-request';
 
 const QWERY_DATASOURCE_PREFIX = 'qwery-datasource:';
 const BLOCKED_TITLE_PREFIX = 'Blocked URL: ';
@@ -172,7 +178,145 @@ export const StreamdownWithSuggestions = memo(
       [onDatasourceNameClick],
     );
 
-    const preprocessedContent = preprocessSuggestionsForRendering(children);
+    const { text: withRequestPlaceholders, requests } = useMemo(
+      () => extractDataAnalysisRequests(children),
+      [children],
+    );
+
+    const preprocessedContent = preprocessSuggestionsForRendering(
+      withRequestPlaceholders,
+    );
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      // Remove any previous injected request cards
+      container
+        .querySelectorAll('[data-qwery-data-analysis-request]')
+        .forEach((node) => node.parentNode?.removeChild(node));
+
+      if (!sendMessage || requests.length === 0) return;
+
+      const placeholders = Array.from(
+        container.querySelectorAll<HTMLElement>('*'),
+      ).filter((el) =>
+        (el.textContent ?? '').includes(
+          '__QWERY_DATA_ANALYSIS_REQUEST_PLACEHOLDER__',
+        ),
+      );
+
+      const injectIntoElement = (el: HTMLElement) => {
+        const text = el.textContent ?? '';
+        const marker = '__QWERY_DATA_ANALYSIS_REQUEST_PLACEHOLDER__';
+        if (!text.includes(marker)) return;
+
+        const parts = text.split(marker);
+        if (parts.length < 2) return;
+
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(document.createTextNode(parts[0] ?? ''));
+
+        for (let i = 1; i < parts.length; i++) {
+          const rest = parts[i] ?? '';
+          const idxEnd = rest.indexOf('__');
+          if (idxEnd === -1) {
+            fragment.appendChild(document.createTextNode(marker + rest));
+            continue;
+          }
+
+          const indexStr = rest.slice(0, idxEnd);
+          const tail = rest.slice(idxEnd + 2);
+          const reqIndex = Number(indexStr);
+          const req: DataAnalysisRequest | undefined = Number.isFinite(reqIndex)
+            ? requests[reqIndex]
+            : undefined;
+
+          if (req) {
+            const card = document.createElement('div');
+            card.setAttribute(
+              'data-qwery-data-analysis-request',
+              String(reqIndex),
+            );
+            card.className =
+              'my-3 flex w-full max-w-full flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-950/40';
+
+            const title = document.createElement('div');
+            title.className = 'font-medium text-amber-900 dark:text-amber-100';
+            title.textContent = 'Allow analyzing sample rows?';
+
+            const desc = document.createElement('div');
+            desc.className = 'text-amber-900/80 dark:text-amber-100/80';
+            desc.textContent = `This will include the first ${req.limit} rows in the LLM prompt.`;
+
+            const actions = document.createElement('div');
+            actions.className = 'flex items-center justify-end gap-2';
+
+            const deny = document.createElement('button');
+            deny.type = 'button';
+            deny.className =
+              'rounded-md border border-amber-300 px-3 py-1.5 text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:text-amber-100 dark:hover:bg-amber-900/30';
+            deny.textContent = 'Deny';
+
+            const allow = document.createElement('button');
+            allow.type = 'button';
+            allow.className =
+              'rounded-md bg-amber-900 px-3 py-1.5 text-amber-50 hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-300';
+            allow.textContent = 'Allow';
+
+            const sendConsent = (approved: boolean) => {
+              const payload = JSON.stringify({
+                approved,
+                limit: req.limit,
+              });
+              const text = `${DATA_ANALYSIS_CONSENT_START}${payload}${DATA_ANALYSIS_CONSENT_END}${
+                approved
+                  ? `OK, analyze up to ${req.limit} rows.`
+                  : `No, don't analyze my raw rows.`
+              }`;
+              sendMessage({ text }, {});
+              scrollToBottom?.();
+            };
+
+            deny.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              sendConsent(false);
+            });
+            allow.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              sendConsent(true);
+            });
+
+            actions.appendChild(deny);
+            actions.appendChild(allow);
+            card.appendChild(title);
+            card.appendChild(desc);
+            if (req.reason) {
+              const reason = document.createElement('div');
+              reason.className = 'text-amber-900/70 dark:text-amber-100/70';
+              reason.textContent = `Reason: ${req.reason}`;
+              card.appendChild(reason);
+            }
+            card.appendChild(actions);
+            fragment.appendChild(card);
+          } else {
+            fragment.appendChild(
+              document.createTextNode(`${marker}${indexStr}__`),
+            );
+          }
+
+          fragment.appendChild(document.createTextNode(tail));
+        }
+
+        // Replace element content with the fragment; keep it simple (we only support plain text nodes here)
+        el.textContent = '';
+        el.appendChild(fragment);
+      };
+
+      placeholders.forEach(injectIntoElement);
+    }, [children, requests, sendMessage, scrollToBottom]);
 
     return (
       <div

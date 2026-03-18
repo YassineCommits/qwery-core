@@ -14,6 +14,10 @@ export type GenerateChartConfigUseCaseInput = {
   sqlQuery: string;
   userInput: string;
   chartType?: ChartType;
+  analysisConsent?: {
+    approved: boolean;
+    limit?: number;
+  };
 };
 
 export class GenerateChartConfigUseCase {
@@ -31,6 +35,7 @@ export class GenerateChartConfigUseCase {
           queryResults: input.queryResults,
           sqlQuery: input.sqlQuery,
           userInput: input.userInput,
+          analysisConsent: input.analysisConsent,
         });
 
     const chartType = input.chartType ?? selection?.chartType ?? 'bar';
@@ -40,6 +45,7 @@ export class GenerateChartConfigUseCase {
         chartType,
         queryResults: input.queryResults,
         sqlQuery: input.sqlQuery,
+        analysisConsent: input.analysisConsent,
       });
 
     const data = evaluateChartData(
@@ -65,6 +71,7 @@ export class GenerateChartConfigUseCase {
     queryResults: QueryResults;
     sqlQuery: string;
     userInput: string;
+    analysisConsent?: { approved: boolean; limit?: number };
   }): Promise<{ chartType: ChartType; reasoningText: string }> {
     try {
       const result = await this.deps.chartTypeSelector.select(input);

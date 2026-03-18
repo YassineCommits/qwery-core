@@ -40,6 +40,16 @@ export const GenerateChartTool = Tool.define('generateChart', {
   }),
   async execute(params, ctx) {
     let fullQueryResults = params.queryResults;
+    const lastUserMessage = ctx.messages.findLast((m) => m.role === 'user');
+    const consent = (
+      lastUserMessage?.metadata as { dataAnalysisConsent?: unknown } | undefined
+    )?.dataAnalysisConsent as
+      | { approved?: boolean; limit?: number }
+      | undefined;
+    const analysisConsent =
+      consent && typeof consent.approved === 'boolean'
+        ? { approved: consent.approved, limit: consent.limit }
+        : undefined;
 
     if (!fullQueryResults || (fullQueryResults.rows?.length ?? 0) === 0) {
       const extra = ctx.extra as {
@@ -68,6 +78,7 @@ export const GenerateChartTool = Tool.define('generateChart', {
       queryResults: fullQueryResults,
       sqlQuery: params.sqlQuery ?? '',
       userInput: params.userInput ?? '',
+      analysisConsent,
     });
     const generateTime = performance.now() - generateStartTime;
     const totalTime = performance.now() - startTime;
